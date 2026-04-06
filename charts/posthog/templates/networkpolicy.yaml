@@ -1,0 +1,103 @@
+{{- if .Values.networkPolicies.enabled }}
+## Default deny all ingress - each service must explicitly allow traffic
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "posthog.fullname" . }}-default-deny
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress: []
+---
+## Allow ingress controller to reach web, capture, replay-capture, feature-flags, livestream, plugins
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "posthog.fullname" . }}-allow-ingress
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" . | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - web
+          - capture
+          - replay-capture
+          - feature-flags
+          - livestream
+          - plugins
+  policyTypes:
+    - Ingress
+  ingress:
+    - {}  # Allow from any source (ingress controller)
+---
+## Allow PostHog app services to reach infrastructure (PostgreSQL, ClickHouse, Redis, Kafka, etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "posthog.fullname" . }}-allow-infra
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" . | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - postgresql
+          - clickhouse
+          - redis
+          - kafka
+          - zookeeper
+          - minio
+          - seaweedfs
+          - elasticsearch
+          - temporal
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "posthog.selectorLabels" . | nindent 14 }}
+---
+## Allow inter-service communication within PostHog app services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "posthog.fullname" . }}-allow-app-internal
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" . | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - web
+          - worker
+          - plugins
+          - temporal-django-worker
+          - temporal-ui
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "posthog.selectorLabels" . | nindent 14 }}
+{{- end }}

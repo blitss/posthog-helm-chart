@@ -1,0 +1,423 @@
+{{- if .Values.featureFlags.enabled }}
+## ------------------------------------------------------------------
+## Feature Flags service (Rust)
+## ------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-feature-flags
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "feature-flags") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3001
+      targetPort: 3001
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "feature-flags") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-feature-flags
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "feature-flags") | nindent 4 }}
+spec:
+  {{- if not .Values.featureFlags.autoscaling.enabled }}
+  replicas: {{ .Values.featureFlags.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "feature-flags") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "feature-flags") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "featureFlags") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "featureFlags") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "featureFlags") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "featureFlags") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "featureFlags") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "feature-flags") | nindent 6 }}
+      initContainers:
+        - name: download-geoip
+          image: busybox
+          command: ["wget", "-O", "/share/GeoLite2-City.mmdb", {{ ((.Values.featureFlags.geoip).downloadUrl) | default "https://storage.googleapis.com/yt-panel-dev-stuff/GeoIP2-City.mmdb" | quote }}]
+          volumeMounts:
+            - name: geoip-db
+              mountPath: /share
+      containers:
+        - name: feature-flags
+          image: "{{ .Values.featureFlags.image.repository }}:{{ .Values.featureFlags.image.tag }}"
+          imagePullPolicy: {{ .Values.featureFlags.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "featureFlags") | nindent 10 }}
+          ports:
+            - containerPort: 3001
+              name: http
+          env:
+            - name: ADDRESS
+              value: "0.0.0.0:3001"
+            - name: WRITE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.databaseSecretName" . }}
+                  key: {{ include "posthog.databaseSecretKey" . }}
+            - name: READ_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.databaseSecretName" . }}
+                  key: {{ include "posthog.databaseSecretKey" . }}
+            - name: PERSONS_WRITE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.databaseSecretName" . }}
+                  key: {{ include "posthog.databaseSecretKey" . }}
+            - name: PERSONS_READ_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.databaseSecretName" . }}
+                  key: {{ include "posthog.databaseSecretKey" . }}
+            - name: MAXMIND_DB_PATH
+              value: {{ ((.Values.featureFlags.geoip).dbPath) | default "/share/GeoLite2-City.mmdb" | quote }}
+            - name: COOKIELESS_REDIS_HOST
+              value: {{ .Values.externalRedis.url | default (printf "%s-redis" (include "posthog.fullname" .)) | quote }}
+            - name: COOKIELESS_REDIS_PORT
+              value: "6379"
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.featureFlags.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.featureFlags.resources | nindent 12 }}
+          volumeMounts:
+            - name: geoip-db
+              mountPath: /share
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /_readiness
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_readiness
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: geoip-db
+          emptyDir: {}
+{{- end }}
+
+{{- if .Values.propertyDefsRs.enabled }}
+## ------------------------------------------------------------------
+## Property Definitions service (Rust)
+## ------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-property-defs-rs
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "property-defs-rs") | nindent 4 }}
+spec:
+  replicas: {{ .Values.propertyDefsRs.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "property-defs-rs") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "property-defs-rs") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "propertyDefsRs") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "property-defs-rs") | nindent 6 }}
+      containers:
+        - name: property-defs-rs
+          image: "{{ .Values.propertyDefsRs.image.repository }}:{{ .Values.propertyDefsRs.image.tag }}"
+          imagePullPolicy: {{ .Values.propertyDefsRs.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "propertyDefsRs") | nindent 10 }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.propertyDefsRs.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.propertyDefsRs.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "test -d /proc/1"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+{{- end }}
+
+{{- if .Values.livestream.enabled }}
+## ------------------------------------------------------------------
+## Livestream service (Go - WebSocket)
+## ------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-livestream
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "livestream") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "livestream") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-livestream
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "livestream") | nindent 4 }}
+spec:
+  replicas: {{ .Values.livestream.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "livestream") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "livestream") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "livestream") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "livestream") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "livestream") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "livestream") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "livestream") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "livestream") | nindent 6 }}
+      initContainers:
+        - name: download-geoip
+          image: busybox
+          command: ["wget", "-O", "/share/GeoLite2-City.mmdb", "https://storage.googleapis.com/yt-panel-dev-stuff/GeoIP2-City.mmdb"]
+          volumeMounts:
+            - name: geoip-db
+              mountPath: /share
+      containers:
+        - name: livestream
+          image: "{{ .Values.livestream.image.repository }}:{{ .Values.livestream.image.tag }}"
+          imagePullPolicy: {{ .Values.livestream.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "livestream") | nindent 10 }}
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: LIVESTREAM_MMDB_PATH
+              value: "/share/GeoLite2-City.mmdb"
+            - name: LIVESTREAM_CONSUMERS_EVENT_BROKERS
+              value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
+            - name: LIVESTREAM_CONSUMERS_EVENT_TOPIC
+              value: "events_plugin_ingestion"
+            - name: LIVESTREAM_CONSUMERS_EVENT_GROUP_ID
+              value: "livestream"
+            - name: LIVESTREAM_CONSUMERS_EVENT_SECURITY_PROTOCOL
+              value: "PLAINTEXT"
+            - name: LIVESTREAM_CONSUMERS_SESSION_RECORDING_ENABLED
+              value: "false"
+            - name: LIVESTREAM_CONSUMERS_NOTIFICATION_ENABLED
+              value: "false"
+            - name: LIVESTREAM_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: posthog-secret
+            - name: LIVESTREAM_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.databaseSecretName" . }}
+                  key: {{ include "posthog.databaseSecretKey" . }}
+            {{- with .Values.livestream.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.livestream.resources | nindent 12 }}
+          volumeMounts:
+            - name: geoip-db
+              mountPath: /share
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: geoip-db
+          emptyDir: {}
+{{- end }}
+
+{{- if .Values.cymbal.enabled }}
+## ------------------------------------------------------------------
+## Cymbal service (error/exception processing)
+## ------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-cymbal
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cymbal") | nindent 4 }}
+spec:
+  replicas: {{ .Values.cymbal.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cymbal") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cymbal") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "cymbal") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "cymbal") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "cymbal") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "cymbal") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "cymbal") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "cymbal") | nindent 6 }}
+      initContainers:
+        - name: download-geoip
+          image: busybox
+          command: ["wget", "-O", "/share/GeoLite2-City.mmdb", {{ ((.Values.cymbal.geoip).downloadUrl) | default "https://storage.googleapis.com/yt-panel-dev-stuff/GeoIP2-City.mmdb" | quote }}]
+          volumeMounts:
+            - name: geoip-db
+              mountPath: /share
+      containers:
+        - name: cymbal
+          image: "{{ .Values.cymbal.image.repository }}:{{ .Values.cymbal.image.tag }}"
+          imagePullPolicy: {{ .Values.cymbal.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cymbal") | nindent 10 }}
+          env:
+            - name: BIND_HOST
+              value: "0.0.0.0"
+            - name: BIND_PORT
+              value: "3302"
+            - name: KAFKA_CONSUMER_GROUP
+              value: "cymbal"
+            - name: KAFKA_CONSUMER_TOPIC
+              value: "exceptions_ingestion"
+            - name: PERSONS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.databaseSecretName" . }}
+                  key: {{ include "posthog.databaseSecretKey" . }}
+            - name: MAXMIND_DB_PATH
+              value: {{ ((.Values.cymbal.geoip).dbPath) | default "/share/GeoLite2-City.mmdb" | quote }}
+            - name: ISSUE_BUCKETS_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: redis-url
+            - name: RUST_LOG
+              value: "info"
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.cymbal.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.cymbal.resources | nindent 12 }}
+          volumeMounts:
+            - name: geoip-db
+              mountPath: /share
+              readOnly: true
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "test -d /proc/1"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: geoip-db
+          emptyDir: {}
+{{- end }}
+
+{{- if .Values.cyclotronJanitor.enabled }}
+## ------------------------------------------------------------------
+## Cyclotron Janitor (cleanup for Cyclotron job queue)
+## ------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-cyclotron-janitor
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cyclotron-janitor") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cyclotron-janitor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cyclotron-janitor") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "cyclotronJanitor") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "cyclotronJanitor") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "cyclotronJanitor") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "cyclotronJanitor") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "cyclotronJanitor") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "cyclotron-janitor") | nindent 6 }}
+      containers:
+        - name: cyclotron-janitor
+          image: "{{ .Values.cyclotronJanitor.image.repository }}:{{ .Values.cyclotronJanitor.image.tag }}"
+          imagePullPolicy: {{ .Values.cyclotronJanitor.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cyclotronJanitor") | nindent 10 }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.cyclotronJanitor.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.cyclotronJanitor.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "test -d /proc/1"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+{{- end }}

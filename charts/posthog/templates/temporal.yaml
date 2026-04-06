@@ -1,0 +1,202 @@
+{{- if .Values.temporal.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-temporal
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "temporal") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 7233
+      targetPort: 7233
+      protocol: TCP
+      name: grpc
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-temporal
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "temporal") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "temporal") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "temporal") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "temporal") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "temporal") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "temporal") | nindent 6 }}
+      containers:
+        - name: temporal
+          image: "{{ .Values.temporal.server.image.repository }}:{{ .Values.temporal.server.image.tag }}"
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "temporal") | nindent 10 }}
+          ports:
+            - containerPort: 7233
+              name: grpc
+          env:
+            - name: DB
+              value: postgres12
+            {{- if .Values.postgresql.enabled }}
+            - name: POSTGRES_SEEDS
+              value: {{ printf "%s-postgresql" (include "posthog.fullname" .) | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresql.auth.username | default "posthog" | quote }}
+            - name: POSTGRES_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: postgresql-password
+            {{- else }}
+            - name: POSTGRES_SEEDS
+              value: {{ printf "%s-rw" (include "posthog.fullname" .) | quote }}
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.fullname" . }}-app
+                  key: username
+            - name: POSTGRES_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.fullname" . }}-app
+                  key: password
+            {{- end }}
+            - name: DB_PORT
+              value: "5432"
+            - name: DYNAMIC_CONFIG_FILE_PATH
+              value: /etc/temporal/config/dynamicconfig/docker.yaml
+            - name: ENABLE_ES
+              value: "true"
+            - name: ES_SEEDS
+              value: {{ include "posthog.fullname" . }}-elasticsearch
+            - name: ES_VERSION
+              value: "v7"
+          resources:
+            {{- toYaml .Values.temporal.server.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 60
+            periodSeconds: 15
+{{- if .Values.temporal.ui.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-temporal-ui
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "temporal-ui") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal-ui") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-temporal-ui
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "temporal-ui") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal-ui") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal-ui") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "temporal") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      securityContext: {}
+      containers:
+        - name: temporal-ui
+          image: "{{ .Values.temporal.ui.image.repository }}:{{ .Values.temporal.ui.image.tag }}"
+          securityContext: {}
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "{{ include "posthog.fullname" . }}-temporal:7233"
+            - name: TEMPORAL_CORS_ORIGINS
+              value: "http://localhost:3000"
+          resources:
+            {{- toYaml .Values.temporal.ui.resources | nindent 12 }}
+{{- end }}
+---
+## Temporal Django Worker (runs PostHog Temporal workflows)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-temporal-django-worker
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "temporal-django-worker") | nindent 4 }}
+spec:
+  replicas: {{ .Values.temporalDjangoWorker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal-django-worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal-django-worker") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "temporalDjangoWorker") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "temporalDjangoWorker") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "temporalDjangoWorker") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "temporalDjangoWorker") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "temporalDjangoWorker") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "temporal-django-worker") | nindent 6 }}
+      containers:
+        - name: temporal-django-worker
+          image: "{{ .Values.posthog.image.repository }}:{{ .Values.posthog.image.tag }}"
+          imagePullPolicy: {{ .Values.posthog.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "temporalDjangoWorker") | nindent 10 }}
+          command:
+            - ./bin/temporal-django-worker
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.temporalDjangoWorker.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.temporalDjangoWorker.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import os; os.path.exists('/proc/1')"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+{{- end }}

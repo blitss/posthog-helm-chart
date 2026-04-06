@@ -1,0 +1,93 @@
+{{- if .Values.zookeeper.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-zookeeper
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "zookeeper") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 2181
+      targetPort: 2181
+      protocol: TCP
+      name: client
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "zookeeper") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "posthog.fullname" . }}-zookeeper
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "zookeeper") | nindent 4 }}
+spec:
+  serviceName: {{ include "posthog.fullname" . }}-zookeeper
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "zookeeper") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "zookeeper") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "zookeeper") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "zookeeper") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "zookeeper") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "zookeeper") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "zookeeper") | nindent 6 }}
+      containers:
+        - name: zookeeper
+          image: "{{ .Values.zookeeper.image.repository }}:{{ .Values.zookeeper.image.tag }}"
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "zookeeper") | nindent 10 }}
+          ports:
+            - containerPort: 2181
+              name: client
+            - containerPort: 8080
+              name: admin
+          env:
+            - name: ZOO_MY_ID
+              value: "1"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.zookeeper.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /commands/ruok
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 2181
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+  {{- if .Values.zookeeper.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.zookeeper.persistence.storageClass }}
+        storageClassName: {{ .Values.zookeeper.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.zookeeper.persistence.size }}
+  {{- else }}
+      volumes:
+        - name: data
+          emptyDir: {}
+  {{- end }}
+{{- end }}

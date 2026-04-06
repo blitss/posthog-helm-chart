@@ -1,0 +1,276 @@
+{{- $kafkaBrokers := .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) }}
+{{- $redisHost := .Values.externalRedis.url | default (printf "%s-redis" (include "posthog.fullname" .)) }}
+
+{{- if .Values.plugins.enabled }}
+## ------------------------------------------------------------------
+## Ingestion General (events -> ClickHouse pipeline)
+## ------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-ingestion-general
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "ingestion-general") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-general") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-general") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      containers:
+        - name: ingestion-general
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: PLUGIN_SERVER_MODE
+              value: "ingestion-v2-combined"
+            - name: COOKIELESS_REDIS_HOST
+              value: {{ $redisHost | quote }}
+            - name: COOKIELESS_REDIS_PORT
+              value: "6379"
+            - name: CDP_REDIS_HOST
+              value: {{ $redisHost | quote }}
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+---
+## ------------------------------------------------------------------
+## Ingestion Session Replay
+## ------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-ingestion-sessionreplay
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "ingestion-sessionreplay") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-sessionreplay") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-sessionreplay") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      containers:
+        - name: ingestion-sessionreplay
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: PLUGIN_SERVER_MODE
+              value: "recordings-blob-ingestion-v2"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+---
+## ------------------------------------------------------------------
+## Recording API
+## ------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-recording-api
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "recording-api") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6738
+      targetPort: 6738
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "recording-api") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-recording-api
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "recording-api") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "recording-api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "recording-api") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      containers:
+        - name: recording-api
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          ports:
+            - containerPort: 6738
+              name: http
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: PLUGIN_SERVER_MODE
+              value: "recording-api"
+            - name: SESSION_RECORDING_API_REDIS_HOST
+              value: {{ $redisHost | quote }}
+            - name: SESSION_RECORDING_API_REDIS_PORT
+              value: "6379"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+---
+## ------------------------------------------------------------------
+## Ingestion Error Tracking
+## ------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-ingestion-error-tracking
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "ingestion-error-tracking") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-error-tracking") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-error-tracking") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      containers:
+        - name: ingestion-error-tracking
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: PLUGIN_SERVER_MODE
+              value: "ingestion-errortracking"
+            - name: CDP_REDIS_HOST
+              value: {{ $redisHost | quote }}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+---
+## ------------------------------------------------------------------
+## Ingestion Logs
+## ------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-ingestion-logs
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "ingestion-logs") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-logs") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-logs") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      containers:
+        - name: ingestion-logs
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: PLUGIN_SERVER_MODE
+              value: "ingestion-logs"
+            - name: LOGS_REDIS_HOST
+              value: {{ $redisHost | quote }}
+            - name: LOGS_REDIS_PORT
+              value: "6379"
+            - name: LOGS_REDIS_TLS
+              value: "false"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+---
+## ------------------------------------------------------------------
+## Ingestion Traces
+## ------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-ingestion-traces
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "ingestion-traces") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-traces") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "ingestion-traces") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      containers:
+        - name: ingestion-traces
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: PLUGIN_SERVER_MODE
+              value: "ingestion-traces"
+            - name: TRACES_REDIS_HOST
+              value: {{ $redisHost | quote }}
+            - name: TRACES_REDIS_PORT
+              value: "6379"
+            - name: TRACES_REDIS_TLS
+              value: "false"
+            - name: LOGS_REDIS_HOST
+              value: {{ $redisHost | quote }}
+            - name: LOGS_REDIS_PORT
+              value: "6379"
+            - name: LOGS_REDIS_TLS
+              value: "false"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+{{- end }}

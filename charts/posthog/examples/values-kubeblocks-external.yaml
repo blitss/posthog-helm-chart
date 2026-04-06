@@ -1,0 +1,14 @@
+postgresql:
+  enabled: false
+
+ingress:
+  hostname: posthog.example.com
+
+posthog:
+  optOutCapture: true
+
+externalPostgresql:
+  url: postgres://postgres:change-me@posthog-pg-postgresql:5432/posthog
+  personsUrl: postgres://postgres:change-me@posthog-pg-postgresql:5432/posthog
+  cyclotronUrl: postgres://postgres:change-me@posthog-pg-postgresql:5432/cyclotron
+  password: change-me
