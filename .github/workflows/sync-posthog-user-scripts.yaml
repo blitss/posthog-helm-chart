@@ -1,0 +1,57 @@
+name: sync-posthog-user-scripts
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone upstream PostHog user scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tmpdir="$(mktemp -d)"
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/PostHog/posthog.git "${tmpdir}/posthog"
+          git -C "${tmpdir}/posthog" sparse-checkout set posthog/user_scripts
+
+          mkdir -p vendor/posthog
+          rsync -a --delete "${tmpdir}/posthog/posthog/user_scripts/" vendor/posthog/user_scripts/
+          git -C "${tmpdir}/posthog" rev-parse HEAD > vendor/posthog/UPSTREAM_COMMIT
+          git -C "${tmpdir}/posthog" rev-parse --short HEAD > vendor/posthog/UPSTREAM_COMMIT_SHORT
+
+      - name: Detect changes
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- vendor/posthog images/clickhouse/Dockerfile; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Create pull request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: sync posthog user scripts"
+          title: "chore: sync PostHog user scripts"
+          body: |
+            Syncs `posthog/user_scripts` from `PostHog/posthog` into this repo.
+
+            Updated files:
+            - `vendor/posthog/user_scripts`
+            - `vendor/posthog/UPSTREAM_COMMIT`
+            - `vendor/posthog/UPSTREAM_COMMIT_SHORT`
+          branch: chore/sync-posthog-user-scripts
+          delete-branch: true
