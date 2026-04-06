@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   sync:
@@ -34,24 +33,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- vendor/posthog images/clickhouse/Dockerfile; then
+          if git diff --quiet -- vendor/posthog; then
             echo "changed=false" >> "${GITHUB_OUTPUT}"
           else
             echo "changed=true" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Create pull request
+      - name: Commit and push sync
         if: steps.changes.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
-        with:
-          commit-message: "chore: sync posthog user scripts"
-          title: "chore: sync PostHog user scripts"
-          body: |
-            Syncs `posthog/user_scripts` from `PostHog/posthog` into this repo.
-
-            Updated files:
-            - `vendor/posthog/user_scripts`
-            - `vendor/posthog/UPSTREAM_COMMIT`
-            - `vendor/posthog/UPSTREAM_COMMIT_SHORT`
-          branch: chore/sync-posthog-user-scripts
-          delete-branch: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/posthog
+          git commit -m "chore: sync PostHog user scripts"
+          git push origin HEAD:${GITHUB_REF_NAME}
