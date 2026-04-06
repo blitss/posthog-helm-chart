@@ -1,0 +1,79 @@
+apiVersion: apps.kubeblocks.io/v1
+kind: ComponentVersion
+metadata:
+  name: clickhouse
+spec:
+  compatibilityRules:
+    - compDefs:
+        - ^clickhouse-1.*
+      releases:
+        - 25.9.7
+        - 25.4.4
+        - 24.8.3
+        - 22.8.21
+        - 22.3.20
+        - 22.3.18
+    - compDefs:
+        - ^clickhouse-keeper-1.*
+      releases:
+        - 25.9.7
+        - 25.4.4
+        - 24.8.3
+        - 22.8.21
+        - 22.3.20
+        - 22.3.18
+  releases:
+    - name: 25.9.7
+      serviceVersion: 25.9.7
+      images:
+        clickhouse: ghcr.io/blitss/posthog-clickhouse:25.9.7
+        copy-tools: docker.io/apecloud/bash-busybox:1.37.0-musl-curl
+        memberJoin: ghcr.io/blitss/posthog-clickhouse:25.9.7
+        memberLeave: ghcr.io/blitss/posthog-clickhouse:25.9.7
+        role-probe: ghcr.io/blitss/posthog-clickhouse:25.9.7
+        switchover: ghcr.io/blitss/posthog-clickhouse:25.9.7
+    - name: 25.4.4
+      serviceVersion: 25.4.4
+      images:
+        clickhouse: docker.io/apecloud/clickhouse:25.4.4-debian-12-r1
+        copy-tools: docker.io/apecloud/bash-busybox:1.37.0-musl-curl
+        memberJoin: docker.io/apecloud/clickhouse:25.4.4-debian-12-r1
+        memberLeave: docker.io/apecloud/clickhouse:25.4.4-debian-12-r1
+        role-probe: docker.io/apecloud/clickhouse:25.4.4-debian-12-r1
+        switchover: docker.io/apecloud/clickhouse:25.4.4-debian-12-r1
+    - name: 24.8.3
+      serviceVersion: 24.8.3
+      images:
+        clickhouse: docker.io/apecloud/clickhouse:24.8.3-debian-12-r1
+        copy-tools: docker.io/apecloud/bash-busybox:1.37.0-musl-curl
+        memberJoin: docker.io/apecloud/clickhouse:24.8.3-debian-12-r1
+        memberLeave: docker.io/apecloud/clickhouse:24.8.3-debian-12-r1
+        role-probe: docker.io/apecloud/clickhouse:24.8.3-debian-12-r1
+        switchover: docker.io/apecloud/clickhouse:24.8.3-debian-12-r1
+    - name: 22.8.21
+      serviceVersion: 22.8.21
+      images:
+        clickhouse: docker.io/apecloud/clickhouse:22.8.21-debian-11-r33
+        copy-tools: docker.io/apecloud/bash-busybox:1.37.0-musl-curl
+        memberJoin: docker.io/apecloud/clickhouse:22.8.21-debian-11-r33
+        memberLeave: docker.io/apecloud/clickhouse:22.8.21-debian-11-r33
+        role-probe: docker.io/apecloud/clickhouse:22.8.21-debian-11-r33
+        switchover: docker.io/apecloud/clickhouse:22.8.21-debian-11-r33
+    - name: 22.3.20
+      serviceVersion: 22.3.20
+      images:
+        clickhouse: docker.io/apecloud/clickhouse:22.3.20
+        copy-tools: docker.io/apecloud/bash-busybox:1.37.0-musl-curl
+        memberJoin: docker.io/apecloud/clickhouse:22.3.20
+        memberLeave: docker.io/apecloud/clickhouse:22.3.20
+        role-probe: docker.io/apecloud/clickhouse:22.3.20
+        switchover: docker.io/apecloud/clickhouse:22.3.20
+    - name: 22.3.18
+      serviceVersion: 22.3.18
+      images:
+        clickhouse: docker.io/apecloud/clickhouse:22.3.18-debian-11-r3
+        copy-tools: docker.io/apecloud/bash-busybox:1.37.0-musl-curl
+        memberJoin: docker.io/apecloud/clickhouse:22.3.18-debian-11-r3
+        memberLeave: docker.io/apecloud/clickhouse:22.3.18-debian-11-r3
+        role-probe: docker.io/apecloud/clickhouse:22.3.18-debian-11-r3
+        switchover: docker.io/apecloud/clickhouse:22.3.18-debian-11-r3

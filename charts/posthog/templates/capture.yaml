@@ -1,0 +1,339 @@
+{{- if .Values.capture.enabled }}
+## ------------------------------------------------------------------
+## Capture service (Rust - event ingestion)
+## ------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-capture
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "capture") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-capture
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "capture") | nindent 4 }}
+spec:
+  {{- if not .Values.capture.autoscaling.enabled }}
+  replicas: {{ .Values.capture.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "capture") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "capture") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "capture") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "capture") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "capture") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "capture") | nindent 6 }}
+      containers:
+        - name: capture
+          image: "{{ .Values.capture.image.repository }}:{{ .Values.capture.image.tag }}"
+          imagePullPolicy: {{ .Values.capture.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "capture") | nindent 10 }}
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: ADDRESS
+              value: "0.0.0.0:3000"
+            - name: CAPTURE_MODE
+              value: events
+            - name: KAFKA_TOPIC
+              value: "events_plugin_ingestion"
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.capture.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.capture.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /_readiness
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_liveness
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+{{- end }}
+
+{{- if .Values.replayCapture.enabled }}
+## ------------------------------------------------------------------
+## Replay Capture service (Rust - session recording ingestion)
+## ------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-replay-capture
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "replay-capture") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "replay-capture") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-replay-capture
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "replay-capture") | nindent 4 }}
+spec:
+  {{- if not .Values.replayCapture.autoscaling.enabled }}
+  replicas: {{ .Values.replayCapture.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "replay-capture") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "replay-capture") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "replayCapture") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "replayCapture") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "replayCapture") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "replayCapture") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "replayCapture") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "replay-capture") | nindent 6 }}
+      containers:
+        - name: replay-capture
+          image: "{{ .Values.replayCapture.image.repository }}:{{ .Values.replayCapture.image.tag }}"
+          imagePullPolicy: {{ .Values.replayCapture.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "replayCapture") | nindent 10 }}
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: ADDRESS
+              value: "0.0.0.0:3000"
+            - name: CAPTURE_MODE
+              value: recordings
+            - name: KAFKA_TOPIC
+              value: "session_recording_snapshot_item_events"
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.replayCapture.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.replayCapture.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /_readiness
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_liveness
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+{{- end }}
+
+{{- if .Values.captureAi.enabled }}
+## ------------------------------------------------------------------
+## Capture AI service (Rust - AI event ingestion)
+## ------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-capture-ai
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "capture-ai") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture-ai") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-capture-ai
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "capture-ai") | nindent 4 }}
+spec:
+  replicas: {{ .Values.captureAi.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture-ai") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture-ai") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "captureAi") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "captureAi") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "captureAi") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "captureAi") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "captureAi") | nindent 6 }}
+      containers:
+        - name: capture-ai
+          image: "{{ .Values.captureAi.image.repository }}:{{ .Values.captureAi.image.tag }}"
+          imagePullPolicy: {{ .Values.captureAi.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "captureAi") | nindent 10 }}
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: ADDRESS
+              value: "0.0.0.0:3000"
+            - name: CAPTURE_MODE
+              value: events
+            - name: KAFKA_TOPIC
+              value: "events_plugin_ingestion"
+            - name: AI_S3_BUCKET
+              value: "ai-blobs"
+            - name: AI_S3_PREFIX
+              value: "llma/"
+            - name: AI_S3_ENDPOINT
+              value: {{ .Values.externalObjectStorage.endpoint | default (printf "http://%s-minio:9000" (include "posthog.fullname" .)) | quote }}
+            - name: AI_S3_REGION
+              value: "auto"
+            - name: AI_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: object-storage-access-key
+            - name: AI_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: object-storage-secret-key
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.captureAi.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.captureAi.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /_readiness
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_liveness
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+{{- end }}
+
+{{- if .Values.captureLogs.enabled }}
+## ------------------------------------------------------------------
+## Capture Logs service (Rust - OTel logs/traces ingestion)
+## ------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-capture-logs
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "capture-logs") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4318
+      targetPort: 4318
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture-logs") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-capture-logs
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "capture-logs") | nindent 4 }}
+spec:
+  replicas: {{ .Values.captureLogs.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture-logs") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture-logs") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "captureLogs") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "captureLogs") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "captureLogs") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "captureLogs") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "captureLogs") | nindent 6 }}
+      containers:
+        - name: capture-logs
+          image: "{{ .Values.captureLogs.image.repository }}:{{ .Values.captureLogs.image.tag }}"
+          imagePullPolicy: {{ .Values.captureLogs.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "captureLogs") | nindent 10 }}
+          ports:
+            - containerPort: 4318
+              name: http
+          env:
+            - name: BIND_HOST
+              value: "0.0.0.0"
+            - name: BIND_PORT
+              value: "4318"
+            - name: KAFKA_HOSTS
+              value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
+            - name: KAFKA_TOPIC
+              value: "logs_ingestion"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: posthog-secret
+            - name: RUST_LOG
+              value: "info,rdkafka=warn"
+            {{- with .Values.captureLogs.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.captureLogs.resources | nindent 12 }}
+{{- end }}

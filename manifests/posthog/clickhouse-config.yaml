@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: posthog-clickhouse-config
+  namespace: posthog
+data:
+  00_default_overrides.xml: |2
+
+
+    <clickhouse>
+      <listen_host replace="replace">::</listen_host>
+      <http_port replace="replace" from_env="CLICKHOUSE_HTTP_PORT"/>
+      <tcp_port replace="replace" from_env="CLICKHOUSE_TCP_PORT"/>
+      <interserver_http_port replace="replace" from_env="CLICKHOUSE_INTERSERVER_HTTP_PORT"/>
+      <macros>
+        <shard from_env="CURRENT_SHARD_COMPONENT_SHORT_NAME"/>
+        <replica from_env="CURRENT_POD_NAME"/>
+        <layer>posthog-ch</layer>
+        <hostClusterType>online</hostClusterType>
+        <hostClusterRole>data</hostClusterRole>
+      </macros>
+      <default_replica_path>/clickhouse/tables/{layer}/{shard}/{database}/{table}</default_replica_path>
+      <default_replica_name>{replica}</default_replica_name>
+      <logger>
+        <level>information</level>
+        <log>/bitnami/clickhouse/log/clickhouse-server.log</log>
+        <errorlog>/bitnami/clickhouse/log/clickhouse-server.err.log</errorlog>
+        <size>1000M</size>
+        <count>3</count>
+      </logger>
+      <remote_servers>
+        <default>
+          <shard>
+            <internal_replication>true</internal_replication>
+            <replica>
+              <host from_env="CLICKHOUSE_POD_FQDN_LIST"/>
+              <port replace="replace" from_env="CLICKHOUSE_TCP_PORT"/>
+              <user from_env="CLICKHOUSE_ADMIN_USER"></user>
+              <password from_env="CLICKHOUSE_ADMIN_PASSWORD"></password>
+            </replica>
+          </shard>
+        </default>
+        <posthog_migrations>
+          <shard>
+            <internal_replication>true</internal_replication>
+            <replica>
+              <host from_env="CLICKHOUSE_POD_FQDN_LIST"/>
+              <port replace="replace" from_env="CLICKHOUSE_TCP_PORT"/>
+              <user from_env="CLICKHOUSE_ADMIN_USER"></user>
+              <password from_env="CLICKHOUSE_ADMIN_PASSWORD"></password>
+            </replica>
+          </shard>
+        </posthog_migrations>
+        <posthog_single_shard>
+          <shard>
+            <internal_replication>true</internal_replication>
+            <replica>
+              <host from_env="CLICKHOUSE_POD_FQDN_LIST"/>
+              <port replace="replace" from_env="CLICKHOUSE_TCP_PORT"/>
+              <user from_env="CLICKHOUSE_ADMIN_USER"></user>
+              <password from_env="CLICKHOUSE_ADMIN_PASSWORD"></password>
+            </replica>
+          </shard>
+        </posthog_single_shard>
+        <posthog_writable>
+          <shard>
+            <internal_replication>true</internal_replication>
+            <replica>
+              <host from_env="CLICKHOUSE_POD_FQDN_LIST"/>
+              <port replace="replace" from_env="CLICKHOUSE_TCP_PORT"/>
+              <user from_env="CLICKHOUSE_ADMIN_USER"></user>
+              <password from_env="CLICKHOUSE_ADMIN_PASSWORD"></password>
+            </replica>
+          </shard>
+        </posthog_writable>
+        <posthog_primary_replica>
+          <shard>
+            <internal_replication>true</internal_replication>
+            <replica>
+              <host from_env="CLICKHOUSE_POD_FQDN_LIST"/>
+              <port replace="replace" from_env="CLICKHOUSE_TCP_PORT"/>
+              <user from_env="CLICKHOUSE_ADMIN_USER"></user>
+              <password from_env="CLICKHOUSE_ADMIN_PASSWORD"></password>
+            </replica>
+          </shard>
+        </posthog_primary_replica>
+      </remote_servers>
+      <named_collections>
+        <msk_cluster>
+          <kafka_broker_list>posthog-kafka:9092</kafka_broker_list>
+        </msk_cluster>
+        <warpstream_ingestion>
+          <kafka_broker_list>posthog-kafka:9092</kafka_broker_list>
+        </warpstream_ingestion>
+      </named_collections>
+      <zookeeper>
+        <node>
+          <host>posthog-ch-ch-keeper-0.posthog-ch-ch-keeper-headless.posthog.svc.cluster.local</host>
+          <port replace="replace" from_env="CLICKHOUSE_KEEPER_TCP_PORT"/>
+        </node>
+      </zookeeper>
+      <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port replace="replace" from_env="CLICKHOUSE_METRICS_PORT"/>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+      </prometheus>
+      <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <partition_by>event_date</partition_by>
+        <order_by>event_time</order_by>
+        <ttl>event_date + INTERVAL 7 day</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+        <max_size_rows>1048576</max_size_rows>
+        <reserved_size_rows>8192</reserved_size_rows>
+        <buffer_size_rows_flush_threshold>524288</buffer_size_rows_flush_threshold>
+        <flush_on_crash>false</flush_on_crash>
+      </query_log>
+      <user_directories replace="replace">
+        <users_xml>
+          <path>/bitnami/clickhouse/etc/users.d/default/user.xml</path>
+        </users_xml>
+        <replicated>
+          <zookeeper_path>/clickhouse/access</zookeeper_path>
+        </replicated>
+        <local_directory>
+          <path>/bitnami/clickhouse/data/access/</path>
+        </local_directory>
+      </user_directories>
+    </clickhouse>

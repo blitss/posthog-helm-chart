@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: posthog-ch-clickhouse
+  namespace: posthog
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: clickhouse-1.0.3
+    app.kubernetes.io/instance: posthog-ch
+    app.kubernetes.io/managed-by: kubeblocks
+  ports:
+    - name: http-metrics
+      port: 8001
+      protocol: TCP
+      targetPort: http-metrics
+    - name: http
+      port: 8123
+      protocol: TCP
+      targetPort: http
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
+    - name: tcp
+      port: 9000
+      protocol: TCP
+      targetPort: tcp
+    - name: tcp-mysql
+      port: 9004
+      protocol: TCP
+      targetPort: tcp-mysql
+    - name: tcp-postgresql
+      port: 9005
+      protocol: TCP
+      targetPort: tcp-postgresql
+    - name: http-intersrv
+      port: 9009
+      protocol: TCP
+      targetPort: http-intersrv
+    - name: https-intersrv
+      port: 9010
+      protocol: TCP
+      targetPort: https-intersrv
+    - name: tcp-secure
+      port: 9440
+      protocol: TCP
+      targetPort: tcp-secure

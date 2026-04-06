@@ -1,0 +1,66 @@
+---
+apiVersion: apps.kubeblocks.io/v1
+kind: Cluster
+metadata:
+  name: posthog-ch
+  namespace: posthog
+spec:
+  terminationPolicy: WipeOut
+  clusterDef: clickhouse
+  topology: cluster
+  shardings:
+    - name: clickhouse
+      shardingDef: clickhouse
+      shards: 1
+      template:
+        name: clickhouse
+        componentDef: clickhouse-1.0.3
+        configs:
+          - name: clickhouse-tpl
+            configMap:
+              name: posthog-clickhouse-config
+        podUpdatePolicy: PreferInPlace
+        serviceVersion: 25.9.7
+        systemAccounts:
+          - name: admin
+            secretRef:
+              name: posthog-ch-clickhouse-account-admin
+              namespace: posthog
+              password: password
+        replicas: 1
+        resources:
+          requests:
+            cpu: "1"
+            memory: 4Gi
+          limits:
+            cpu: "2"
+            memory: 8Gi
+        volumeClaimTemplates:
+          - name: data
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 50Gi
+  componentSpecs:
+    - name: ch-keeper
+      componentDef: clickhouse-keeper-1.0.3
+      podUpdatePolicy: PreferInPlace
+      replicas: 1
+      serviceVersion: 25.9.7
+      resources:
+        requests:
+          cpu: "250m"
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      volumeClaimTemplates:
+        - name: data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 10Gi

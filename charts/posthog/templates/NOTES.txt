@@ -1,0 +1,55 @@
+=============================================================
+  PostHog has been deployed!
+=============================================================
+
+{{- if .Values.ingress.enabled }}
+
+  Application URL: https://{{ .Values.ingress.hostname }}
+
+  {{- if .Values.ingress.nginx.enabled }}
+  Ingress Controller: NGINX (class: {{ .Values.ingress.nginx.className }})
+  {{- end }}
+  {{- if .Values.ingress.traefik.enabled }}
+  Ingress Controller: Traefik
+  {{- end }}
+{{- else }}
+
+  No ingress is enabled. To access PostHog, run:
+
+    kubectl port-forward svc/{{ include "posthog.fullname" . }}-web 8000:8000
+
+  Then visit: http://localhost:8000
+{{- end }}
+
+-------------------------------------------------------------
+  Infrastructure Components
+-------------------------------------------------------------
+
+  PostgreSQL:    {{ if .Values.postgresql.enabled }}Internal ({{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}){{ else }}External{{ end }}
+  ClickHouse:    {{ if .Values.clickhouse.enabled }}Internal ({{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}){{ else }}External{{ end }}
+  Redis:         {{ if .Values.redis.enabled }}Internal ({{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}){{ else }}External{{ end }}
+  Kafka:         {{ if .Values.kafka.enabled }}Internal (Redpanda {{ .Values.kafka.image.tag }}){{ else }}External{{ end }}
+  Object Store:  {{ if .Values.minio.enabled }}Internal (MinIO){{ else }}External{{ end }}
+  Temporal:      {{ if .Values.temporal.enabled }}Internal{{ else }}External{{ end }}
+
+-------------------------------------------------------------
+  Production Readiness Checklist
+-------------------------------------------------------------
+
+  [ ] Change posthog.secret and posthog.encryptionSaltKeys to strong random values
+      or set existingSecret to reference a pre-created Kubernetes Secret.
+  [ ] Set ingress.hostname to your actual domain.
+  [ ] Change default database passwords (postgresql.auth.password, clickhouse.apiPassword, etc.)
+  [ ] Enable TLS on ingress (ingress.nginx.tls.enabled=true with cert-manager or a TLS secret).
+  [ ] Enable PodDisruptionBudgets for critical services (web.podDisruptionBudget.enabled=true, etc.)
+  [ ] Enable HPA for stateless services (capture.autoscaling.enabled=true, web.autoscaling.enabled=true)
+  [ ] Configure persistent storage classes for production volumes.
+  [ ] Consider using external managed services (RDS, ElastiCache, MSK) for infrastructure.
+{{- if not .Values.networkPolicies.enabled }}
+  [ ] Enable NetworkPolicies for network-level isolation (networkPolicies.enabled=true)
+{{- end }}
+{{- if not .Values.metrics.enabled }}
+  [ ] Enable ServiceMonitors for Prometheus monitoring (metrics.enabled=true)
+{{- end }}
+
+=============================================================

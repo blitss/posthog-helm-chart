@@ -1,0 +1,900 @@
+## ------------------------------------------------------------------
+## PostHog Helm Chart - values.yaml
+## ------------------------------------------------------------------
+
+## Global overrides
+nameOverride: ''
+fullnameOverride: ''
+
+## ------------------------------------------------------------------
+## Global production settings
+## ------------------------------------------------------------------
+global:
+  ## Image pull secrets for private registries
+  imagePullSecrets: []
+  # - name: my-registry-secret
+
+  ## Default security context applied to all pods unless overridden per-component
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+  ## Default container security context applied to all containers unless overridden
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false  # PostHog Django needs writable tmpdir
+    runAsNonRoot: true
+    capabilities:
+      drop:
+      - ALL
+
+  ## Default scheduling constraints applied to all pods unless overridden
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  ## Default pod annotations applied to all pods unless overridden
+  podAnnotations: {}
+
+  ## Extra environment variables injected into all PostHog app containers
+  extraEnv: []
+  # - name: MY_VAR
+  #   value: "my-value"
+
+## ------------------------------------------------------------------
+## ServiceAccount
+## ------------------------------------------------------------------
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+  ## For IRSA (AWS), Workload Identity (GCP), etc.
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/my-role
+
+## ------------------------------------------------------------------
+## PostHog application settings
+## ------------------------------------------------------------------
+posthog:
+  ## The image tag to use for PostHog app services (web, worker, temporal-django-worker)
+  ## PostHog does not publish versioned Docker tags — they use continuous deployment.
+  ## "latest" tracks the main branch. Set pullPolicy: Always to pick up new versions.
+  image:
+    repository: posthog/posthog
+    tag: latest
+    pullPolicy: Always
+  ## Django secret key (auto-generated if empty)
+  secret: ''
+  ## Encryption salt (auto-generated if empty)
+  encryptionSaltKeys: ''
+  ## Set to "true" to disable anonymous telemetry
+  optOutCapture: 'false'
+
+## ------------------------------------------------------------------
+## Existing Secrets support
+## When set, the chart will NOT create its own Secret and will instead
+## reference this existing Kubernetes Secret for all secret values.
+## The Secret must contain these keys:
+##   posthog-secret, encryption-salt-keys, database-url, redis-url,
+##   clickhouse-api-password, clickhouse-app-password,
+##   object-storage-access-key, object-storage-secret-key,
+##   seaweedfs-access-key, seaweedfs-secret-key, postgresql-password
+## ------------------------------------------------------------------
+existingSecret: ''
+
+## ------------------------------------------------------------------
+## Ingress configuration
+## ------------------------------------------------------------------
+ingress:
+  enabled: true
+  ## The hostname PostHog will be served from
+  hostname: posthog.example.com
+
+  ## NGINX Ingress
+  nginx:
+    enabled: true
+    className: nginx
+    annotations: {}
+    tls:
+      enabled: true
+      secretName: ''  # leave empty to use default cluster issuer
+
+  ## Traefik Ingress (legacy, use gateway instead)
+  traefik:
+    enabled: false
+
+  ## Gateway API (recommended with Traefik + cert-manager DNS01)
+  gateway:
+    enabled: false
+    gatewayName: REDACTED_MIRROR_HOST-gateway
+    gatewayNamespace: traefik
+    listenerName: posthog-https
+
+## ------------------------------------------------------------------
+## PostgreSQL
+## ------------------------------------------------------------------
+postgresql:
+  ## Set to false to use an external PostgreSQL (e.g. CNPG, RDS, Azure Flexible Server)
+  enabled: true
+  image:
+    repository: postgres
+    tag: 15.12-alpine
+  auth:
+    username: posthog
+    password: posthog
+    database: posthog
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ''
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+  ## Per-component overrides (set to {} to use global defaults)
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999  # postgres user
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## External PostgreSQL (used when postgresql.enabled=false)
+externalPostgresql:
+  ## Full connection URL: postgres://user:pass@host:port/db
+  url: ''
+  ## Optional override for the Persons DB URL. Defaults to `url` when empty.
+  personsUrl: ''
+  ## Optional override for the Cyclotron DB URL.
+  cyclotronUrl: ''
+  ## Secret-backed alternative to inline URLs for external Postgres.
+  secretName: ''
+  uriKey: uri
+  personsUriKey: persons-uri
+  cyclotronUriKey: cyclotron-uri
+  usernameKey: username
+  passwordKey: password
+  ## Password for external PostgreSQL (used by Temporal and other consumers
+  ## that need the password separately from the full URL)
+  password: ''
+
+## ------------------------------------------------------------------
+## ClickHouse
+## ------------------------------------------------------------------
+clickhouse:
+  ## Set to false to use an external ClickHouse
+  enabled: false
+  image:
+    repository: clickhouse/clickhouse-server
+    tag: 25.12.5.44
+  database: posthog
+  secure: false
+  verify: false
+  apiUser: api
+  apiPassword: apipass
+  appUser: app
+  appPassword: apppass
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ''
+  resources:
+    requests:
+      cpu: '1'
+      memory: 4Gi
+    limits:
+      memory: 8Gi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101  # clickhouse user
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## External ClickHouse (used when clickhouse.enabled=false)
+externalClickhouse:
+  host: posthog-ch-clickhouse
+  user: admin
+  apiUser: admin
+  appUser: admin
+  cluster: default
+  migrationsCluster: default
+  singleShardCluster: default
+  writableCluster: default
+  primaryReplicaCluster: default
+  logsCluster: default
+  logsDatabase: default
+  logsPort: 9000
+  satelliteClusters: ''
+  secretName: posthog-ch-clickhouse-account-admin
+  secretPasswordKey: password
+  createDatabase: true
+  # By default, external ClickHouse reuses one credential for API, APP, and generic users.
+
+## ------------------------------------------------------------------
+## Redis
+## ------------------------------------------------------------------
+redis:
+  ## Set to false to use an external Redis (e.g. Dragonfly, ElastiCache, Azure Cache)
+  enabled: true
+  image:
+    repository: redis
+    tag: 7.2-alpine
+  maxmemory: 200mb
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ''
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999  # redis user
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## External Redis (used when redis.enabled=false)
+externalRedis:
+  ## Full URL: redis://[:password@]host:port/
+  url: ''
+
+## ------------------------------------------------------------------
+## Kafka (Redpanda)
+## ------------------------------------------------------------------
+kafka:
+  ## Set to false to use an external Kafka
+  enabled: true
+  image:
+    repository: docker.redpanda.com/redpandadata/redpanda
+    tag: v25.1.9
+  ## Enable developer mode (disables fsync, reduces durability guarantees).
+  ## Only set to true for local/CI environments — NEVER in production.
+  developerMode: false
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ''
+  logRetentionMs: '3600000'
+  logRetentionHours: '1'
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101  # redpanda user
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## External Kafka (used when kafka.enabled=false)
+externalKafka:
+  brokers: ''  # e.g. "kafka-1:9092,kafka-2:9092"
+
+## ------------------------------------------------------------------
+## ZooKeeper (for ClickHouse coordination)
+## ------------------------------------------------------------------
+zookeeper:
+  enabled: false
+  image:
+    repository: zookeeper
+    tag: 3.7.0
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ''
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## ------------------------------------------------------------------
+## MinIO (S3-compatible object storage)
+## ------------------------------------------------------------------
+minio:
+  ## Set to false to use external object storage (e.g. Azure Blob, AWS S3, GCS)
+  enabled: true
+  image:
+    repository: minio/minio
+    tag: RELEASE.2025-04-22T22-12-26Z
+  accessKey: object_storage_root_user
+  secretKey: object_storage_root_password
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ''
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## External object storage (used when minio.enabled=false)
+externalObjectStorage:
+  ## S3-compatible endpoint: https://my-bucket.s3.amazonaws.com
+  endpoint: ''
+  accessKey: ''
+  secretKey: ''
+
+## General object storage toggle
+objectStorage:
+  enabled: true
+
+## ------------------------------------------------------------------
+## SeaweedFS (session recordings v2 storage)
+## ------------------------------------------------------------------
+seaweedfs:
+  ## Set to false to use external S3-compatible storage for session recordings
+  enabled: true
+  image:
+    repository: chrislusf/seaweedfs
+    tag: '4.03'
+  accessKey: any
+  secretKey: any
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ''
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## External SeaweedFS / S3-compatible storage (used when seaweedfs.enabled=false)
+externalSeaweedfs:
+  endpoint: ''
+  accessKey: ''
+  secretKey: ''
+
+## ------------------------------------------------------------------
+## Elasticsearch (for Temporal)
+## ------------------------------------------------------------------
+elasticsearch:
+  enabled: true
+  image:
+    repository: elasticsearch
+    tag: 7.17.28
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ''
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## ------------------------------------------------------------------
+## Temporal (workflow orchestration)
+## ------------------------------------------------------------------
+temporal:
+  enabled: true
+  server:
+    image:
+      repository: temporalio/auto-setup
+      tag: 1.20.0
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+  adminTools:
+    image:
+      repository: temporalio/admin-tools
+      tag: 1.20.0
+  ui:
+    enabled: true
+    image:
+      repository: temporalio/ui
+      tag: 2.31.2
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+## External Temporal (used when temporal.enabled=false)
+externalTemporal:
+  host: ''
+
+## ------------------------------------------------------------------
+## PostHog Core Services
+## ------------------------------------------------------------------
+
+web:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+  granian:
+    enabled: true
+    workers: 2
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  sidecarContainers: []
+  ## HPA settings
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  ## PDB settings
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+    # maxUnavailable: 1
+
+worker:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  sidecarContainers: []
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+plugins:
+  enabled: true
+  image:
+    repository: posthog/posthog-node
+    tag: latest
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  sidecarContainers: []
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+capture:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/capture
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  ## GeoIP database configuration
+  ## The feature-flags image does NOT include GeoLite2-City.mmdb.
+  ## You must provide it via a volume mount for GeoIP to work.
+  geoip:
+    dbPath: /share/GeoLite2-City.mmdb
+    ## Volume mount to provide the GeoIP database file.
+    ## Example using a PVC:
+    ##   volumeMount:
+    ##     persistentVolumeClaim:
+    ##       claimName: geoip-db
+    volumeMount: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+replayCapture:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/capture
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+captureAi:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/capture
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+
+captureLogs:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/capture-logs
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+
+featureFlags:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/feature-flags
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+propertyDefsRs:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/property-defs-rs
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+
+livestream:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/livestream
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+
+cymbal:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/cymbal
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  ## GeoIP database configuration
+  ## The cymbal image does NOT include GeoLite2-City.mmdb.
+  ## You must provide it via a volume mount for GeoIP to work.
+  geoip:
+    dbPath: /share/GeoLite2-City.mmdb
+    ## Volume mount to provide the GeoIP database file.
+    ## Example using a PVC:
+    ##   volumeMount:
+    ##     persistentVolumeClaim:
+    ##       claimName: geoip-db
+    volumeMount: {}
+
+cyclotronJanitor:
+  enabled: true
+  image:
+    repository: ghcr.io/posthog/posthog/cyclotron-janitor
+    tag: master
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+
+temporalDjangoWorker:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+## ------------------------------------------------------------------
+## Init Jobs
+## ------------------------------------------------------------------
+migrate:
+  ## Run Django migrations on install/upgrade
+  enabled: true
+
+kafkaInit:
+  ## Create required Kafka topics on install
+  enabled: true
+  topics:
+  - clickhouse_events_json
+  - events_plugin_ingestion
+  - events_plugin_ingestion_overflow
+  - events_plugin_ingestion_historical
+  - exceptions_ingestion
+  - session_recording_snapshot_item_events
+  - session_recording_snapshot_item_overflow
+  - clickhouse_app_metrics2
+  - heatmaps_ingestion
+  - logs_ingestion
+  - error_tracking_events
+
+asyncMigrationsCheck:
+  enabled: true
+
+## ------------------------------------------------------------------
+## Network Policies
+## ------------------------------------------------------------------
+networkPolicies:
+  enabled: false
+
+## ------------------------------------------------------------------
+## Prometheus Monitoring
+## ------------------------------------------------------------------
+metrics:
+  ## Enable ServiceMonitor/PodMonitor creation (requires prometheus-operator CRDs)
+  enabled: false
+  serviceMonitor:
+    ## Additional labels for ServiceMonitor (e.g. release: kube-prometheus-stack)
+    additionalLabels: {}
+    ## Scrape interval
+    interval: 30s
+    ## Scrape timeout
+    scrapeTimeout: 10s

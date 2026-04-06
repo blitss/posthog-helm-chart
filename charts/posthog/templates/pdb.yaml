@@ -1,0 +1,133 @@
+{{- if .Values.web.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-web
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "web") | nindent 4 }}
+spec:
+  {{- if .Values.web.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.web.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.web.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.web.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+{{- end }}
+{{- if .Values.worker.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-worker
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  {{- if .Values.worker.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.worker.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.worker.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.worker.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+{{- end }}
+{{- if .Values.plugins.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-plugins
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "plugins") | nindent 4 }}
+spec:
+  {{- if .Values.plugins.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.plugins.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.plugins.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.plugins.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "plugins") | nindent 6 }}
+{{- end }}
+{{- if .Values.capture.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-capture
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "capture") | nindent 4 }}
+spec:
+  {{- if .Values.capture.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.capture.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.capture.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.capture.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture") | nindent 6 }}
+{{- end }}
+{{- if .Values.replayCapture.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-replay-capture
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "replay-capture") | nindent 4 }}
+spec:
+  {{- if .Values.replayCapture.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.replayCapture.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.replayCapture.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.replayCapture.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "replay-capture") | nindent 6 }}
+{{- end }}
+{{- if .Values.featureFlags.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-feature-flags
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "feature-flags") | nindent 4 }}
+spec:
+  {{- if .Values.featureFlags.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.featureFlags.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.featureFlags.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.featureFlags.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "feature-flags") | nindent 6 }}
+{{- end }}
+{{- if .Values.temporalDjangoWorker.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-temporal-django-worker
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "temporal-django-worker") | nindent 4 }}
+spec:
+  {{- if .Values.temporalDjangoWorker.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.temporalDjangoWorker.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.temporalDjangoWorker.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.temporalDjangoWorker.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal-django-worker") | nindent 6 }}
+{{- end }}

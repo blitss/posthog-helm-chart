@@ -1,0 +1,198 @@
+{{- if .Values.web.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posthog.fullname" . }}-web
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "web") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posthog.fullname" . }}-web
+  minReplicas: {{ .Values.web.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.web.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.web.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.web.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.web.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.web.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+{{- if .Values.worker.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posthog.fullname" . }}-worker
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posthog.fullname" . }}-worker
+  minReplicas: {{ .Values.worker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.worker.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.worker.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.worker.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.worker.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.worker.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+{{- if .Values.plugins.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posthog.fullname" . }}-plugins
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "plugins") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posthog.fullname" . }}-plugins
+  minReplicas: {{ .Values.plugins.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.plugins.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.plugins.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.plugins.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.plugins.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.plugins.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+{{- if .Values.capture.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posthog.fullname" . }}-capture
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "capture") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posthog.fullname" . }}-capture
+  minReplicas: {{ .Values.capture.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.capture.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.capture.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.capture.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.capture.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.capture.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+{{- if .Values.replayCapture.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posthog.fullname" . }}-replay-capture
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "replay-capture") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posthog.fullname" . }}-replay-capture
+  minReplicas: {{ .Values.replayCapture.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.replayCapture.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.replayCapture.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.replayCapture.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.replayCapture.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.replayCapture.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+{{- if .Values.featureFlags.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posthog.fullname" . }}-feature-flags
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "feature-flags") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posthog.fullname" . }}-feature-flags
+  minReplicas: {{ .Values.featureFlags.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.featureFlags.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.featureFlags.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.featureFlags.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.featureFlags.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.featureFlags.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
