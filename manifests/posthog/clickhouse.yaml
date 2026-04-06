@@ -21,12 +21,6 @@ spec:
               name: posthog-clickhouse-config
         podUpdatePolicy: PreferInPlace
         serviceVersion: 25.9.7
-        systemAccounts:
-          - name: admin
-            secretRef:
-              name: posthog-ch-clickhouse-account-admin
-              namespace: posthog
-              password: password
         replicas: 1
         resources:
           requests:

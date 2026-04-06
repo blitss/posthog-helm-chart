@@ -160,7 +160,14 @@ externalPostgresql:
   ## Optional override for the Cyclotron DB URL.
   cyclotronUrl: ''
   ## Secret-backed alternative to inline URLs for external Postgres.
+  ## When `host` is set, the chart will build connection URLs from this
+  ## credential secret instead of expecting prebuilt URI keys.
   secretName: ''
+  host: ''
+  port: 5432
+  database: posthog
+  personsDatabase: ''
+  cyclotronDatabase: cyclotron
   uriKey: uri
   personsUriKey: persons-uri
   cyclotronUriKey: cyclotron-uri

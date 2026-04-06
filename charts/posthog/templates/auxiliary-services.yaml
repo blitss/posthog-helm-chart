@@ -64,6 +64,17 @@ spec:
           env:
             - name: ADDRESS
               value: "0.0.0.0:3001"
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+            - name: WRITE_DATABASE_URL
+              value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.database | default "posthog")) | quote }}
+            - name: READ_DATABASE_URL
+              value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.database | default "posthog")) | quote }}
+            - name: PERSONS_WRITE_DATABASE_URL
+              value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
+            - name: PERSONS_READ_DATABASE_URL
+              value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
+            {{- else }}
             - name: WRITE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -84,13 +95,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "posthog.databaseSecretName" . }}
                   key: {{ include "posthog.databaseSecretKey" . }}
+            {{- end }}
             - name: MAXMIND_DB_PATH
               value: {{ ((.Values.featureFlags.geoip).dbPath) | default "/share/GeoLite2-City.mmdb" | quote }}
             - name: COOKIELESS_REDIS_HOST
               value: {{ .Values.externalRedis.url | default (printf "%s-redis" (include "posthog.fullname" .)) | quote }}
             - name: COOKIELESS_REDIS_PORT
               value: "6379"
-            {{- include "posthog.commonEnv" . | nindent 12 }}
             {{- with .Values.featureFlags.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -251,11 +262,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "posthog.secretName" . }}
                   key: posthog-secret
+            {{- if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+            - name: LIVESTREAM_POSTGRES_URL
+              value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.database | default "posthog")) | quote }}
+            {{- else }}
             - name: LIVESTREAM_POSTGRES_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ include "posthog.databaseSecretName" . }}
                   key: {{ include "posthog.databaseSecretKey" . }}
+            {{- end }}
             {{- with .Values.livestream.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -333,11 +349,17 @@ spec:
               value: "cymbal"
             - name: KAFKA_CONSUMER_TOPIC
               value: "exceptions_ingestion"
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+            - name: PERSONS_URL
+              value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
+            {{- else }}
             - name: PERSONS_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ include "posthog.databaseSecretName" . }}
                   key: {{ include "posthog.databaseSecretKey" . }}
+            {{- end }}
             - name: MAXMIND_DB_PATH
               value: {{ ((.Values.cymbal.geoip).dbPath) | default "/share/GeoLite2-City.mmdb" | quote }}
             - name: ISSUE_BUCKETS_REDIS_URL
@@ -347,7 +369,6 @@ spec:
                   key: redis-url
             - name: RUST_LOG
               value: "info"
-            {{- include "posthog.commonEnv" . | nindent 12 }}
             {{- with .Values.cymbal.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

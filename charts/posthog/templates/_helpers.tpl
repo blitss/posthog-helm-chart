@@ -186,7 +186,7 @@ Database secret name - returns the secret that contains the database URL
 {{- define "posthog.databaseSecretName" -}}
 {{- if .Values.postgresql.enabled -}}
 {{ include "posthog.secretName" . }}
-{{- else if .Values.externalPostgresql.secretName -}}
+{{- else if and .Values.externalPostgresql.secretName (not .Values.externalPostgresql.host) -}}
 {{ .Values.externalPostgresql.secretName }}
 {{- else -}}
 {{ include "posthog.fullname" . }}-app
@@ -199,11 +199,48 @@ Database secret key - returns the key in the secret that contains the database U
 {{- define "posthog.databaseSecretKey" -}}
 {{- if .Values.postgresql.enabled -}}
 database-url
-{{- else if .Values.externalPostgresql.secretName -}}
+{{- else if and .Values.externalPostgresql.secretName (not .Values.externalPostgresql.host) -}}
 {{ .Values.externalPostgresql.uriKey | default "uri" }}
 {{- else -}}
 uri
 {{- end -}}
+{{- end }}
+
+{{/*
+Whether external Postgres URLs should be assembled from a generated credential secret
+*/}}
+{{- define "posthog.externalPostgresqlUseCredentialSecret" -}}
+{{- if and (not .Values.postgresql.enabled) .Values.externalPostgresql.secretName .Values.externalPostgresql.host -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+Shared external Postgres credential env vars
+*/}}
+{{- define "posthog.externalPostgresqlCredentialEnv" -}}
+{{- if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+- name: _POSTHOG_PG_USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalPostgresql.secretName | quote }}
+      key: {{ .Values.externalPostgresql.usernameKey | default "username" | quote }}
+- name: _POSTHOG_PG_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalPostgresql.secretName | quote }}
+      key: {{ .Values.externalPostgresql.passwordKey | default "password" | quote }}
+{{- end }}
+{{- end }}
+
+{{/*
+Builds a postgres URL from the generated credential secret
+Call with dict "root" . "database" "<db-name>"
+*/}}
+{{- define "posthog.externalPostgresqlUrlValue" -}}
+{{- $root := .root -}}
+{{- $database := .database -}}
+{{ printf "postgres://$(_POSTHOG_PG_USER):$(_POSTHOG_PG_PASSWORD)@%s:%v/%s" $root.Values.externalPostgresql.host ($root.Values.externalPostgresql.port | default 5432) $database }}
 {{- end }}
 
 {{/*
@@ -220,6 +257,7 @@ Common environment variables shared across PostHog application services
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: encryption-salt-keys
+{{- include "posthog.externalPostgresqlCredentialEnv" . }}
 {{- if .Values.postgresql.enabled }}
 - name: DATABASE_URL
   valueFrom:
@@ -229,6 +267,9 @@ Common environment variables shared across PostHog application services
 {{- else if .Values.externalPostgresql.url }}
 - name: DATABASE_URL
   value: {{ .Values.externalPostgresql.url | quote }}
+{{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+- name: DATABASE_URL
+  value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.database | default "posthog")) | quote }}
 {{- else if .Values.externalPostgresql.secretName }}
 - name: DATABASE_URL
   valueFrom:
@@ -411,6 +452,9 @@ Common environment variables shared across PostHog application services
 {{- else if .Values.externalPostgresql.cyclotronUrl }}
 - name: CYCLOTRON_DATABASE_URL
   value: {{ .Values.externalPostgresql.cyclotronUrl | quote }}
+{{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+- name: CYCLOTRON_DATABASE_URL
+  value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.cyclotronDatabase | default "cyclotron")) | quote }}
 {{- else if .Values.externalPostgresql.secretName }}
 - name: CYCLOTRON_DATABASE_URL
   valueFrom:
@@ -443,6 +487,9 @@ Common environment variables shared across PostHog application services
 {{- else if .Values.externalPostgresql.url }}
 - name: PERSONS_DATABASE_URL
   value: {{ .Values.externalPostgresql.url | quote }}
+{{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+- name: PERSONS_DATABASE_URL
+  value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
 {{- else if .Values.externalPostgresql.secretName }}
 - name: PERSONS_DATABASE_URL
   valueFrom:

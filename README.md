@@ -41,7 +41,7 @@ That second apply now does all of:
 
 - creates the `posthog` namespace
 - provisions ClickHouse and PostgreSQL clusters
-- applies fixed credentials/secrets used by the app
+- relies on KubeBlocks-generated account secrets for ClickHouse and PostgreSQL
 - bootstraps the `posthog` and `cyclotron` databases
 - creates a Flux `OCIRepository` for the chart
 - creates a Flux `HelmRelease` that deploys PostHog from GHCR OCI
@@ -49,11 +49,7 @@ That second apply now does all of:
 3. Adjust the example values file:
 
 - set `ingress.hostname`
-- set `externalPostgresql.url`
-- set `externalPostgresql.personsUrl`
-- set `externalPostgresql.cyclotronUrl`
-- set `externalPostgresql.password`
-- replace `manifests/posthog/clickhouse-admin-secret.example.yaml` before applying if you change the default ClickHouse admin secret
+- if you rename the KubeBlocks clusters, update the generated secret references in `manifests/posthog/release.yaml`
 
 ## Notes
 
@@ -65,6 +61,7 @@ That second apply now does all of:
   - `images.memberJoin`, `images.memberLeave`, `images.role-probe`, and `images.switchover` control the Keeper kbagent/action image path.
   - The live KubeBlocks Keeper main `clickhouse` container still uses the addon default `apecloud/clickhouse` image unless you customize the addon/component-definition layer further.
 - The ClickHouse Dockerfile no longer depends on `posthog/posthog`; it copies vendored files from `vendor/posthog/user_scripts` and uses `latest_user_defined_function.xml` from that tree.
-- `clickhouse-admin-secret.example.yaml` is a placeholder. Replace `change-me` before applying.
-- `postgres-account-secret.example.yaml` and `postgres-app-secret.example.yaml` are also placeholders. Replace `change-me` before applying.
+- KubeBlocks generates the credential secrets used by the bundle.
+  - ClickHouse admin secret follows the standard pattern `<cluster>-<component>-account-admin`, which is `posthog-ch-clickhouse-account-admin` in the example.
+  - PostgreSQL postgres superuser secret follows `<cluster>-<component>-account-postgres`, which is `posthog-pg-postgresql-account-postgres` in the example.
 - `release.yaml` currently uses `posthog.example.com` as the ingress host. Change it before applying if you want a real hostname.

@@ -8,7 +8,11 @@ posthog:
   optOutCapture: true
 
 externalPostgresql:
-  url: postgres://postgres:change-me@posthog-pg-postgresql:5432/posthog
-  personsUrl: postgres://postgres:change-me@posthog-pg-postgresql:5432/posthog
-  cyclotronUrl: postgres://postgres:change-me@posthog-pg-postgresql:5432/cyclotron
-  password: change-me
+  host: posthog-pg-postgresql
+  port: 5432
+  database: posthog
+  personsDatabase: posthog
+  cyclotronDatabase: cyclotron
+  secretName: posthog-pg-postgresql-account-postgres
+  usernameKey: username
+  passwordKey: password
