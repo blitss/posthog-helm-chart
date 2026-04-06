@@ -3,7 +3,12 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - clickhouse-admin-secret.example.yaml
+  - postgres-account-secret.example.yaml
+  - postgres-app-secret.example.yaml
   - clickhouse-config.yaml
   - clickhouse.yaml
   - clickhouse-service.yaml
   - postgres-kubeblocks.yaml
+  - postgres-bootstrap-job.yaml
+  - ocirepository.yaml
+  - release.yaml

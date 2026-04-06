@@ -1,0 +1,40 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: posthog
+  namespace: posthog
+spec:
+  interval: 30m
+  timeout: 20m
+  chartRef:
+    kind: OCIRepository
+    name: posthog-chart
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    force: true
+    remediation:
+      retries: 3
+  values:
+    ingress:
+      enabled: true
+      hostname: posthog.example.com
+
+    posthog:
+      optOutCapture: true
+
+    postgresql:
+      enabled: false
+
+    externalPostgresql:
+      secretName: posthog-pg-app
+      uriKey: uri
+      personsUriKey: persons-uri
+      cyclotronUriKey: cyclotron-uri
+      password: change-me
+
+    global:
+      extraEnv:
+        - name: MULTI_ORG_ENABLED
+          value: "1"
