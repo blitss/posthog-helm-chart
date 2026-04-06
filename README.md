@@ -37,6 +37,15 @@ Or equivalently:
 kubectl apply -k manifests
 ```
 
+That second apply now does all of:
+
+- creates the `posthog` namespace
+- provisions ClickHouse and PostgreSQL clusters
+- applies fixed credentials/secrets used by the app
+- bootstraps the `posthog` and `cyclotron` databases
+- creates a Flux `OCIRepository` for the chart
+- creates a Flux `HelmRelease` that deploys PostHog from GHCR OCI
+
 3. Adjust the example values file:
 
 - set `ingress.hostname`
@@ -45,15 +54,6 @@ kubectl apply -k manifests
 - set `externalPostgresql.cyclotronUrl`
 - set `externalPostgresql.password`
 - replace `manifests/posthog/clickhouse-admin-secret.example.yaml` before applying if you change the default ClickHouse admin secret
-
-4. Install PostHog:
-
-```bash
-helm upgrade --install posthog ./charts/posthog \
-  --namespace posthog \
-  --create-namespace \
-  -f charts/posthog/examples/values-kubeblocks-external.yaml
-```
 
 ## Notes
 
@@ -66,3 +66,5 @@ helm upgrade --install posthog ./charts/posthog \
   - The live KubeBlocks Keeper main `clickhouse` container still uses the addon default `apecloud/clickhouse` image unless you customize the addon/component-definition layer further.
 - The ClickHouse Dockerfile no longer depends on `posthog/posthog`; it copies vendored files from `vendor/posthog/user_scripts` and uses `latest_user_defined_function.xml` from that tree.
 - `clickhouse-admin-secret.example.yaml` is a placeholder. Replace `change-me` before applying.
+- `postgres-account-secret.example.yaml` and `postgres-app-secret.example.yaml` are also placeholders. Replace `change-me` before applying.
+- `release.yaml` currently uses `posthog.example.com` as the ingress host. Change it before applying if you want a real hostname.

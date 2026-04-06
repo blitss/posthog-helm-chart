@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: posthog-chart
+  namespace: posthog
+spec:
+  interval: 30m
+  url: oci://ghcr.io/blitss/charts/posthog
+  ref:
+    semver: ">=0.16.2"
