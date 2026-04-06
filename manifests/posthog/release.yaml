@@ -28,11 +28,14 @@ spec:
       enabled: false
 
     externalPostgresql:
-      secretName: posthog-pg-app
-      uriKey: uri
-      personsUriKey: persons-uri
-      cyclotronUriKey: cyclotron-uri
-      password: change-me
+      host: posthog-pg-postgresql
+      port: 5432
+      database: posthog
+      personsDatabase: posthog
+      cyclotronDatabase: cyclotron
+      secretName: posthog-pg-postgresql-account-postgres
+      usernameKey: username
+      passwordKey: password
 
     global:
       extraEnv:

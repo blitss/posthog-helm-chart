@@ -12,11 +12,6 @@ spec:
       serviceVersion: "16.9.0"
       disableExporter: false
       replicas: 2
-      systemAccounts:
-        - name: postgres
-          secretRef:
-            name: posthog-pg-postgres-account
-            namespace: posthog
       resources:
         requests:
           cpu: "500m"

@@ -62,20 +62,34 @@ spec:
                   key: postgresql-password
             {{- else }}
             - name: POSTGRES_SEEDS
-              value: {{ printf "%s-rw" (include "posthog.fullname" .) | quote }}
+              value: {{ .Values.externalPostgresql.host | default (printf "%s-rw" (include "posthog.fullname" .)) | quote }}
             - name: POSTGRES_USER
+              {{- if .Values.externalPostgresql.secretName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalPostgresql.secretName | quote }}
+                  key: {{ .Values.externalPostgresql.usernameKey | default "username" | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "posthog.fullname" . }}-app
                   key: username
+              {{- end }}
             - name: POSTGRES_PWD
+              {{- if .Values.externalPostgresql.secretName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalPostgresql.secretName | quote }}
+                  key: {{ .Values.externalPostgresql.passwordKey | default "password" | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "posthog.fullname" . }}-app
                   key: password
+              {{- end }}
             {{- end }}
             - name: DB_PORT
-              value: "5432"
+              value: {{ .Values.externalPostgresql.port | default 5432 | quote }}
             - name: DYNAMIC_CONFIG_FILE_PATH
               value: /etc/temporal/config/dynamicconfig/docker.yaml
             - name: ENABLE_ES
