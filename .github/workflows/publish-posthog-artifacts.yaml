@@ -7,9 +7,10 @@ on:
       - main
     paths:
       - .github/workflows/publish-posthog-artifacts.yaml
+      - vendor/posthog/**
       - charts/posthog/**
       - images/clickhouse/Dockerfile
-      - manifests/posthog/clickhouse-component-version.yaml
+      - manifests/kubeblocks/clickhouse-component-version.yaml
 
 permissions:
   contents: read

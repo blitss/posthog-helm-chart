@@ -6,9 +6,11 @@ What this repo contains:
 
 - `charts/posthog`: the Helm chart
 - `images/clickhouse/Dockerfile`: custom ClickHouse image with PostHog UDFs
+- `vendor/posthog/user_scripts`: vendored upstream PostHog UDF assets
 - `manifests/kubeblocks`: KubeBlocks core addon wiring for ClickHouse and PostgreSQL
 - `manifests/posthog`: example KubeBlocks clusters for ClickHouse and PostgreSQL
 - `.github/workflows/publish-posthog-artifacts.yaml`: publishes the chart to GHCR OCI and builds the custom ClickHouse image
+- `.github/workflows/sync-posthog-user-scripts.yaml`: syncs `posthog/user_scripts` from upstream PostHog
 
 ## Publish targets
 
@@ -62,4 +64,5 @@ helm upgrade --install posthog ./charts/posthog \
   - `images.clickhouse` controls the main ClickHouse component container image.
   - `images.memberJoin`, `images.memberLeave`, `images.role-probe`, and `images.switchover` control the Keeper kbagent/action image path.
   - The live KubeBlocks Keeper main `clickhouse` container still uses the addon default `apecloud/clickhouse` image unless you customize the addon/component-definition layer further.
+- The ClickHouse Dockerfile no longer depends on `posthog/posthog`; it copies vendored files from `vendor/posthog/user_scripts` and uses `latest_user_defined_function.xml` from that tree.
 - `clickhouse-admin-secret.example.yaml` is a placeholder. Replace `change-me` before applying.
