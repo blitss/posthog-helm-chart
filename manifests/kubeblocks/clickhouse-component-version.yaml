@@ -3,18 +3,6 @@ kind: ComponentVersion
 metadata:
   name: clickhouse
 spec:
-  # This is the KubeBlocks image binding point.
-  # - `images.clickhouse` drives the main ClickHouse component container.
-  # - `images.memberJoin` / `memberLeave` / `role-probe` / `switchover`
-  #   drive the Keeper kbagent/action execution image path.
-  #
-  # In the live cluster this is what makes:
-  # - the main ClickHouse pod use `ghcr.io/blitss/posthog-clickhouse:25.9.7`
-  # - the Keeper `kbagent` sidecar use the same custom image
-  #
-  # The Keeper main `clickhouse` container itself still follows the addon's
-  # default base image unless you customize the addon/component definition path
-  # further.
   compatibilityRules:
     - compDefs:
         - ^clickhouse-1.*
