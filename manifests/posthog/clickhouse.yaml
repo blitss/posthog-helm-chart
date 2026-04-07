@@ -20,7 +20,7 @@ spec:
             configMap:
               name: posthog-clickhouse-config
         podUpdatePolicy: PreferInPlace
-        serviceVersion: 25.9.7
+        serviceVersion: 25.9.7-posthog.1
         replicas: 1
         resources:
           requests:
@@ -42,7 +42,7 @@ spec:
       componentDef: clickhouse-keeper-1.0.3
       podUpdatePolicy: PreferInPlace
       replicas: 1
-      serviceVersion: 25.9.7
+      serviceVersion: 25.9.7-posthog.1
       resources:
         requests:
           cpu: "250m"

@@ -4,25 +4,46 @@ metadata:
   name: posthog
   namespace: posthog
 spec:
-  interval: 30m
-  timeout: 20m
+  interval: 5m
+  timeout: 15m
   chartRef:
     kind: OCIRepository
     name: posthog-chart
   install:
     remediation:
-      retries: 3
+      retries: 5
   upgrade:
     force: true
     remediation:
-      retries: 3
+      retries: 5
   values:
     ingress:
       enabled: true
       hostname: posthog.example.com
+      nginx:
+        enabled: false
+      traefik:
+        enabled: false
+      gateway:
+        enabled: true
+        gatewayName: posthog-gateway
+        gatewayNamespace: traefik
+        listenerName: posthog-https
 
     posthog:
       optOutCapture: true
+      image:
+        repository: docker.io/posthog/posthog
+
+    web:
+      enabled: true
+      replicas: 1
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          memory: 4Gi
 
     postgresql:
       enabled: false
@@ -37,7 +58,134 @@ spec:
       usernameKey: username
       passwordKey: password
 
+    clickhouse:
+      enabled: false
+      database: posthog
+
+    externalClickhouse:
+      host: posthog-ch-clickhouse
+      user: admin
+      apiUser: admin
+      appUser: admin
+      cluster: default
+      migrationsCluster: default
+      singleShardCluster: default
+      writableCluster: default
+      primaryReplicaCluster: default
+      logsCluster: default
+      satelliteClusters: ""
+      secretName: posthog-ch-clickhouse-account-admin
+      secretPasswordKey: password
+
+    minio:
+      enabled: false
+    seaweedfs:
+      enabled: false
+    objectStorage:
+      enabled: true
+
+    externalObjectStorage:
+      endpoint: https://example-account-id.r2.cloudflarestorage.com
+      accessKey: REPLACE_ME
+      secretKey: REPLACE_ME
+
+    externalSeaweedfs:
+      endpoint: https://example-account-id.r2.cloudflarestorage.com
+      accessKey: REPLACE_ME
+      secretKey: REPLACE_ME
+
+    temporal:
+      enabled: true
+      server:
+        image:
+          repository: docker.io/temporalio/auto-setup
+          tag: "1.29.5@sha256:7eaaed21322c8bc98977fab38873847958024e01ffcc1efeffcd474c4f6461ca"
+      adminTools:
+        image:
+          repository: docker.io/temporalio/admin-tools
+          tag: "1.30.3@sha256:2c2272b008f1af295b3719963e6feeef64f838d1105d895cf6acfcf96dd31741"
+      ui:
+        image:
+          repository: docker.io/temporalio/ui
+          tag: "2.48.1@sha256:edb5dd1b3e0ddb35611939dde9b573533afd6fbafbbf077b73c7131a30ca91ff"
+
+    worker:
+      extraEnv:
+        - name: CELERY_WORKER_CONCURRENCY
+          value: "2"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          memory: 4Gi
+
+    plugins:
+      image:
+        repository: docker.io/posthog/posthog-node
+        tag: latest@sha256:863e76e040ad41aef79f605c33ec71f1529bddf94cfd88941c935da9bde97235
+
+    redis:
+      image:
+        repository: docker.io/library/redis
+
+    kafka:
+      image:
+        repository: docker.redpanda.com/redpandadata/redpanda
+
+    zookeeper:
+      image:
+        repository: docker.io/library/zookeeper
+
+    elasticsearch:
+      image:
+        repository: docker.io/library/elasticsearch
+
+    capture:
+      image:
+        repository: ghcr.io/posthog/posthog/capture
+
+    replayCapture:
+      image:
+        repository: ghcr.io/posthog/posthog/capture
+
+    captureAi:
+      image:
+        repository: ghcr.io/posthog/posthog/capture
+
+    captureLogs:
+      image:
+        repository: ghcr.io/posthog/posthog/capture-logs
+
+    featureFlags:
+      image:
+        repository: ghcr.io/posthog/posthog/feature-flags
+
+    propertyDefsRs:
+      image:
+        repository: ghcr.io/posthog/posthog/property-defs-rs
+
+    livestream:
+      enabled: true
+      image:
+        repository: ghcr.io/posthog/posthog/livestream
+
+    cymbal:
+      image:
+        repository: ghcr.io/posthog/posthog/cymbal
+
+    cyclotronJanitor:
+      image:
+        repository: ghcr.io/posthog/posthog/cyclotron-janitor
+
     global:
+      containerSecurityContext: {}
+      podSecurityContext: {}
       extraEnv:
         - name: MULTI_ORG_ENABLED
           value: "1"
+        - name: OIDC_RSA_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: posthog-oidc
+              key: oidc-rsa-private-key

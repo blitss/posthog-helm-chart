@@ -110,7 +110,7 @@ ingress:
   ## Gateway API (recommended with Traefik + cert-manager DNS01)
   gateway:
     enabled: false
-    gatewayName: streamloop-gateway
+    gatewayName: posthog-gateway
     gatewayNamespace: traefik
     listenerName: posthog-https
 
