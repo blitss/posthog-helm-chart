@@ -73,6 +73,88 @@ posthog:
   encryptionSaltKeys: ''
   ## Set to "true" to disable anonymous telemetry
   optOutCapture: 'false'
+  ## Additional upstream PostHog self-host environment variables injected into
+  ## all PostHog application containers. Keys are literal env var names.
+  ##
+  ## Use `posthog.env` for plain values and `posthog.secretEnv` for values that
+  ## should come from Kubernetes Secrets. `posthog.secretEnv` entries have the
+  ## form:
+  ##   OIDC_RSA_PRIVATE_KEY:
+  ##     name: posthog-oidc
+  ##     key: oidc-rsa-private-key
+  ##     optional: false
+  ##
+  ## Examples:
+  ##   env:
+  ##     SITE_URL: https://posthog.example.com
+  ##     SECURE_COOKIES: "true"
+  ##     IS_BEHIND_PROXY: "true"
+  ##     TRUSTED_PROXIES: "10.0.0.0/8,192.168.0.0/16"
+  ##     ALLOWED_HOSTS: posthog.example.com
+  ##     MULTI_ORG_ENABLED: "1"
+  ##   secretEnv:
+  ##     GITHUB_TOKEN:
+  ##       name: posthog-github
+  ##       key: token
+  ##     OIDC_RSA_PRIVATE_KEY:
+  ##       name: posthog-oidc
+  ##       key: oidc-rsa-private-key
+  ##
+  ## Selected upstream settings and defaults:
+  ##   SECRET_KEY: Required in production; Django cryptography key. Default: randomly generated.
+  ##   SITE_URL: Required absolute canonical URL. Default: http://localhost:8000.
+  ##   SECURE_COOKIES: Secure Django cookies. Default: false in DEBUG/TEST, otherwise true.
+  ##   IS_BEHIND_PROXY: Proxy-aware mode. Default: false.
+  ##   ALLOWED_IP_BLOCKS: Management IP allowlist. Default: empty.
+  ##   TRUSTED_PROXIES: Trusted proxy IPs/CIDRs. Default: none.
+  ##   TRUST_ALL_PROXIES: Trust every proxy hop. Default: false.
+  ##   ALLOWED_HOSTS: Django allowed hosts. Default: *.
+  ##   SKIP_SERVICE_VERSION_REQUIREMENTS: Disable dependency version checks. Default: false.
+  ##   ACTION_EVENT_MAPPING_INTERVAL_SECONDS: Action-event match interval. Default: 300.
+  ##   ASYNC_EVENT_ACTION_MAPPING: Batch action matching. Default: false.
+  ##   CAPTURE_INTERNAL_METRICS: Send internal metrics to your own instance. Default: false.
+  ##   DATABASE_URL: PostgreSQL URL. Default: required outside DEBUG/TEST.
+  ##   DEBUG_QUERIES: Enable query debugging UI. Default: false.
+  ##   DEBUG: Django debug mode. Default: false.
+  ##   CLICKHOUSE_DISABLE_EXTERNAL_SCHEMAS: Disable ProtoBuf schemas. Default: false.
+  ##   DISABLE_PAID_FEATURE_SHOWCASING: Disable premium feature upsell UI. Default: false.
+  ##   DISABLE_SECURE_SSL_REDIRECT: Disable HTTP->HTTPS redirect. Default: false.
+  ##   GITHUB_TOKEN: GitHub PAT for app installs/rate limits. Default: none.
+  ##   GITLAB_TOKEN: GitLab PAT for app installs/rate limits. Default: none.
+  ##   JS_URL: Absolute webpack asset URL. Default: required outside DEBUG.
+  ##   KAFKA_URL: Kafka application URL. Default: kafka://kafka.
+  ##   KAFKA_URL_FOR_CLICKHOUSE: Kafka URL used by ClickHouse. Default: falls back to KAFKA_URL.
+  ##   MATERIALIZE_COLUMNS_ANALYSIS_PERIOD_HOURS: Default: 168.
+  ##   MATERIALIZE_COLUMNS_BACKFILL_PERIOD_DAYS: Default: 90.
+  ##   MATERIALIZE_COLUMNS_MAX_AT_ONCE: Default: 10.
+  ##   MATERIALIZE_COLUMNS_MINIMUM_QUERY_TIME: Default: 3000.
+  ##   MATERIALIZE_COLUMNS_SCHEDULE_CRON: Default: 0 5 * * SAT.
+  ##   MULTI_ORG_ENABLED: Multi-tenancy support. Default: false.
+  ##   NPM_TOKEN: npm token for private app packages. Default: none.
+  ##   OPT_OUT_CAPTURE: Disable product usage telemetry. Default: false.
+  ##   POSTHOG_DB_NAME / POSTHOG_DB_USER / POSTHOG_DB_PASSWORD /
+  ##   POSTHOG_POSTGRES_HOST / POSTHOG_POSTGRES_PORT: Split PostgreSQL config when DATABASE_URL is not used.
+  ##   POSTHOG_POSTGRES_CLI_SSL_CA / POSTHOG_POSTGRES_CLI_SSL_CRT /
+  ##   POSTHOG_POSTGRES_CLI_SSL_KEY / POSTHOG_POSTGRES_SSL_MODE: PostgreSQL SSL client settings.
+  ##   REDIS_URL: Redis URL. Default: required outside DEBUG/TEST.
+  ##   SOCIAL_AUTH_GITHUB_KEY / SOCIAL_AUTH_GITHUB_SECRET: GitHub SSO. Default: empty.
+  ##   SOCIAL_AUTH_GITLAB_API_URL: GitLab auth base URL. Default: https://gitlab.com.
+  ##   SOCIAL_AUTH_GITLAB_KEY / SOCIAL_AUTH_GITLAB_SECRET: GitLab SSO. Default: empty.
+  ##   SOCIAL_AUTH_GOOGLE_OAUTH2_KEY / SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET: Google SSO. Default: empty.
+  ##   STATSD_HOST / STATSD_PORT / STATSD_PREFIX: StatsD metrics output. Defaults: none / 8125 / empty.
+  ##   TEAM_NEGATIVE_CACHE_CAPACITY: Default: 10000.
+  ##   TEAM_NEGATIVE_CACHE_TTL_SECONDS: Default: 300.
+  ##   CLEAR_CLICKHOUSE_REMOVED_DATA_SCHEDULE_CRON: Default: 0 5 * * SAT.
+  ##   LOG_LEVEL: Plugin server log level. Default: info.
+  ##   OBJECT_STORAGE_PUBLIC_ENDPOINT: Public presign URL endpoint. Default: OBJECT_STORAGE_ENDPOINT.
+  ##   WORKOS_RADAR_ENABLED: Enable WorkOS Radar. Default: false.
+  ##   WORKOS_RADAR_API_KEY: WorkOS Radar API key. Default: empty.
+  ##   CLOUDFLARE_TURNSTILE_SITE_KEY / CLOUDFLARE_TURNSTILE_SECRET_KEY:
+  ##     Signup CAPTCHA settings. Default: empty.
+  ##   EMAIL_* and SLACK_APP_* may also be set here, but are usually better
+  ##     managed through PostHog Instance Settings.
+  env: {}
+  secretEnv: {}
 
 ## ------------------------------------------------------------------
 ## Existing Secrets support

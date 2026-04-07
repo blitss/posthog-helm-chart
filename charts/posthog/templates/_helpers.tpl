@@ -244,14 +244,76 @@ Call with dict "root" . "database" "<db-name>"
 {{- end }}
 
 {{/*
+Returns true when a posthog.env or posthog.secretEnv override exists for a name
+*/}}
+{{- define "posthog.hasEnvOverride" -}}
+{{- $root := .root -}}
+{{- $name := .name -}}
+{{- if or (and $root.Values.posthog.env (hasKey $root.Values.posthog.env $name)) (and $root.Values.posthog.secretEnv (hasKey $root.Values.posthog.secretEnv $name)) -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+Renders one environment variable from posthog.secretEnv or posthog.env
+Secret-backed values take precedence over plain values.
+*/}}
+{{- define "posthog.renderEnvOverride" -}}
+{{- $root := .root -}}
+{{- $name := .name -}}
+{{- if and $root.Values.posthog.secretEnv (hasKey $root.Values.posthog.secretEnv $name) -}}
+{{- $ref := get $root.Values.posthog.secretEnv $name -}}
+- name: {{ $name }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ required (printf "posthog.secretEnv.%s.name is required" $name) $ref.name | quote }}
+      key: {{ required (printf "posthog.secretEnv.%s.key is required" $name) $ref.key | quote }}
+      {{- if hasKey $ref "optional" }}
+      optional: {{ $ref.optional }}
+      {{- end }}
+{{- else if and $root.Values.posthog.env (hasKey $root.Values.posthog.env $name) -}}
+- name: {{ $name }}
+  value: {{ printf "%v" (get $root.Values.posthog.env $name) | quote }}
+{{- end -}}
+{{- end }}
+
+{{/*
+Renders all remaining custom env vars except the excluded names.
+*/}}
+{{- define "posthog.renderRemainingCustomEnv" -}}
+{{- $root := .root -}}
+{{- $excluded := .excluded | default (list) -}}
+{{- if $root.Values.posthog.secretEnv }}
+{{- range $name := keys $root.Values.posthog.secretEnv | sortAlpha }}
+{{- if not (has $name $excluded) }}
+{{ include "posthog.renderEnvOverride" (dict "root" $root "name" $name) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if $root.Values.posthog.env }}
+{{- range $name := keys $root.Values.posthog.env | sortAlpha }}
+{{- if and (not (has $name $excluded)) (not (and $root.Values.posthog.secretEnv (hasKey $root.Values.posthog.secretEnv $name))) }}
+- name: {{ $name }}
+  value: {{ printf "%v" (get $root.Values.posthog.env $name) | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Common environment variables shared across PostHog application services
 */}}
 {{- define "posthog.commonEnv" -}}
+{{- $overridableEnvNames := list "SECRET_KEY" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "CYCLOTRON_DATABASE_URL" "PERSONS_DATABASE_URL" -}}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
+{{- else }}
 - name: SECRET_KEY
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: posthog-secret
+{{- end }}
 - name: ENCRYPTION_SALT_KEYS
   valueFrom:
     secretKeyRef:
@@ -259,23 +321,42 @@ Common environment variables shared across PostHog application services
       key: encryption-salt-keys
 {{- include "posthog.externalPostgresqlCredentialEnv" . }}
 {{- if .Values.postgresql.enabled }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{- else }}
 - name: DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: database-url
+{{- end }}
 {{- else if .Values.externalPostgresql.url }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{- else }}
 - name: DATABASE_URL
   value: {{ .Values.externalPostgresql.url | quote }}
+{{- end }}
 {{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{- else }}
 - name: DATABASE_URL
   value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.database | default "posthog")) | quote }}
+{{- end }}
 {{- else if .Values.externalPostgresql.secretName }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{- else }}
 - name: DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ .Values.externalPostgresql.secretName | quote }}
       key: {{ .Values.externalPostgresql.uriKey | default "uri" | quote }}
+{{- end }}
+{{- else }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
 {{- else }}
 - name: DATABASE_URL
   valueFrom:
@@ -283,11 +364,16 @@ Common environment variables shared across PostHog application services
       name: {{ include "posthog.fullname" . }}-app
       key: uri
 {{- end }}
+{{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "REDIS_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "REDIS_URL") }}
+{{- else }}
 - name: REDIS_URL
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: redis-url
+{{- end }}
 - name: CLICKHOUSE_HOST
   value: {{ .Values.externalClickhouse.host | default (printf "%s-clickhouse" (include "posthog.fullname" .)) | quote }}
 - name: CLICKHOUSE_LOGS_HOST
@@ -394,18 +480,34 @@ Common environment variables shared across PostHog application services
   value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
 - name: KAFKA_WAREHOUSE_PRODUCER_METADATA_BROKER_LIST
   value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SITE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "SITE_URL") }}
+{{- else }}
 - name: SITE_URL
   value: {{ printf "https://%s" .Values.ingress.hostname | quote }}
+{{- end }}
 - name: DEPLOYMENT
   value: "helm"
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "IS_BEHIND_PROXY") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "IS_BEHIND_PROXY") }}
+{{- else }}
 - name: IS_BEHIND_PROXY
   value: "true"
+{{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DISABLE_SECURE_SSL_REDIRECT") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DISABLE_SECURE_SSL_REDIRECT") }}
+{{- else }}
 - name: DISABLE_SECURE_SSL_REDIRECT
   value: "true"
+{{- end }}
 - name: OTEL_SDK_DISABLED
   value: "true"
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "OPT_OUT_CAPTURE") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "OPT_OUT_CAPTURE") }}
+{{- else }}
 - name: OPT_OUT_CAPTURE
   value: {{ .Values.posthog.optOutCapture | default "false" | quote }}
+{{- end }}
 - name: OBJECT_STORAGE_ENABLED
   value: {{ .Values.objectStorage.enabled | default "true" | quote }}
 - name: OBJECT_STORAGE_ENDPOINT
@@ -422,8 +524,12 @@ Common environment variables shared across PostHog application services
       key: object-storage-secret-key
 - name: OBJECT_STORAGE_BUCKET
   value: "posthog"
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "OBJECT_STORAGE_PUBLIC_ENDPOINT") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "OBJECT_STORAGE_PUBLIC_ENDPOINT") }}
+{{- else }}
 - name: OBJECT_STORAGE_PUBLIC_ENDPOINT
   value: {{ printf "https://%s" .Values.ingress.hostname | quote }}
+{{- end }}
 - name: OBJECT_STORAGE_REGION
   value: "auto"
 - name: OBJECT_STORAGE_FORCE_PATH_STYLE
@@ -447,20 +553,36 @@ Common environment variables shared across PostHog application services
 - name: TEMPORAL_HOST
   value: {{ .Values.externalTemporal.host | default (printf "%s-temporal" (include "posthog.fullname" .)) | quote }}
 {{- if .Values.postgresql.enabled }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{- else }}
 - name: CYCLOTRON_DATABASE_URL
   value: {{ printf "postgres://%s:%s@%s-postgresql:5432/cyclotron" .Values.postgresql.auth.username .Values.postgresql.auth.password (include "posthog.fullname" .) | quote }}
+{{- end }}
 {{- else if .Values.externalPostgresql.cyclotronUrl }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{- else }}
 - name: CYCLOTRON_DATABASE_URL
   value: {{ .Values.externalPostgresql.cyclotronUrl | quote }}
+{{- end }}
 {{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{- else }}
 - name: CYCLOTRON_DATABASE_URL
   value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.cyclotronDatabase | default "cyclotron")) | quote }}
+{{- end }}
 {{- else if .Values.externalPostgresql.secretName }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{- else }}
 - name: CYCLOTRON_DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ .Values.externalPostgresql.secretName | quote }}
       key: {{ .Values.externalPostgresql.cyclotronUriKey | default "cyclotron-uri" | quote }}
+{{- end }}
 {{- else }}
 - name: _CNPG_USER
   valueFrom:
@@ -472,36 +594,64 @@ Common environment variables shared across PostHog application services
     secretKeyRef:
       name: {{ include "posthog.fullname" . }}-app
       key: password
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CYCLOTRON_DATABASE_URL") }}
+{{- else }}
 - name: CYCLOTRON_DATABASE_URL
   value: {{ printf "postgres://$(_CNPG_USER):$(_CNPG_PASS)@%s-rw:5432/cyclotron" (include "posthog.fullname" .) | quote }}
 {{- end }}
+{{- end }}
 {{- if .Values.postgresql.enabled }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
 - name: PERSONS_DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: database-url
+{{- end }}
 {{- else if .Values.externalPostgresql.personsUrl }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
 - name: PERSONS_DATABASE_URL
   value: {{ .Values.externalPostgresql.personsUrl | quote }}
+{{- end }}
 {{- else if .Values.externalPostgresql.url }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
 - name: PERSONS_DATABASE_URL
   value: {{ .Values.externalPostgresql.url | quote }}
+{{- end }}
 {{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
 - name: PERSONS_DATABASE_URL
   value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
+{{- end }}
 {{- else if .Values.externalPostgresql.secretName }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
 - name: PERSONS_DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ .Values.externalPostgresql.secretName | quote }}
       key: {{ .Values.externalPostgresql.personsUriKey | default "persons-uri" | quote }}
+{{- end }}
+{{- else }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
 {{- else }}
 - name: PERSONS_DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.fullname" . }}-app
       key: uri
+{{- end }}
 {{- end }}
 - name: CDP_API_URL
   value: {{ printf "http://%s-plugins:6738" (include "posthog.fullname" .) | quote }}
@@ -513,6 +663,7 @@ Common environment variables shared across PostHog application services
   value: {{ printf "https://%s/livestream" .Values.ingress.hostname | quote }}
 - name: FLAGS_REDIS_ENABLED
   value: "false"
+{{ include "posthog.renderRemainingCustomEnv" (dict "root" . "excluded" $overridableEnvNames) }}
 {{- with .Values.global.extraEnv }}
 {{ toYaml . }}
 {{- end }}

@@ -34,6 +34,12 @@ spec:
       optOutCapture: true
       image:
         repository: docker.io/posthog/posthog
+      env:
+        MULTI_ORG_ENABLED: "1"
+      secretEnv:
+        OIDC_RSA_PRIVATE_KEY:
+          name: posthog-oidc
+          key: oidc-rsa-private-key
 
     web:
       enabled: true
@@ -181,11 +187,3 @@ spec:
     global:
       containerSecurityContext: {}
       podSecurityContext: {}
-      extraEnv:
-        - name: MULTI_ORG_ENABLED
-          value: "1"
-        - name: OIDC_RSA_PRIVATE_KEY
-          valueFrom:
-            secretKeyRef:
-              name: posthog-oidc
-              key: oidc-rsa-private-key
