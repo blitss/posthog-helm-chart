@@ -10,7 +10,7 @@ on:
       - vendor/posthog/**
       - charts/posthog/**
       - images/clickhouse/Dockerfile
-      - manifests/kubeblocks/clickhouse-component-version.yaml
+      - manifests/kubeblocks/posthog-clickhouse-component-version.yaml
 
 permissions:
   contents: read

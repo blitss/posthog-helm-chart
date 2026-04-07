@@ -1,13 +1,13 @@
 apiVersion: apps.kubeblocks.io/v1
 kind: ComponentVersion
 metadata:
-  name: clickhouse
+  name: posthog-clickhouse
 spec:
   compatibilityRules:
     - compDefs:
         - ^clickhouse-1.*
       releases:
-        - 25.9.7
+        - 25.9.7-posthog.1
         - 25.4.4
         - 24.8.3
         - 22.8.21
@@ -16,15 +16,15 @@ spec:
     - compDefs:
         - ^clickhouse-keeper-1.*
       releases:
-        - 25.9.7
+        - 25.9.7-posthog.1
         - 25.4.4
         - 24.8.3
         - 22.8.21
         - 22.3.20
         - 22.3.18
   releases:
-    - name: 25.9.7
-      serviceVersion: 25.9.7
+    - name: 25.9.7-posthog.1
+      serviceVersion: 25.9.7-posthog.1
       images:
         clickhouse: ghcr.io/blitss/posthog-clickhouse:25.9.7
         copy-tools: docker.io/apecloud/bash-busybox:1.37.0-musl-curl

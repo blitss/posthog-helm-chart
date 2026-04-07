@@ -5,5 +5,5 @@ resources:
   - repository.yaml
   - release.yaml
   - clickhouse-addon.yaml
-  - clickhouse-component-version.yaml
+  - posthog-clickhouse-component-version.yaml
   - postgresql-addon.yaml
