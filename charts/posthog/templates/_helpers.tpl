@@ -222,6 +222,41 @@ Database secret name - returns the secret that contains the database URL
 {{- end }}
 
 {{/*
+Traefik path rule that matches exactly /path or anything below /path/.
+Call with a path string such as "/s".
+*/}}
+{{- define "posthog.traefikPathRule" -}}
+{{- $path := . -}}
+{{ printf "(Path(`%s`) || PathPrefix(`%s/`))" $path $path }}
+{{- end }}
+
+{{/*
+Istio URI match entries for exactly /path and anything below /path/.
+Call with a path string such as "/s".
+*/}}
+{{- define "posthog.istioPathMatches" -}}
+{{- $path := . -}}
+- uri:
+    exact: {{ $path }}
+- uri:
+    prefix: {{ printf "%s/" $path }}
+{{- end }}
+
+{{/*
+Gateway API path matches for exactly /path and anything below /path/.
+Call with a path string such as "/s".
+*/}}
+{{- define "posthog.gatewayPathMatches" -}}
+{{- $path := . -}}
+- path:
+    type: Exact
+    value: {{ $path }}
+- path:
+    type: PathPrefix
+    value: {{ printf "%s/" $path }}
+{{- end }}
+
+{{/*
 Database secret key - returns the key in the secret that contains the database URL
 */}}
 {{- define "posthog.databaseSecretKey" -}}

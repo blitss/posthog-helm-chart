@@ -15,7 +15,7 @@ spec:
   routes:
     {{- if .Values.captureAi.enabled }}
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
-    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/i/v0/ai`)
+    - match: Host(`{{ .Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" "/i/v0/ai" }}
       kind: Rule
       services:
         - name: {{ include "posthog.fullname" . }}-capture-ai
@@ -23,7 +23,7 @@ spec:
     {{- end }}
     {{- if .Values.captureLogs.enabled }}
     ## OTel logs/traces -> capture-logs service
-    - match: Host(`{{ .Values.ingress.hostname }}`) && (PathPrefix(`/i/v1/logs`) || PathPrefix(`/i/v1/traces`))
+    - match: Host(`{{ .Values.ingress.hostname }}`) && ({{ include "posthog.traefikPathRule" "/i/v1/logs" }} || {{ include "posthog.traefikPathRule" "/i/v1/traces" }})
       kind: Rule
       services:
         - name: {{ include "posthog.fullname" . }}-capture-logs
@@ -31,7 +31,7 @@ spec:
     {{- end }}
     {{- if .Values.capture.enabled }}
     ## Event capture endpoints -> capture service
-    - match: Host(`{{ .Values.ingress.hostname }}`) && (PathPrefix(`/e`) || PathPrefix(`/i/v0`) || PathPrefix(`/batch`) || PathPrefix(`/capture`))
+    - match: Host(`{{ .Values.ingress.hostname }}`) && ({{ include "posthog.traefikPathRule" "/e" }} || {{ include "posthog.traefikPathRule" "/i/v0" }} || {{ include "posthog.traefikPathRule" "/batch" }} || {{ include "posthog.traefikPathRule" "/capture" }})
       kind: Rule
       services:
         - name: {{ include "posthog.fullname" . }}-capture
@@ -39,7 +39,7 @@ spec:
     {{- end }}
     {{- if .Values.replayCapture.enabled }}
     ## Session recording -> replay-capture service
-    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/s`)
+    - match: Host(`{{ .Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" "/s" }}
       kind: Rule
       services:
         - name: {{ include "posthog.fullname" . }}-replay-capture
@@ -47,7 +47,7 @@ spec:
     {{- end }}
     {{- if .Values.featureFlags.enabled }}
     ## Feature flags -> feature-flags service
-    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/flags`)
+    - match: Host(`{{ .Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" "/flags" }}
       kind: Rule
       services:
         - name: {{ include "posthog.fullname" . }}-feature-flags
@@ -55,7 +55,7 @@ spec:
     {{- end }}
     {{- if .Values.livestream.enabled }}
     ## Livestream -> livestream service (WebSocket)
-    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/livestream`)
+    - match: Host(`{{ .Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" "/livestream" }}
       kind: Rule
       services:
         - name: {{ include "posthog.fullname" . }}-livestream
@@ -65,14 +65,14 @@ spec:
     {{- end }}
     {{- if .Values.plugins.enabled }}
     ## Public webhooks -> plugins service
-    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/public/webhooks`)
+    - match: Host(`{{ .Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" "/public/webhooks" }}
       kind: Rule
       services:
         - name: {{ include "posthog.fullname" . }}-plugins
           port: 6738
     {{- end }}
     ## Object storage proxy
-    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/posthog`)
+    - match: Host(`{{ .Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" "/posthog" }}
       kind: Rule
       services:
         {{- if .Values.rustfs.enabled }}
