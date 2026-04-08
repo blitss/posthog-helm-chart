@@ -1,0 +1,9 @@
+dependencies:
+- name: kafka
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 29.3.14
+- name: rustfs
+  repository: https://charts.rustfs.com
+  version: 0.0.91
+digest: sha256:f91ca2429493adf9d6f89cea6842ce6d98c3ad718d758a72fcff15d498e03277
+generated: "2026-04-07T19:54:29.508211521Z"

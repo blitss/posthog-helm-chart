@@ -1,0 +1,33 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: altinity
+  namespace: posthog
+spec:
+  url: https://helm.altinity.com
+  interval: 1h
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: clickhouse-operator
+  namespace: posthog
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: altinity-clickhouse-operator
+      sourceRef:
+        kind: HelmRepository
+        name: altinity
+        namespace: posthog
+      version: "0.26.1"
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+  values:
+    metrics:
+      enabled: false

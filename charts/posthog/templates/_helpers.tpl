@@ -95,6 +95,34 @@ imagePullSecrets:
 {{- end }}
 
 {{/*
+Resolve an image reference for a component, falling back to another component's image
+configuration when the component-local image fields are empty.
+Call with dict "root" . "component" <values-key> "fallbackComponent" <values-key>
+*/}}
+{{- define "posthog.imageRef" -}}
+{{- $componentValues := (index .root.Values .component) | default dict -}}
+{{- $componentImage := $componentValues.image | default dict -}}
+{{- $fallbackValues := (index .root.Values .fallbackComponent) | default dict -}}
+{{- $fallbackImage := $fallbackValues.image | default dict -}}
+{{- $repository := default $fallbackImage.repository $componentImage.repository -}}
+{{- $tag := default $fallbackImage.tag $componentImage.tag -}}
+{{- printf "%s:%s" $repository $tag -}}
+{{- end }}
+
+{{/*
+Resolve image pull policy for a component, falling back to another component's image
+configuration when the component-local pullPolicy is empty.
+Call with dict "root" . "component" <values-key> "fallbackComponent" <values-key>
+*/}}
+{{- define "posthog.imagePullPolicy" -}}
+{{- $componentValues := (index .root.Values .component) | default dict -}}
+{{- $componentImage := $componentValues.image | default dict -}}
+{{- $fallbackValues := (index .root.Values .fallbackComponent) | default dict -}}
+{{- $fallbackImage := $fallbackValues.image | default dict -}}
+{{- default ($fallbackImage.pullPolicy | default "Always") $componentImage.pullPolicy -}}
+{{- end }}
+
+{{/*
 Pod security context - merges component-level override with global default.
 Call with dict "root" . "component" <values-key>
 where <values-key> is the values key that has .podSecurityContext (e.g. "web", "postgresql")
@@ -511,7 +539,11 @@ Common environment variables shared across PostHog application services
 - name: OBJECT_STORAGE_ENABLED
   value: {{ .Values.objectStorage.enabled | default "true" | quote }}
 - name: OBJECT_STORAGE_ENDPOINT
-  value: {{ .Values.externalObjectStorage.endpoint | default (printf "http://%s-minio:9000" (include "posthog.fullname" .)) | quote }}
+{{- if .Values.rustfs.enabled }}
+  value: {{ printf "http://%s-rustfs-svc:9000" (include "posthog.fullname" .) | quote }}
+{{- else }}
+  value: {{ .Values.externalObjectStorage.endpoint | quote }}
+{{- end }}
 - name: OBJECT_STORAGE_ACCESS_KEY_ID
   valueFrom:
     secretKeyRef:
@@ -535,7 +567,11 @@ Common environment variables shared across PostHog application services
 - name: OBJECT_STORAGE_FORCE_PATH_STYLE
   value: "true"
 - name: SESSION_RECORDING_V2_S3_ENDPOINT
-  value: {{ .Values.externalSeaweedfs.endpoint | default (printf "http://%s-seaweedfs:8333" (include "posthog.fullname" .)) | quote }}
+{{- if .Values.rustfs.enabled }}
+  value: {{ printf "http://%s-rustfs-svc:9000" (include "posthog.fullname" .) | quote }}
+{{- else }}
+  value: {{ .Values.externalSeaweedfs.endpoint | quote }}
+{{- end }}
 - name: SESSION_RECORDING_V2_S3_ACCESS_KEY_ID
   valueFrom:
     secretKeyRef:
@@ -689,6 +725,19 @@ Redis URL builder
 {{- else -}}
 {{- printf "redis://%s-redis:6379/" (include "posthog.fullname" .) -}}
 {{- end -}}
+{{- end }}
+
+{{/*
+GeoIP init container - downloads MMDB from the central geoip service.
+Call with dict "root" .
+*/}}
+{{- define "posthog.geoipInitContainer" -}}
+- name: download-geoip
+  image: busybox
+  command: ["wget", "-O", "/share/{{ .root.Values.geoip.filename }}", "http://{{ include "posthog.fullname" .root }}-geoip:8080/{{ .root.Values.geoip.filename }}"]
+  volumeMounts:
+    - name: geoip-db
+      mountPath: /share
 {{- end }}
 
 {{/*

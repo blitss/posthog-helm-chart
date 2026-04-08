@@ -29,7 +29,7 @@
   ClickHouse:    {{ if .Values.clickhouse.enabled }}Internal ({{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}){{ else }}External{{ end }}
   Redis:         {{ if .Values.redis.enabled }}Internal ({{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}){{ else }}External{{ end }}
   Kafka:         {{ if .Values.kafka.enabled }}Internal (Redpanda {{ .Values.kafka.image.tag }}){{ else }}External{{ end }}
-  Object Store:  {{ if .Values.minio.enabled }}Internal (MinIO){{ else }}External{{ end }}
+  Object Store:  {{ if .Values.rustfs.enabled }}Internal (RustFS){{ else }}External{{ end }}
   Temporal:      {{ if .Values.temporal.enabled }}Internal{{ else }}External{{ end }}
 
 -------------------------------------------------------------

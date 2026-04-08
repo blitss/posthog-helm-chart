@@ -1,0 +1,54 @@
+{{/*
+  Hook weight 7: Run Django (Postgres) and ClickHouse schema migrations.
+*/}}
+{{- if .Values.migrate.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.fullname" . }}-migrate
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "migrate") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "7"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: "{{ include "posthog.imageRef" (dict "root" . "component" "migrate" "fallbackComponent" "posthog") }}"
+          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "migrate" "fallbackComponent" "posthog") }}
+          command:
+            - sh
+            - -c
+            - |
+              python manage.py migrate --noinput
+              python -c "
+              import base64, os, ssl, urllib.parse, urllib.request, time
+              scheme = 'https' if os.getenv('CLICKHOUSE_SECURE','false').lower() == 'true' else 'http'
+              host, port = os.environ['CLICKHOUSE_HOST'], '8443' if scheme == 'https' else '8123'
+              user = os.getenv('CLICKHOUSE_USER','default')
+              pw = os.getenv('CLICKHOUSE_PASSWORD','')
+              def ch(q):
+                  r = urllib.request.Request(f'{scheme}://{host}:{port}/?query='+urllib.parse.quote(q), data=b'', method='POST')
+                  r.add_header('Authorization','Basic '+base64.b64encode(f'{user}:{pw}'.encode()).decode())
+                  ctx = ssl._create_unverified_context() if scheme=='https' else None
+                  return urllib.request.urlopen(r, context=ctx, timeout=30).read().decode().strip()
+              ch('SYSTEM FLUSH LOGS')
+              for i in range(30):
+                  n = ch(\"SELECT count() FROM system.tables WHERE database='system' AND name IN ('crash_log','error_log','metric_log')\")
+                  if n == '3': break
+                  time.sleep(2)
+              print(f'System log tables: {n}/3')
+              "
+              python manage.py migrate_clickhouse
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+{{- end }}

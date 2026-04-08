@@ -53,6 +53,33 @@ That second apply now does all of:
 - create your own `posthog-oidc` Secret from `manifests/posthog/oidc-secret.example.yaml`
 - if you rename the KubeBlocks clusters, update the generated secret references in `manifests/posthog/release.yaml`
 
+## Local kind
+
+For local chart testing with the split PostHog images, use the bootstrap script:
+
+```bash
+./scripts/kind-bootstrap.sh --recreate
+```
+
+What it does:
+
+- creates a single-node kind cluster from `kind-config.local.yaml`
+- writes containerd mirror config for `docker.io` and `ghcr.io`
+- points both registries at `https://REDACTED_MIRROR_HOST/docker.io` and `https://REDACTED_MIRROR_HOST/ghcr.io`
+- loads any locally built `local/posthog-*` images into the cluster
+
+If you also want the script to install the chart with the local values file:
+
+```bash
+./scripts/kind-bootstrap.sh --recreate --install-posthog
+```
+
+Notes:
+
+- `manifests/posthog/kind-values.local.yaml` is the local chart override file
+- that local values file rewrites Kafka to `docker.io/redpandadata/redpanda` so it also goes through the Docker Hub mirror path
+- the split PostHog images still need to exist locally if you want the local install to succeed
+
 ## Notes
 
 - ClickHouse defaults to KubeBlocks. The chart does not assume an in-chart ClickHouse deployment path for this bundle.

@@ -1,0 +1,377 @@
+{{- if and .Values.ingress.enabled .Values.ingress.openshift.enabled }}
+{{/*
+  OpenShift Routes support one service backend per Route, so we create
+  one Route per service path group. Routes are evaluated by the HAProxy
+  router in longest-path-first order, so ordering here is cosmetic.
+*/}}
+
+{{- $fullname := include "posthog.fullname" . -}}
+{{- $hostname := .Values.ingress.hostname -}}
+{{- $labels := include "posthog.labels" . -}}
+{{- $annotations := .Values.ingress.openshift.annotations | default dict -}}
+{{- $tls := .Values.ingress.openshift.tls -}}
+
+{{- if .Values.captureAi.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-capture-ai
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /i/v0/ai
+  to:
+    kind: Service
+    name: {{ $fullname }}-capture-ai
+  port:
+    targetPort: 3000
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.captureLogs.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-capture-logs
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /i/v1/logs
+  to:
+    kind: Service
+    name: {{ $fullname }}-capture-logs
+  port:
+    targetPort: 4318
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-capture-traces
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /i/v1/traces
+  to:
+    kind: Service
+    name: {{ $fullname }}-capture-logs
+  port:
+    targetPort: 4318
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.capture.enabled }}
+{{- range $path := list "/e" "/i/v0" "/batch" "/capture" }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-capture{{ $path | replace "/" "-" }}
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: {{ $path }}
+  to:
+    kind: Service
+    name: {{ $fullname }}-capture
+  port:
+    targetPort: 3000
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.replayCapture.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-replay-capture
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /s
+  to:
+    kind: Service
+    name: {{ $fullname }}-replay-capture
+  port:
+    targetPort: 3000
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.featureFlags.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-feature-flags
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /flags
+  to:
+    kind: Service
+    name: {{ $fullname }}-feature-flags
+  port:
+    targetPort: 3001
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.livestream.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-livestream
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /livestream
+  to:
+    kind: Service
+    name: {{ $fullname }}-livestream
+  port:
+    targetPort: 8080
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.plugins.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-plugins
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /public/webhooks
+  to:
+    kind: Service
+    name: {{ $fullname }}-plugins
+  port:
+    targetPort: 6738
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+---
+## Object storage proxy
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-object-storage
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /posthog
+  to:
+    kind: Service
+    {{- if .Values.rustfs.enabled }}
+    name: {{ $fullname }}-rustfs-svc
+  port:
+    targetPort: 9000
+    {{- else }}
+    name: {{ $fullname }}-web
+  port:
+    targetPort: 8000
+    {{- end }}
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+
+---
+## Default: everything else -> web service
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-web
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: /
+  to:
+    kind: Service
+    name: {{ $fullname }}-web
+  port:
+    targetPort: 8000
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+
+{{- end }}

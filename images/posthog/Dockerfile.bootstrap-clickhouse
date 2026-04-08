@@ -1,0 +1,18 @@
+FROM python:3.12.12-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g 1000 posthog && \
+    useradd -m -u 1000 -g posthog posthog && \
+    mkdir -p /python-runtime/bin && \
+    ln -s /usr/local/bin/python /python-runtime/bin/python && \
+    ln -s /usr/local/bin/python3 /python-runtime/bin/python3
+
+WORKDIR /code
+USER posthog
+
+CMD ["python", "--version"]

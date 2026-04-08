@@ -1,0 +1,153 @@
+name: build-posthog-images
+
+on:
+  workflow_dispatch:
+    inputs:
+      posthog_tag:
+        description: "Upstream posthog/posthog tag to build from"
+        required: false
+        default: "latest"
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-posthog-images.yaml
+      - images/posthog/**
+      - images/clickhouse/**
+      - vendor/posthog/**
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+  POSTHOG_TAG: ${{ inputs.posthog_tag || 'latest' }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build split PostHog images (web, worker, worker-exports, migrate)
+  # ---------------------------------------------------------------------------
+  build-posthog:
+    name: build ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: posthog-web
+            dockerfile: images/posthog/Dockerfile.web
+          - image: posthog-worker
+            dockerfile: images/posthog/Dockerfile.worker
+          - image: posthog-worker-exports
+            dockerfile: images/posthog/Dockerfile.worker-exports
+          - image: posthog-migrate
+            dockerfile: images/posthog/Dockerfile.migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ env.POSTHOG_TAG }}
+            type=raw,value=sha-${{ github.sha }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          build-args: |
+            POSTHOG_IMAGE=posthog/posthog:${{ env.POSTHOG_TAG }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # Build ClickHouse image (multi-arch)
+  # ---------------------------------------------------------------------------
+  build-clickhouse:
+    name: build clickhouse (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runs_on: ubuntu-latest
+            platform: linux/amd64
+          - arch: arm64
+            runs_on: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runs_on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive ClickHouse base tag
+        id: ch
+        run: |
+          IMAGE_REF="$(awk '$1=="FROM"{ref=$2} END{print ref}' images/clickhouse/Dockerfile)"
+          BASE_TAG="${IMAGE_REF%%@*}"; BASE_TAG="${BASE_TAG##*:}"
+          echo "base_tag=${BASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: images/clickhouse/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/posthog-clickhouse:${{ steps.ch.outputs.base_tag }}-${{ matrix.arch }}
+
+  publish-clickhouse-manifest:
+    name: publish clickhouse manifest
+    needs: build-clickhouse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive ClickHouse base tag
+        id: ch
+        run: |
+          IMAGE_REF="$(awk '$1=="FROM"{ref=$2} END{print ref}' images/clickhouse/Dockerfile)"
+          BASE_TAG="${IMAGE_REF%%@*}"; BASE_TAG="${BASE_TAG##*:}"
+          echo "base_tag=${BASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest
+        run: |
+          IMAGE="${REGISTRY}/${OWNER}/posthog-clickhouse"
+          TAG="${{ steps.ch.outputs.base_tag }}"
+          docker buildx imagetools create \
+            -t "${IMAGE}:${TAG}" \
+            -t "${IMAGE}:sha-${GITHUB_SHA::12}" \
+            "${IMAGE}:${TAG}-amd64" \
+            "${IMAGE}:${TAG}-arm64"
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            docker buildx imagetools create -t "${IMAGE}:latest" "${IMAGE}:${TAG}"
+          fi

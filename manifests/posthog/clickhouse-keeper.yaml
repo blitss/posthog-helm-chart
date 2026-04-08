@@ -1,0 +1,36 @@
+apiVersion: clickhouse-keeper.altinity.com/v1
+kind: ClickHouseKeeperInstallation
+metadata:
+  name: posthog-keeper
+  namespace: posthog
+spec:
+  configuration:
+    clusters:
+      - name: keeper
+        layout:
+          replicasCount: 1
+  defaults:
+    templates:
+      podTemplate: keeper
+      volumeClaimTemplate: keeper-data
+  templates:
+    podTemplates:
+      - name: keeper
+        spec:
+          containers:
+            - name: clickhouse-keeper
+              image: altinity/clickhouse-keeper:25.3.6.10034.altinitystable
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+    volumeClaimTemplates:
+      - name: keeper-data
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi

@@ -1,0 +1,129 @@
+{{- if and .Values.ingress.enabled .Values.ingress.istio.enabled }}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ include "posthog.fullname" . }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+  {{- with .Values.ingress.istio.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  hosts:
+    - {{ .Values.ingress.hostname | quote }}
+  gateways:
+    - {{ .Values.ingress.istio.gateway | quote }}
+  http:
+    {{- if .Values.captureAi.enabled }}
+    ## AI capture endpoint -> capture-ai service (must be before /i/v0)
+    - match:
+        - uri:
+            prefix: /i/v0/ai
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-capture-ai
+            port:
+              number: 3000
+    {{- end }}
+    {{- if .Values.captureLogs.enabled }}
+    ## OTel logs/traces -> capture-logs service
+    - match:
+        - uri:
+            prefix: /i/v1/logs
+        - uri:
+            prefix: /i/v1/traces
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-capture-logs
+            port:
+              number: 4318
+    {{- end }}
+    {{- if .Values.capture.enabled }}
+    ## Event capture endpoints -> capture service
+    - match:
+        - uri:
+            prefix: /e
+        - uri:
+            prefix: /i/v0
+        - uri:
+            prefix: /batch
+        - uri:
+            prefix: /capture
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-capture
+            port:
+              number: 3000
+    {{- end }}
+    {{- if .Values.replayCapture.enabled }}
+    ## Session recording -> replay-capture service
+    - match:
+        - uri:
+            prefix: /s
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-replay-capture
+            port:
+              number: 3000
+    {{- end }}
+    {{- if .Values.featureFlags.enabled }}
+    ## Feature flags -> feature-flags service
+    - match:
+        - uri:
+            prefix: /flags
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-feature-flags
+            port:
+              number: 3001
+    {{- end }}
+    {{- if .Values.livestream.enabled }}
+    ## Livestream -> livestream service (WebSocket)
+    - match:
+        - uri:
+            prefix: /livestream
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-livestream
+            port:
+              number: 8080
+    {{- end }}
+    {{- if .Values.plugins.enabled }}
+    ## Public webhooks -> plugins service
+    - match:
+        - uri:
+            prefix: /public/webhooks
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-plugins
+            port:
+              number: 6738
+    {{- end }}
+    ## Object storage proxy
+    - match:
+        - uri:
+            prefix: /posthog
+      route:
+        - destination:
+            {{- if .Values.rustfs.enabled }}
+            host: {{ include "posthog.fullname" . }}-rustfs-svc
+            port:
+              number: 9000
+            {{- else }}
+            host: {{ include "posthog.fullname" . }}-web
+            port:
+              number: 8000
+            {{- end }}
+    ## Default: everything else -> web service
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-web
+            port:
+              number: 8000
+{{- end }}

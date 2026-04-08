@@ -61,8 +61,7 @@ spec:
           - redis
           - kafka
           - zookeeper
-          - minio
-          - seaweedfs
+          - rustfs
           - elasticsearch
           - temporal
   policyTypes:

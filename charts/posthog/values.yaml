@@ -5,7 +5,6 @@
 ## Global overrides
 nameOverride: ''
 fullnameOverride: ''
-
 ## ------------------------------------------------------------------
 ## Global production settings
 ## ------------------------------------------------------------------
@@ -22,29 +21,24 @@ global:
     fsGroup: 1000
     seccompProfile:
       type: RuntimeDefault
-
   ## Default container security context applied to all containers unless overridden
   containerSecurityContext:
     allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: false  # PostHog Django needs writable tmpdir
+    readOnlyRootFilesystem: false # PostHog Django needs writable tmpdir
     runAsNonRoot: true
     capabilities:
       drop:
-      - ALL
-
+        - ALL
   ## Default scheduling constraints applied to all pods unless overridden
   nodeSelector: {}
   tolerations: []
   affinity: {}
-
   ## Default pod annotations applied to all pods unless overridden
   podAnnotations: {}
-
   ## Extra environment variables injected into all PostHog app containers
   extraEnv: []
   # - name: MY_VAR
   #   value: "my-value"
-
 ## ------------------------------------------------------------------
 ## ServiceAccount
 ## ------------------------------------------------------------------
@@ -55,14 +49,18 @@ serviceAccount:
   ## For IRSA (AWS), Workload Identity (GCP), etc.
   # annotations:
   #   eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/my-role
-
 ## ------------------------------------------------------------------
 ## PostHog application settings
 ## ------------------------------------------------------------------
 posthog:
-  ## The image tag to use for PostHog app services (web, worker, temporal-django-worker)
-  ## PostHog does not publish versioned Docker tags — they use continuous deployment.
-  ## "latest" tracks the main branch. Set pullPolicy: Always to pick up new versions.
+  ## Default image for Python-based PostHog workloads.
+  ## Component-specific image overrides (web.image, worker.image,
+  ## workerExports.image, temporalDjangoWorker.image, migrate.image,
+  ## asyncMigrationsCheck.image, bootstrapClickhouse.image) fall back here when
+  ## left empty.
+  ## PostHog does not publish versioned Docker tags — they use continuous
+  ## deployment. "latest" tracks the main branch. Set pullPolicy: Always to pick
+  ## up new versions.
   image:
     repository: posthog/posthog
     tag: latest
@@ -155,7 +153,6 @@ posthog:
   ##     managed through PostHog Instance Settings.
   env: {}
   secretEnv: {}
-
 ## ------------------------------------------------------------------
 ## Existing Secrets support
 ## When set, the chart will NOT create its own Secret and will instead
@@ -167,7 +164,6 @@ posthog:
 ##   seaweedfs-access-key, seaweedfs-secret-key, postgresql-password
 ## ------------------------------------------------------------------
 existingSecret: ''
-
 ## ------------------------------------------------------------------
 ## Ingress configuration
 ## ------------------------------------------------------------------
@@ -175,7 +171,6 @@ ingress:
   enabled: true
   ## The hostname PostHog will be served from
   hostname: posthog.example.com
-
   ## NGINX Ingress
   nginx:
     enabled: true
@@ -183,19 +178,40 @@ ingress:
     annotations: {}
     tls:
       enabled: true
-      secretName: ''  # leave empty to use default cluster issuer
-
-  ## Traefik Ingress (legacy, use gateway instead)
+      secretName: '' # leave empty to use default cluster issuer
+  ## Traefik IngressRoute (traefik.io/v1alpha1 CRD)
   traefik:
     enabled: false
-
-  ## Gateway API (recommended with Traefik + cert-manager DNS01)
+    entryPoints:
+      - websecure
+    annotations: {}
+    tls:
+      enabled: true
+      certResolver: '' # e.g., letsencrypt
+      secretName: '' # use an existing TLS secret instead of certResolver
+  ## Kubernetes Gateway API HTTPRoute (gateway.networking.k8s.io/v1)
   gateway:
     enabled: false
     gatewayName: posthog-gateway
     gatewayNamespace: traefik
     listenerName: posthog-https
-
+  ## Istio VirtualService (networking.istio.io/v1)
+  istio:
+    enabled: false
+    ## Gateway reference in namespace/name format
+    gateway: istio-system/default-gateway
+    annotations: {}
+  ## OpenShift Route (route.openshift.io/v1)
+  openshift:
+    enabled: false
+    annotations: {}
+    tls:
+      termination: edge # edge, passthrough, reencrypt
+      insecureEdgeTerminationPolicy: Redirect
+      ## Optional inline certificate fields (usually managed by the cluster)
+      # certificate: ''
+      # key: ''
+      # caCertificate: ''
 ## ------------------------------------------------------------------
 ## PostgreSQL
 ## ------------------------------------------------------------------
@@ -222,7 +238,7 @@ postgresql:
   ## Per-component overrides (set to {} to use global defaults)
   podSecurityContext:
     runAsNonRoot: true
-    runAsUser: 999  # postgres user
+    runAsUser: 999 # postgres user
     runAsGroup: 999
     fsGroup: 999
     seccompProfile:
@@ -232,7 +248,6 @@ postgresql:
   tolerations: []
   affinity: {}
   podAnnotations: {}
-
 ## External PostgreSQL (used when postgresql.enabled=false)
 externalPostgresql:
   ## Full connection URL: postgres://user:pass@host:port/db
@@ -258,13 +273,13 @@ externalPostgresql:
   ## Password for external PostgreSQL (used by Temporal and other consumers
   ## that need the password separately from the full URL)
   password: ''
-
 ## ------------------------------------------------------------------
 ## ClickHouse
 ## ------------------------------------------------------------------
 clickhouse:
-  ## Set to false to use an external ClickHouse
-  enabled: false
+  ## Simple bundled ClickHouse (single-node StatefulSet).
+  ## Set to false for production — use externalClickhouse with an operator or managed service.
+  enabled: true
   image:
     repository: clickhouse/clickhouse-server
     tag: 25.12.5.44
@@ -287,7 +302,7 @@ clickhouse:
       memory: 8Gi
   podSecurityContext:
     runAsNonRoot: true
-    runAsUser: 101  # clickhouse user
+    runAsUser: 101 # clickhouse user
     runAsGroup: 101
     fsGroup: 101
     seccompProfile:
@@ -297,27 +312,27 @@ clickhouse:
   tolerations: []
   affinity: {}
   podAnnotations: {}
-
 ## External ClickHouse (used when clickhouse.enabled=false)
 externalClickhouse:
   host: posthog-ch-clickhouse
   user: admin
   apiUser: admin
   appUser: admin
+  ## Cluster name used for all cluster env vars (CLICKHOUSE_CLUSTER,
+  ## CLICKHOUSE_MIGRATIONS_CLUSTER, CLICKHOUSE_WRITABLE_CLUSTER, etc.).
+  ## Override individual cluster names only for advanced multi-shard setups.
   cluster: default
-  migrationsCluster: default
-  singleShardCluster: default
-  writableCluster: default
-  primaryReplicaCluster: default
-  logsCluster: default
+  migrationsCluster: '' # defaults to cluster
+  singleShardCluster: '' # defaults to cluster
+  writableCluster: '' # defaults to cluster
+  primaryReplicaCluster: '' # defaults to cluster
+  logsCluster: '' # defaults to singleShardCluster → cluster
   logsDatabase: default
   logsPort: 9000
   satelliteClusters: ''
   secretName: posthog-ch-clickhouse-account-admin
   secretPasswordKey: password
   createDatabase: true
-  # By default, external ClickHouse reuses one credential for API, APP, and generic users.
-
 ## ------------------------------------------------------------------
 ## Redis
 ## ------------------------------------------------------------------
@@ -340,7 +355,7 @@ redis:
       memory: 512Mi
   podSecurityContext:
     runAsNonRoot: true
-    runAsUser: 999  # redis user
+    runAsUser: 999 # redis user
     runAsGroup: 999
     fsGroup: 999
     seccompProfile:
@@ -350,53 +365,130 @@ redis:
   tolerations: []
   affinity: {}
   podAnnotations: {}
-
 ## External Redis (used when redis.enabled=false)
 externalRedis:
   ## Full URL: redis://[:password@]host:port/
   url: ''
-
 ## ------------------------------------------------------------------
 ## Kafka (Redpanda)
 ## ------------------------------------------------------------------
 kafka:
   ## Set to false to use an external Kafka
   enabled: true
+  ## Bitnami Kafka chart values (subchart)
+  ## https://github.com/bitnami/charts/tree/main/bitnami/kafka
   image:
-    repository: docker.redpanda.com/redpandadata/redpanda
-    tag: v25.1.9
-  ## Enable developer mode (disables fsync, reduces durability guarantees).
-  ## Only set to true for local/CI environments — NEVER in production.
-  developerMode: false
-  persistence:
+    registry: docker.io
+    repository: bitnamilegacy/kafka
+  listeners:
+    client:
+      protocol: PLAINTEXT
+    interbroker:
+      protocol: PLAINTEXT
+    controller:
+      protocol: PLAINTEXT
+  controller:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+    persistence:
+      enabled: true
+      size: 20Gi
+  broker:
+    replicaCount: 0
+  kraft:
     enabled: true
-    size: 20Gi
-    storageClass: ''
-  logRetentionMs: '3600000'
-  logRetentionHours: '1'
-  resources:
-    requests:
-      cpu: 500m
-      memory: 1Gi
-    limits:
-      memory: 2Gi
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 101  # redpanda user
-    runAsGroup: 101
-    fsGroup: 101
-    seccompProfile:
-      type: RuntimeDefault
-  containerSecurityContext: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  podAnnotations: {}
-
+  zookeeper:
+    enabled: false
+  provisioning:
+    enabled: true
+    replicationFactor: 1
+    ## PostHog required Kafka topics
+    ## Sources:
+    ##   https://github.com/PostHog/posthog/blob/master/posthog/kafka_client/topics.py
+    ##   https://github.com/PostHog/posthog/blob/master/nodejs/src/config/kafka-topics.ts
+    topics:
+      - name: cdp_backfill_events
+      - name: cdp_batch_hogflow_requests
+      - name: cdp_data_warehouse_source_table
+      - name: cdp_function_overflow
+      - name: cdp_internal_events
+      - name: clickhouse_ai_events_json
+      - name: clickhouse_app_metrics
+      - name: clickhouse_app_metrics2
+      - name: clickhouse_behavioral_cohorts_matches
+      - name: clickhouse_document_embeddings
+      - name: clickhouse_error_tracking_issue_fingerprint
+      - name: clickhouse_error_tracking_issue_fingerprint_embeddings
+      - name: clickhouse_error_tracking_issue_fingerprint_overrides
+      - name: clickhouse_events_json
+      - name: clickhouse_groups
+      - name: clickhouse_heatmap_events
+      - name: clickhouse_ingestion_warnings
+      - name: clickhouse_logs
+      - name: clickhouse_metrics_time_to_see_data
+      - name: clickhouse_performance_events
+      - name: clickhouse_person
+      - name: clickhouse_person_distinct_id
+      - name: clickhouse_person_distinct_id2
+      - name: clickhouse_person_distinct_id_overrides
+      - name: clickhouse_person_override
+      - name: clickhouse_person_overrides
+      - name: clickhouse_person_unique_id
+      - name: clickhouse_precalculated_person_properties
+      - name: clickhouse_prefiltered_events
+      - name: clickhouse_session_recording_events
+      - name: clickhouse_session_replay_events
+      - name: clickhouse_tophog
+      - name: clickhouse_traces
+      - name: cohort_membership_changed
+      - name: cohort_membership_changed_trigger
+      - name: conversion_events_buffer
+      - name: data_warehouse_source_webhooks
+      - name: data_warehouse_source_webhooks_dlq
+      - name: data_warehouse_sources_jobs
+      - name: data_warehouse_sources_jobs_dlq
+      - name: distinct_id_usage_events_json
+      - name: document_embeddings_input
+      - name: events_dead_letter_queue
+      - name: events_plugin_ingestion
+      - name: events_plugin_ingestion_async
+      - name: events_plugin_ingestion_dlq
+      - name: events_plugin_ingestion_historical
+      - name: events_plugin_ingestion_overflow
+      - name: exceptions_ingestion
+      - name: ingestion-errortracking-main
+      - name: ingestion-errortracking-main-dlq
+      - name: ingestion-errortracking-overflow
+      - name: ingestion-traces
+      - name: ingestion-traces-dlq
+      - name: ingestion-traces-overflow
+      - name: kafka_events_recent_json
+      - name: log_entries
+      - name: log_entries_v2_test
+      - name: logs_ingestion
+      - name: logs_ingestion_dlq
+      - name: logs_ingestion_overflow
+      - name: notification_events
+      - name: plugin_log_entries
+      - name: session_recording_events
+      - name: session_recording_snapshot_item_dlq
+      - name: session_recording_snapshot_item_events
+      - name: session_recording_snapshot_item_overflow
+      - name: signals_report_completed
+  extraConfig: |
+    transaction.state.log.replication.factor=1
+    transaction.state.log.min.isr=1
+    offsets.topic.replication.factor=1
+  logRetention:
+    hours: 1
 ## External Kafka (used when kafka.enabled=false)
 externalKafka:
-  brokers: ''  # e.g. "kafka-1:9092,kafka-2:9092"
-
+  brokers: '' # e.g. "kafka-1:9092,kafka-2:9092"
 ## ------------------------------------------------------------------
 ## ZooKeeper (for ClickHouse coordination)
 ## ------------------------------------------------------------------
@@ -427,92 +519,63 @@ zookeeper:
   tolerations: []
   affinity: {}
   podAnnotations: {}
-
 ## ------------------------------------------------------------------
 ## MinIO (S3-compatible object storage)
 ## ------------------------------------------------------------------
-minio:
+## ------------------------------------------------------------------
+## RustFS (S3-compatible object storage)
+## ------------------------------------------------------------------
+rustfs:
   ## Set to false to use external object storage (e.g. Azure Blob, AWS S3, GCS)
   enabled: true
+  ## RustFS subchart values — override as needed.
+  ## https://github.com/rustfs/helm
   image:
-    repository: minio/minio
-    tag: RELEASE.2025-04-22T22-12-26Z
-  accessKey: object_storage_root_user
-  secretKey: object_storage_root_password
-  persistence:
-    enabled: true
-    size: 20Gi
-    storageClass: ''
+    rustfs:
+      tag: latest
+  replicaCount: 1
+  mode:
+    standalone:
+      enabled: true
+    distributed:
+      enabled: false
+  secret:
+    rustfs:
+      access_key: object_storage_root_user
+      secret_key: object_storage_root_password
+  ingress:
+    enabled: false
+  storageclass:
+    name: ""
+    dataStorageSize: 20Gi
+    logStorageSize: 256Mi
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
     limits:
       memory: 1Gi
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
-    seccompProfile:
-      type: RuntimeDefault
-  containerSecurityContext: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  podAnnotations: {}
-
-## External object storage (used when minio.enabled=false)
+## External object storage (used when rustfs.enabled=false)
 externalObjectStorage:
   ## S3-compatible endpoint: https://my-bucket.s3.amazonaws.com
   endpoint: ''
   accessKey: ''
   secretKey: ''
-
 ## General object storage toggle
 objectStorage:
   enabled: true
-
-## ------------------------------------------------------------------
-## SeaweedFS (session recordings v2 storage)
-## ------------------------------------------------------------------
-seaweedfs:
-  ## Set to false to use external S3-compatible storage for session recordings
-  enabled: true
-  image:
-    repository: chrislusf/seaweedfs
-    tag: '4.03'
-  accessKey: any
-  secretKey: any
-  persistence:
-    enabled: true
-    size: 20Gi
-    storageClass: ''
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      memory: 1Gi
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
-    seccompProfile:
-      type: RuntimeDefault
+  ## External SeaweedFS / session recording S3 (used when rustfs.enabled=false)
+  ## When rustfs.enabled=true, session recordings also go to RustFS.
   containerSecurityContext: {}
   nodeSelector: {}
   tolerations: []
   affinity: {}
   podAnnotations: {}
-
 ## External SeaweedFS / S3-compatible storage (used when seaweedfs.enabled=false)
 externalSeaweedfs:
   endpoint: ''
   accessKey: ''
   secretKey: ''
-
 ## ------------------------------------------------------------------
 ## Elasticsearch (for Temporal)
 ## ------------------------------------------------------------------
@@ -543,7 +606,10 @@ elasticsearch:
   tolerations: []
   affinity: {}
   podAnnotations: {}
-
+## External Elasticsearch (used when elasticsearch.enabled=false)
+externalElasticsearch:
+  host: '' # e.g. posthog-es-elasticsearch
+  version: v7 # v7 or v8
 ## ------------------------------------------------------------------
 ## Temporal (workflow orchestration)
 ## ------------------------------------------------------------------
@@ -580,17 +646,35 @@ temporal:
   tolerations: []
   affinity: {}
   podAnnotations: {}
-
 ## External Temporal (used when temporal.enabled=false)
 externalTemporal:
   host: ''
-
+## ------------------------------------------------------------------
+## GeoIP MMDB distribution service
+## ------------------------------------------------------------------
+geoip:
+  ## Enable a central pod that downloads (or mounts) the MaxMind MMDB file
+  ## and serves it over HTTP. Consumers (feature-flags, livestream, cymbal)
+  ## fetch the file from this service via init containers.
+  enabled: true
+  ## URL to download the MMDB file from (used when existingPvc is not set).
+  ## Default is the PostHog CDN which serves brotli-compressed MMDB.
+  downloadUrl: 'https://mmdbcdn.posthog.net/'
+  ## Set to true when the downloadUrl serves brotli-compressed data
+  brotli: true
+  ## Filename served over HTTP and written into consumer pods
+  filename: GeoLite2-City.mmdb
+  ## Image used for the download init container
+  image: alpine:3.21
+  ## Mount an existing PVC instead of downloading.
+  ## The PVC must contain the MMDB file at its root.
+  # existingPvc: geoip-db
 ## ------------------------------------------------------------------
 ## PostHog Core Services
 ## ------------------------------------------------------------------
-
 web:
   enabled: true
+  image: {}
   replicas: 1
   resources:
     requests:
@@ -623,10 +707,13 @@ web:
     enabled: false
     minAvailable: 1
     # maxUnavailable: 1
-
 worker:
   enabled: true
+  image: {}
   replicas: 1
+  ## Celery prefork concurrency. Defaults to 4 to avoid spawning a process per
+  ## CPU core which leads to OOM on large nodes.
+  concurrency: 4
   resources:
     requests:
       cpu: 500m
@@ -652,7 +739,40 @@ worker:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
-
+workerExports:
+  enabled: false
+  image: {}
+  replicas: 1
+  ## Dedicated Celery queue list for browser/media-heavy export tasks.
+  ## Requires Chromium — needs more memory than regular workers.
+  queue: exports
+  ## Keep low — each prefork worker spawns Chromium (~500MB RSS).
+  concurrency: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 8Gi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  sidecarContainers: []
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
 plugins:
   enabled: true
   image:
@@ -685,7 +805,6 @@ plugins:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
-
 capture:
   enabled: true
   image:
@@ -706,17 +825,6 @@ capture:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-  ## GeoIP database configuration
-  ## The feature-flags image does NOT include GeoLite2-City.mmdb.
-  ## You must provide it via a volume mount for GeoIP to work.
-  geoip:
-    dbPath: /share/GeoLite2-City.mmdb
-    ## Volume mount to provide the GeoIP database file.
-    ## Example using a PVC:
-    ##   volumeMount:
-    ##     persistentVolumeClaim:
-    ##       claimName: geoip-db
-    volumeMount: {}
   autoscaling:
     enabled: false
     minReplicas: 1
@@ -726,7 +834,6 @@ capture:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
-
 replayCapture:
   enabled: true
   image:
@@ -756,7 +863,6 @@ replayCapture:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
-
 captureAi:
   enabled: true
   image:
@@ -777,7 +883,6 @@ captureAi:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-
 captureLogs:
   enabled: true
   image:
@@ -798,7 +903,6 @@ captureLogs:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-
 featureFlags:
   enabled: true
   image:
@@ -828,7 +932,6 @@ featureFlags:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
-
 propertyDefsRs:
   enabled: true
   image:
@@ -849,7 +952,6 @@ propertyDefsRs:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-
 livestream:
   enabled: true
   image:
@@ -870,7 +972,6 @@ livestream:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-
 cymbal:
   enabled: true
   image:
@@ -891,18 +992,6 @@ cymbal:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-  ## GeoIP database configuration
-  ## The cymbal image does NOT include GeoLite2-City.mmdb.
-  ## You must provide it via a volume mount for GeoIP to work.
-  geoip:
-    dbPath: /share/GeoLite2-City.mmdb
-    ## Volume mount to provide the GeoIP database file.
-    ## Example using a PVC:
-    ##   volumeMount:
-    ##     persistentVolumeClaim:
-    ##       claimName: geoip-db
-    volumeMount: {}
-
 cyclotronJanitor:
   enabled: true
   image:
@@ -922,8 +1011,8 @@ cyclotronJanitor:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-
 temporalDjangoWorker:
+  image: {}
   replicas: 1
   resources:
     requests:
@@ -941,39 +1030,97 @@ temporalDjangoWorker:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
-
 ## ------------------------------------------------------------------
 ## Init Jobs
 ## ------------------------------------------------------------------
 migrate:
   ## Run Django migrations on install/upgrade
   enabled: true
-
+  image: {}
 kafkaInit:
-  ## Create required Kafka topics on install
+  ## Create Kafka topics on external clusters (ignored when kafka.enabled=true,
+  ## because the bitnami subchart handles provisioning via kafka.provisioning).
+  ## Keep in sync with kafka.provisioning.topics above.
   enabled: true
   topics:
-  - clickhouse_events_json
-  - events_plugin_ingestion
-  - events_plugin_ingestion_overflow
-  - events_plugin_ingestion_historical
-  - exceptions_ingestion
-  - session_recording_snapshot_item_events
-  - session_recording_snapshot_item_overflow
-  - clickhouse_app_metrics2
-  - heatmaps_ingestion
-  - logs_ingestion
-  - error_tracking_events
-
+    - cdp_backfill_events
+    - cdp_batch_hogflow_requests
+    - cdp_data_warehouse_source_table
+    - cdp_function_overflow
+    - cdp_internal_events
+    - clickhouse_ai_events_json
+    - clickhouse_app_metrics
+    - clickhouse_app_metrics2
+    - clickhouse_behavioral_cohorts_matches
+    - clickhouse_document_embeddings
+    - clickhouse_error_tracking_issue_fingerprint
+    - clickhouse_error_tracking_issue_fingerprint_embeddings
+    - clickhouse_error_tracking_issue_fingerprint_overrides
+    - clickhouse_events_json
+    - clickhouse_groups
+    - clickhouse_heatmap_events
+    - clickhouse_ingestion_warnings
+    - clickhouse_logs
+    - clickhouse_metrics_time_to_see_data
+    - clickhouse_performance_events
+    - clickhouse_person
+    - clickhouse_person_distinct_id
+    - clickhouse_person_distinct_id2
+    - clickhouse_person_distinct_id_overrides
+    - clickhouse_person_override
+    - clickhouse_person_overrides
+    - clickhouse_person_unique_id
+    - clickhouse_precalculated_person_properties
+    - clickhouse_prefiltered_events
+    - clickhouse_session_recording_events
+    - clickhouse_session_replay_events
+    - clickhouse_tophog
+    - clickhouse_traces
+    - cohort_membership_changed
+    - cohort_membership_changed_trigger
+    - conversion_events_buffer
+    - data_warehouse_source_webhooks
+    - data_warehouse_source_webhooks_dlq
+    - data_warehouse_sources_jobs
+    - data_warehouse_sources_jobs_dlq
+    - distinct_id_usage_events_json
+    - document_embeddings_input
+    - events_dead_letter_queue
+    - events_plugin_ingestion
+    - events_plugin_ingestion_async
+    - events_plugin_ingestion_dlq
+    - events_plugin_ingestion_historical
+    - events_plugin_ingestion_overflow
+    - exceptions_ingestion
+    - ingestion-errortracking-main
+    - ingestion-errortracking-main-dlq
+    - ingestion-errortracking-overflow
+    - ingestion-traces
+    - ingestion-traces-dlq
+    - ingestion-traces-overflow
+    - kafka_events_recent_json
+    - log_entries
+    - log_entries_v2_test
+    - logs_ingestion
+    - logs_ingestion_dlq
+    - logs_ingestion_overflow
+    - notification_events
+    - plugin_log_entries
+    - session_recording_events
+    - session_recording_snapshot_item_dlq
+    - session_recording_snapshot_item_events
+    - session_recording_snapshot_item_overflow
+    - signals_report_completed
 asyncMigrationsCheck:
   enabled: true
-
+  image: {}
+bootstrapClickhouse:
+  image: {}
 ## ------------------------------------------------------------------
 ## Network Policies
 ## ------------------------------------------------------------------
 networkPolicies:
   enabled: false
-
 ## ------------------------------------------------------------------
 ## Prometheus Monitoring
 ## ------------------------------------------------------------------

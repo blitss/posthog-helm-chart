@@ -1,0 +1,119 @@
+{{- if and .Values.ingress.enabled .Values.ingress.traefik.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "posthog.fullname" . }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+  {{- with .Values.ingress.traefik.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  entryPoints:
+    {{- toYaml .Values.ingress.traefik.entryPoints | nindent 4 }}
+  routes:
+    {{- if .Values.captureAi.enabled }}
+    ## AI capture endpoint -> capture-ai service (must be before /i/v0)
+    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/i/v0/ai`)
+      kind: Rule
+      services:
+        - name: {{ include "posthog.fullname" . }}-capture-ai
+          port: 3000
+    {{- end }}
+    {{- if .Values.captureLogs.enabled }}
+    ## OTel logs/traces -> capture-logs service
+    - match: Host(`{{ .Values.ingress.hostname }}`) && (PathPrefix(`/i/v1/logs`) || PathPrefix(`/i/v1/traces`))
+      kind: Rule
+      services:
+        - name: {{ include "posthog.fullname" . }}-capture-logs
+          port: 4318
+    {{- end }}
+    {{- if .Values.capture.enabled }}
+    ## Event capture endpoints -> capture service
+    - match: Host(`{{ .Values.ingress.hostname }}`) && (PathPrefix(`/e`) || PathPrefix(`/i/v0`) || PathPrefix(`/batch`) || PathPrefix(`/capture`))
+      kind: Rule
+      services:
+        - name: {{ include "posthog.fullname" . }}-capture
+          port: 3000
+    {{- end }}
+    {{- if .Values.replayCapture.enabled }}
+    ## Session recording -> replay-capture service
+    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/s`)
+      kind: Rule
+      services:
+        - name: {{ include "posthog.fullname" . }}-replay-capture
+          port: 3000
+    {{- end }}
+    {{- if .Values.featureFlags.enabled }}
+    ## Feature flags -> feature-flags service
+    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/flags`)
+      kind: Rule
+      services:
+        - name: {{ include "posthog.fullname" . }}-feature-flags
+          port: 3001
+    {{- end }}
+    {{- if .Values.livestream.enabled }}
+    ## Livestream -> livestream service (WebSocket)
+    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/livestream`)
+      kind: Rule
+      services:
+        - name: {{ include "posthog.fullname" . }}-livestream
+          port: 8080
+      middlewares:
+        - name: {{ include "posthog.fullname" . }}-livestream-strip
+    {{- end }}
+    {{- if .Values.plugins.enabled }}
+    ## Public webhooks -> plugins service
+    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/public/webhooks`)
+      kind: Rule
+      services:
+        - name: {{ include "posthog.fullname" . }}-plugins
+          port: 6738
+    {{- end }}
+    ## Object storage proxy
+    - match: Host(`{{ .Values.ingress.hostname }}`) && PathPrefix(`/posthog`)
+      kind: Rule
+      services:
+        {{- if .Values.rustfs.enabled }}
+        - name: {{ include "posthog.fullname" . }}-rustfs-svc
+          port: 9000
+        {{- else }}
+        - name: {{ include "posthog.fullname" . }}-web
+          port: 8000
+        {{- end }}
+    ## Default: everything else -> web service
+    - match: Host(`{{ .Values.ingress.hostname }}`)
+      kind: Rule
+      priority: 1
+      services:
+        - name: {{ include "posthog.fullname" . }}-web
+          port: 8000
+  {{- if .Values.ingress.traefik.tls.enabled }}
+  tls:
+    {{- if .Values.ingress.traefik.tls.certResolver }}
+    certResolver: {{ .Values.ingress.traefik.tls.certResolver | quote }}
+    {{- end }}
+    {{- if .Values.ingress.traefik.tls.secretName }}
+    secretName: {{ .Values.ingress.traefik.tls.secretName | quote }}
+    {{- end }}
+    {{- if not (or .Values.ingress.traefik.tls.certResolver .Values.ingress.traefik.tls.secretName) }}
+    domains:
+      - main: {{ .Values.ingress.hostname | quote }}
+    {{- end }}
+  {{- end }}
+{{- if .Values.livestream.enabled }}
+---
+## Middleware to strip /livestream prefix before forwarding to the livestream service
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "posthog.fullname" . }}-livestream-strip
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+spec:
+  stripPrefix:
+    prefixes:
+      - /livestream
+{{- end }}
+{{- end }}
