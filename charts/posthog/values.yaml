@@ -490,10 +490,12 @@ kafka:
 externalKafka:
   brokers: '' # e.g. "kafka-1:9092,kafka-2:9092"
 ## ------------------------------------------------------------------
-## ZooKeeper (for ClickHouse coordination)
+## ZooKeeper (for bundled ClickHouse coordination)
+## Ignored when clickhouse.enabled=false — external ClickHouse brings
+## its own keeper/zookeeper.
 ## ------------------------------------------------------------------
 zookeeper:
-  enabled: false
+  enabled: true
   image:
     repository: zookeeper
     tag: 3.7.0

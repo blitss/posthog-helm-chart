@@ -12,9 +12,14 @@ spec:
   dependsOn:
     - name: clickhouse-operator
   install:
+    ## Skip Flux's stalled-resource wait — web/cymbal/worker need the create-buckets
+    ## and migrate hooks to complete first, which happens after resource apply.
+    ## Helm hooks themselves still run and are waited on.
+    disableWait: true
     remediation:
       retries: 5
   upgrade:
+    disableWait: true
     remediation:
       retries: 5
   values:
@@ -36,6 +41,7 @@ spec:
       image:
         repository: docker.io/posthog/posthog
       env:
+        # Allows creating multiple organizations in your instance (multi-tenancy). Requires a premium license.
         MULTI_ORG_ENABLED: "0"
       secretEnv:
         OIDC_RSA_PRIVATE_KEY:
@@ -89,15 +95,20 @@ spec:
       secretName: posthog-clickhouse-password
       secretPasswordKey: password
 
-    ## Kafka, Redis, Elasticsearch, ZooKeeper — bundled via chart
+    ## Kafka — Redpanda via operator (external)
     kafka:
-      enabled: true
+      enabled: false
+    externalKafka:
+      brokers: posthog-redpanda.posthog.svc.cluster.local:9093
+
+    ## Redis, Elasticsearch — bundled via chart
     redis:
       enabled: true
     elasticsearch:
       enabled: true
+    ## ZooKeeper not needed — ClickHouse uses ClickHouseKeeperInstallation
     zookeeper:
-      enabled: true
+      enabled: false
 
     minio:
       enabled: false

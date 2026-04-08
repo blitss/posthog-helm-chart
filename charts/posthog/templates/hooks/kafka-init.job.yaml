@@ -12,7 +12,7 @@ metadata:
   labels:
     {{- include "posthog.componentLabels" (dict "root" . "component" "kafka-init") | nindent 4 }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
 spec:
@@ -25,7 +25,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: kafka-init
-          image: bitnami/kafka:3.7
+          image: bitnamilegacy/kafka:3.7
           command:
             - sh
             - -c

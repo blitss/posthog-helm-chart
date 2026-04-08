@@ -2,7 +2,7 @@ apiVersion: v2
 name: posthog
 description: A Helm chart to deploy PostHog - open-source product analytics platform
 type: application
-version: 0.16.2
+version: 0.17.1
 appVersion: latest  # PostHog uses continuous deployment; no semver releases
 kubeVersion: '>= 1.23.0-0'
 keywords:

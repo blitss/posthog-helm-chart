@@ -10,5 +10,7 @@ resources:
   - clickhouse-keeper.yaml
   - clickhouse-initdb.yaml
   - clickhouse.yaml
+  - redpanda-operator.yaml
+  - redpanda.yaml
   - ocirepository.yaml
   - release.yaml
