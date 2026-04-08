@@ -10,9 +10,10 @@ RUN find /python-runtime -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete &&
 
 FROM ${POSTHOG_IMAGE} AS web-assets
 
-# Strip frontend sourcemaps before copying staticfiles into the runtime image so
-# the deleted files never land in a final layer.
-RUN find /code/staticfiles -type f -name '*.map' -delete
+# Strip frontend sourcemaps before copying the built frontend assets into the
+# runtime image so the deleted files never land in a final layer.
+RUN find /code/staticfiles -type f -name '*.map' -delete && \
+    find /code/frontend/dist -type f -name '*.map' -delete
 
 FROM python:3.12.12-slim-bookworm
 
@@ -40,15 +41,18 @@ WORKDIR /code
 # Runtime Python environment and Django app code.
 COPY --from=python-runtime-slim --chown=posthog:posthog /python-runtime /python-runtime
 COPY --from=upstream --chown=posthog:posthog /code/bin /code/bin
+COPY --from=upstream --chown=posthog:posthog /code/commit.txt /code/commit.txt
 COPY --from=upstream --chown=posthog:posthog /code/manage.py /code/manage.py
 COPY --from=upstream --chown=posthog:posthog /code/posthog /code/posthog
 COPY --from=upstream --chown=posthog:posthog /code/ee /code/ee
 COPY --from=upstream --chown=posthog:posthog /code/common/hogvm /code/common/hogvm
 COPY --from=upstream --chown=posthog:posthog /code/common/migration_utils /code/common/migration_utils
 COPY --from=upstream --chown=posthog:posthog /code/products /code/products
+COPY --from=upstream --chown=posthog:posthog /code/share /code/share
 
-# Built assets only. We intentionally skip /code/frontend/dist because the
-# upstream image already bakes those files into /code/staticfiles.
+# Built frontend assets. Django templates resolve from frontend/dist, while the
+# staticfiles tree serves the hashed asset paths generated from the same build.
+COPY --from=web-assets --chown=posthog:posthog /code/frontend/dist /code/frontend/dist
 COPY --from=web-assets --chown=posthog:posthog /code/staticfiles /code/staticfiles
 COPY --from=upstream --chown=posthog:posthog /code/frontend/src/products.json /code/frontend/src/products.json
 
