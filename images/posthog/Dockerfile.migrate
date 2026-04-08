@@ -31,6 +31,7 @@ RUN apt-get update && \
 WORKDIR /code
 
 COPY --from=python-runtime-slim --chown=posthog:posthog /python-runtime /python-runtime
+COPY --from=upstream --chown=posthog:posthog /code/commit.txt /code/commit.txt
 COPY --from=upstream --chown=posthog:posthog /code/manage.py /code/manage.py
 COPY --from=upstream --chown=posthog:posthog /code/posthog /code/posthog
 COPY --from=upstream --chown=posthog:posthog /code/ee /code/ee
