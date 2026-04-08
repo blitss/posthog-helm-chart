@@ -1,0 +1,100 @@
+{{- if .Values.geoip.enabled }}
+{{- $fullname := include "posthog.fullname" . -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-geoip
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "geoip") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "geoip") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-geoip
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "geoip") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "geoip") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "geoip") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- if not .Values.geoip.existingPvc }}
+      initContainers:
+        - name: download-mmdb
+          image: {{ .Values.geoip.image | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              apk add --no-cache curl{{ if .Values.geoip.brotli }} brotli{{ end }} &&
+              curl -L {{ .Values.geoip.downloadUrl | quote }} \
+                --http1.1 \
+                --fail \
+                --retry 10 \
+                --retry-max-time 300 \
+                --retry-all-errors \
+                --progress-bar \
+                --show-error \
+              {{- if .Values.geoip.brotli }}
+                | brotli --decompress --output="/data/{{ .Values.geoip.filename }}"
+              {{- else }}
+                --output "/data/{{ .Values.geoip.filename }}"
+              {{- end }}
+          volumeMounts:
+            - name: geoip-data
+              mountPath: /data
+      {{- end }}
+      containers:
+        - name: geoip-server
+          image: busybox
+          command: ["httpd", "-f", "-p", "8080", "-h", "/data"]
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: geoip-data
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /{{ .Values.geoip.filename }}
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /{{ .Values.geoip.filename }}
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 60
+      volumes:
+        - name: geoip-data
+          {{- if .Values.geoip.existingPvc }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.geoip.existingPvc }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

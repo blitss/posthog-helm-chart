@@ -1,8 +1,0 @@
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata:
-  name: kubeblocks
-  namespace: kb-system
-spec:
-  url: https://apecloud.github.io/helm-charts
-  interval: 10m

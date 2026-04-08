@@ -2,10 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - clickhouse-config.yaml
+  - issuer.yaml
+  - oidc-certificate.yaml
+  - postgres-cnpg.yaml
+  - clickhouse-password.yaml
+  - altinity-clickhouse-operator.yaml
+  - clickhouse-keeper.yaml
+  - clickhouse-initdb.yaml
   - clickhouse.yaml
-  - clickhouse-service.yaml
-  - postgres-kubeblocks.yaml
-  - postgres-bootstrap-job.yaml
   - ocirepository.yaml
   - release.yaml

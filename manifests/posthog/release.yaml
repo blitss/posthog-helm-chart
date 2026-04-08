@@ -9,11 +9,12 @@ spec:
   chartRef:
     kind: OCIRepository
     name: posthog-chart
+  dependsOn:
+    - name: clickhouse-operator
   install:
     remediation:
       retries: 5
   upgrade:
-    force: true
     remediation:
       retries: 5
   values:
@@ -35,53 +36,68 @@ spec:
       image:
         repository: docker.io/posthog/posthog
       env:
-        MULTI_ORG_ENABLED: "1"
+        MULTI_ORG_ENABLED: "0"
       secretEnv:
         OIDC_RSA_PRIVATE_KEY:
-          name: posthog-oidc
-          key: oidc-rsa-private-key
+          name: posthog-oidc-generated
+          key: tls.key
 
+    ## Split images — built by .github/workflows/build-posthog-images.yaml
+    ## Replace OWNER below with your GitHub org/user.
     web:
       enabled: true
+      image:
+        repository: ghcr.io/blitss/posthog-web
+        tag: latest
+        pullPolicy: Always
       replicas: 1
       resources:
         requests:
           cpu: 500m
-          memory: 1Gi
+          memory: 2Gi
         limits:
-          memory: 4Gi
+          memory: 8Gi
 
+    ## PostgreSQL — CNPG (external)
     postgresql:
       enabled: false
-
     externalPostgresql:
-      host: posthog-pg-postgresql
+      host: posthog-pg-rw
       port: 5432
       database: posthog
-      personsDatabase: posthog
+      personsDatabase: posthog_persons
       cyclotronDatabase: cyclotron
-      secretName: posthog-pg-postgresql-account-postgres
+      secretName: posthog-pg-app
       usernameKey: username
       passwordKey: password
 
+    ## ClickHouse — Altinity operator (external)
     clickhouse:
       enabled: false
       database: posthog
-
     externalClickhouse:
-      host: posthog-ch-clickhouse
-      user: admin
-      apiUser: admin
-      appUser: admin
-      cluster: default
-      migrationsCluster: default
-      singleShardCluster: default
-      writableCluster: default
-      primaryReplicaCluster: default
-      logsCluster: default
-      satelliteClusters: ""
-      secretName: posthog-ch-clickhouse-account-admin
+      host: clickhouse-posthog.posthog.svc.cluster.local
+      user: default
+      apiUser: api
+      appUser: app
+      cluster: posthog
+      migrationsCluster: posthog
+      singleShardCluster: posthog
+      writableCluster: posthog
+      primaryReplicaCluster: posthog
+      logsCluster: posthog
+      secretName: posthog-clickhouse-password
       secretPasswordKey: password
+
+    ## Kafka, Redis, Elasticsearch, ZooKeeper — bundled via chart
+    kafka:
+      enabled: true
+    redis:
+      enabled: true
+    elasticsearch:
+      enabled: true
+    zookeeper:
+      enabled: true
 
     minio:
       enabled: false
@@ -116,6 +132,10 @@ spec:
           tag: "2.48.1@sha256:edb5dd1b3e0ddb35611939dde9b573533afd6fbafbbf077b73c7131a30ca91ff"
 
     worker:
+      image:
+        repository: ghcr.io/blitss/posthog-worker
+        tag: latest
+        pullPolicy: Always
       extraEnv:
         - name: CELERY_WORKER_CONCURRENCY
           value: "2"
@@ -124,62 +144,63 @@ spec:
           cpu: 500m
           memory: 1Gi
         limits:
-          memory: 4Gi
+          memory: 8Gi
+
+    workerExports:
+      enabled: true
+      image:
+        repository: ghcr.io/blitss/posthog-worker-exports
+        tag: latest
+        pullPolicy: Always
+
+    temporalDjangoWorker:
+      image:
+        repository: ghcr.io/blitss/posthog-worker
+        tag: latest
+        pullPolicy: Always
+
+    migrate:
+      image:
+        repository: ghcr.io/blitss/posthog-migrate
+        tag: latest
+        pullPolicy: Always
+
+    asyncMigrationsCheck:
+      image:
+        repository: ghcr.io/blitss/posthog-migrate
+        tag: latest
+        pullPolicy: Always
 
     plugins:
       image:
         repository: docker.io/posthog/posthog-node
         tag: latest@sha256:863e76e040ad41aef79f605c33ec71f1529bddf94cfd88941c935da9bde97235
 
-    redis:
-      image:
-        repository: docker.io/library/redis
-
-    kafka:
-      image:
-        repository: docker.redpanda.com/redpandadata/redpanda
-
-    zookeeper:
-      image:
-        repository: docker.io/library/zookeeper
-
-    elasticsearch:
-      image:
-        repository: docker.io/library/elasticsearch
-
     capture:
       image:
         repository: ghcr.io/posthog/posthog/capture
-
     replayCapture:
       image:
         repository: ghcr.io/posthog/posthog/capture
-
     captureAi:
       image:
         repository: ghcr.io/posthog/posthog/capture
-
     captureLogs:
       image:
         repository: ghcr.io/posthog/posthog/capture-logs
-
     featureFlags:
       image:
         repository: ghcr.io/posthog/posthog/feature-flags
-
     propertyDefsRs:
       image:
         repository: ghcr.io/posthog/posthog/property-defs-rs
-
     livestream:
       enabled: true
       image:
         repository: ghcr.io/posthog/posthog/livestream
-
     cymbal:
       image:
         repository: ghcr.io/posthog/posthog/cymbal
-
     cyclotronJanitor:
       image:
         repository: ghcr.io/posthog/posthog/cyclotron-janitor
@@ -187,3 +208,6 @@ spec:
     global:
       containerSecurityContext: {}
       podSecurityContext: {}
+
+    networkPolicies:
+      enabled: false

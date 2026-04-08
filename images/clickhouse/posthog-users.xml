@@ -1,0 +1,75 @@
+<!--
+  PostHog ClickHouse profiles, users, and quotas overlay.
+  Baked into the image so every node gets the required query settings.
+
+  Passwords for api/app users are placeholders here — override them via
+  users.d/ mount from a Kubernetes Secret (the Helm chart does this).
+
+  Source: https://github.com/PostHog/posthog/blob/master/docker/clickhouse/users.xml
+-->
+<clickhouse>
+  <profiles>
+    <default>
+      <max_memory_usage>10000000000</max_memory_usage>
+      <load_balancing>random</load_balancing>
+      <allow_nondeterministic_mutations>1</allow_nondeterministic_mutations>
+      <enable_analyzer>0</enable_analyzer>
+      <compatibility>25.10</compatibility>
+      <distributed_product_mode>global</distributed_product_mode>
+      <enable_parallel_replicas>0</enable_parallel_replicas>
+      <max_parallel_replicas>1</max_parallel_replicas>
+      <allow_experimental_window_functions>1</allow_experimental_window_functions>
+      <allow_suspicious_low_cardinality_types>1</allow_suspicious_low_cardinality_types>
+      <insert_distributed_sync>1</insert_distributed_sync>
+      <throw_on_max_partitions_per_insert_block>false</throw_on_max_partitions_per_insert_block>
+      <number_of_mutations_to_throw>1</number_of_mutations_to_throw>
+    </default>
+    <readonly>
+      <readonly>1</readonly>
+    </readonly>
+    <api>
+      <profile>default</profile>
+    </api>
+    <app>
+      <profile>default</profile>
+    </app>
+  </profiles>
+
+  <users>
+    <default>
+      <password></password>
+      <networks><ip>::/0</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <access_management>1</access_management>
+      <named_collection_control>1</named_collection_control>
+      <show_named_collections>1</show_named_collections>
+      <show_named_collections_secrets>1</show_named_collections_secrets>
+    </default>
+    <api>
+      <password>apipass</password>
+      <networks><ip>::/0</ip></networks>
+      <profile>api</profile>
+      <quota>default</quota>
+    </api>
+    <app>
+      <password>apppass</password>
+      <networks><ip>::/0</ip></networks>
+      <profile>app</profile>
+      <quota>default</quota>
+    </app>
+  </users>
+
+  <quotas>
+    <default>
+      <interval>
+        <duration>3600</duration>
+        <queries>0</queries>
+        <errors>0</errors>
+        <result_rows>0</result_rows>
+        <read_rows>0</read_rows>
+        <execution_time>0</execution_time>
+      </interval>
+    </default>
+  </quotas>
+</clickhouse>

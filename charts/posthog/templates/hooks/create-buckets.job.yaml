@@ -1,0 +1,49 @@
+{{/*
+  Hook weight 1: Create S3 buckets on the bundled RustFS instance.
+  Skipped when using external object storage (rustfs.enabled=false).
+*/}}
+{{- if .Values.rustfs.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.fullname" . }}-create-buckets
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "create-buckets") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "create-buckets") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-buckets
+          image: minio/mc:latest
+          env:
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: object-storage-access-key
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: object-storage-secret-key
+          command:
+            - sh
+            - -c
+            - |
+              mc alias set rustfs http://{{ include "posthog.fullname" . }}-rustfs-svc:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY"
+              mc mb --ignore-existing rustfs/posthog
+              mc ls rustfs/
+              echo "Buckets ready."
+{{- end }}

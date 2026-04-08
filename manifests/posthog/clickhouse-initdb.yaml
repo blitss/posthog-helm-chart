@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: posthog-clickhouse-initdb
+  namespace: posthog
+data:
+  01_init_posthog.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "Creating posthog database..."
+    clickhouse client -n <<-'EOSQL'
+      CREATE DATABASE IF NOT EXISTS posthog;
+    EOSQL
+
+    echo "Flushing logs to create system log tables..."
+    clickhouse client --query "SYSTEM FLUSH LOGS"
+
+    echo "Waiting for system log tables..."
+    for i in $(seq 1 30); do
+      COUNT=$(clickhouse client --query "
+        SELECT count()
+        FROM system.tables
+        WHERE database = 'system'
+          AND name IN ('crash_log', 'error_log', 'metric_log')
+      ")
+      if [ "$COUNT" = "3" ]; then
+        echo "System log tables ready"
+        exit 0
+      fi
+      echo "  $COUNT/3 tables ready, retrying in 2s..."
+      sleep 2
+    done
+
+    echo "Timed out waiting for system log tables" >&2
+    exit 1

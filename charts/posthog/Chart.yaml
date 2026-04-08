@@ -16,3 +16,13 @@ sources:
 maintainers:
 - name: posthog
   url: https://posthog.com
+
+dependencies:
+  - name: kafka
+    repository: oci://registry-1.docker.io/bitnamicharts
+    version: 29.3.14
+    condition: kafka.enabled
+  - name: rustfs
+    repository: https://charts.rustfs.com
+    version: 0.0.91
+    condition: rustfs.enabled

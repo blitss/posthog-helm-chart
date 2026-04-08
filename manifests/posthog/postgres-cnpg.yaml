@@ -1,0 +1,26 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: posthog-pg
+  namespace: posthog
+spec:
+  instances: 1
+  enableSuperuserAccess: true
+  storage:
+    size: 20Gi
+  bootstrap:
+    initdb:
+      database: posthog
+      owner: posthog
+      postInitApplicationSQL:
+        - ALTER ROLE posthog CREATEDB;
+        ## PostHog core databases
+        ## https://github.com/PostHog/posthog/tree/master/docker/postgres-init-scripts
+        - CREATE DATABASE cyclotron OWNER posthog;
+        - CREATE DATABASE cyclotron_node OWNER posthog;
+        - CREATE DATABASE posthog_persons OWNER posthog;
+        - CREATE DATABASE behavioral_cohorts OWNER posthog;
+        - CREATE DATABASE ducklake OWNER posthog;
+        ## Temporal workflow engine
+        - CREATE DATABASE temporal OWNER posthog;
+        - CREATE DATABASE temporal_visibility OWNER posthog;

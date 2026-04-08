@@ -1,0 +1,125 @@
+{{- if and .Values.ingress.enabled .Values.ingress.gateway.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "posthog.fullname" . }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.ingress.gateway.gatewayName }}
+      namespace: {{ .Values.ingress.gateway.gatewayNamespace }}
+      sectionName: {{ .Values.ingress.gateway.listenerName }}
+  hostnames:
+    - {{ .Values.ingress.hostname | quote }}
+  rules:
+    {{- if .Values.captureAi.enabled }}
+    ## AI capture endpoint -> capture-ai service (must be before /i/v0)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /i/v0/ai
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-capture-ai
+          port: 3000
+    {{- end }}
+    {{- if .Values.captureLogs.enabled }}
+    ## OTel logs/traces capture -> capture-logs service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /i/v1/logs
+        - path:
+            type: PathPrefix
+            value: /i/v1/traces
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-capture-logs
+          port: 4318
+    {{- end }}
+    {{- if .Values.capture.enabled }}
+    ## Event capture endpoints -> capture service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /e
+        - path:
+            type: PathPrefix
+            value: /i/v0
+        - path:
+            type: PathPrefix
+            value: /batch
+        - path:
+            type: PathPrefix
+            value: /capture
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-capture
+          port: 3000
+    {{- end }}
+    {{- if .Values.replayCapture.enabled }}
+    ## Session recording -> replay-capture service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /s
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-replay-capture
+          port: 3000
+    {{- end }}
+    {{- if .Values.featureFlags.enabled }}
+    ## Feature flags -> feature-flags service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /flags
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-feature-flags
+          port: 3001
+    {{- end }}
+    {{- if .Values.livestream.enabled }}
+    ## Livestream -> livestream service (WebSocket)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /livestream
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-livestream
+          port: 8080
+    {{- end }}
+    {{- if .Values.plugins.enabled }}
+    ## Public webhooks -> plugins service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /public/webhooks
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-plugins
+          port: 6738
+    {{- end }}
+    ## Object storage proxy
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /posthog
+      backendRefs:
+        {{- if .Values.rustfs.enabled }}
+        - name: {{ include "posthog.fullname" . }}-rustfs-svc
+          port: 9000
+        {{- else }}
+        - name: {{ include "posthog.fullname" . }}-web
+          port: 8000
+        {{- end }}
+    ## Default: everything else -> web service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-web
+          port: 8000
+{{- end }}

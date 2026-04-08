@@ -1,0 +1,43 @@
+ARG POSTHOG_IMAGE=posthog/posthog:latest
+FROM ${POSTHOG_IMAGE} AS upstream
+
+FROM ${POSTHOG_IMAGE} AS python-runtime-slim
+
+# Remove bytecode caches and packaged test suites before copying the runtime
+# into the final image. Doing this in a separate stage shrinks the copied layer.
+RUN find /python-runtime -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete && \
+    find /python-runtime -type d -name __pycache__ -prune -exec rm -rf {} +
+
+FROM python:3.12.12-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH=/python-runtime/bin:$PATH \
+    PYTHONPATH=/python-runtime
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libjemalloc2 \
+    libpq5 \
+    libxml2 \
+    libxmlsec1 \
+    libxmlsec1-openssl \
+    && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g 1000 posthog && \
+    useradd -m -u 1000 -g posthog posthog
+
+WORKDIR /code
+
+COPY --from=python-runtime-slim --chown=posthog:posthog /python-runtime /python-runtime
+COPY --from=upstream --chown=posthog:posthog /code/manage.py /code/manage.py
+COPY --from=upstream --chown=posthog:posthog /code/posthog /code/posthog
+COPY --from=upstream --chown=posthog:posthog /code/ee /code/ee
+COPY --from=upstream --chown=posthog:posthog /code/common/hogvm /code/common/hogvm
+COPY --from=upstream --chown=posthog:posthog /code/common/migration_utils /code/common/migration_utils
+COPY --from=upstream --chown=posthog:posthog /code/products /code/products
+
+USER posthog
+
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py migrate_clickhouse"]

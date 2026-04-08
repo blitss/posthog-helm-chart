@@ -1,9 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: kb-system
-resources:
-  - repository.yaml
-  - release.yaml
-  - clickhouse-addon.yaml
-  - posthog-clickhouse-component-version.yaml
-  - postgresql-addon.yaml

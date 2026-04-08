@@ -1,60 +1,183 @@
----
-apiVersion: apps.kubeblocks.io/v1
-kind: Cluster
+apiVersion: clickhouse.altinity.com/v1
+kind: ClickHouseInstallation
 metadata:
-  name: posthog-ch
+  name: posthog
   namespace: posthog
 spec:
-  terminationPolicy: WipeOut
-  clusterDef: clickhouse
-  topology: cluster
-  shardings:
-    - name: clickhouse
-      shardingDef: clickhouse
-      shards: 1
-      template:
-        name: clickhouse
-        componentDef: clickhouse-1.0.3
-        configs:
-          - name: clickhouse-tpl
-            configMap:
-              name: posthog-clickhouse-config
-        podUpdatePolicy: PreferInPlace
-        serviceVersion: 25.9.7-posthog.1
-        replicas: 1
-        resources:
-          requests:
-            cpu: "1"
-            memory: 4Gi
-          limits:
-            cpu: "2"
-            memory: 8Gi
-        volumeClaimTemplates:
-          - name: data
-            spec:
-              accessModes:
-                - ReadWriteOnce
+  defaults:
+    templates:
+      dataVolumeClaimTemplate: data
+      podTemplate: clickhouse
+
+  configuration:
+    users:
+      ## PostHog application users
+      ## https://github.com/PostHog/posthog/blob/master/docker/clickhouse/users.xml
+      default/password:
+        valueFrom:
+          secretKeyRef:
+            name: posthog-clickhouse-password
+            key: password
+      default/networks/ip: "::/0"
+      default/profile: default
+      default/quota: default
+      default/access_management: "1"
+      default/named_collection_control: "1"
+      default/show_named_collections: "1"
+      default/show_named_collections_secrets: "1"
+      api/password:
+        valueFrom:
+          secretKeyRef:
+            name: posthog-clickhouse-password
+            key: password
+      api/networks/ip: "::/0"
+      api/profile: api
+      api/quota: default
+      app/password:
+        valueFrom:
+          secretKeyRef:
+            name: posthog-clickhouse-password
+            key: password
+      app/networks/ip: "::/0"
+      app/profile: app
+      app/quota: default
+
+    profiles:
+      ## PostHog-required profile settings
+      default/max_memory_usage: "10000000000"
+      default/load_balancing: random
+      default/allow_nondeterministic_mutations: "1"
+      default/enable_analyzer: "0"
+      default/compatibility: "25.10"
+      default/distributed_product_mode: global
+      default/enable_parallel_replicas: "0"
+      default/max_parallel_replicas: "1"
+      default/allow_experimental_window_functions: "1"
+      default/allow_suspicious_low_cardinality_types: "1"
+      default/insert_distributed_sync: "1"
+      default/throw_on_max_partitions_per_insert_block: "false"
+      default/number_of_mutations_to_throw: "1"
+      readonly/readonly: "1"
+      api/profile: default
+      app/profile: default
+
+    quotas:
+      default/interval/duration: "3600"
+      default/interval/queries: "0"
+      default/interval/errors: "0"
+      default/interval/result_rows: "0"
+      default/interval/read_rows: "0"
+      default/interval/execution_time: "0"
+
+    settings:
+      ## PostHog server tuning
+      max_concurrent_queries: "200"
+      max_connections: "4096"
+      keep_alive_timeout: "3"
+      max_server_memory_usage_to_ram_ratio: "0.9"
+      max_thread_pool_size: "10000"
+      background_pool_size: "4"
+      background_message_broker_schedule_pool_size: "10"
+      uncompressed_cache_size: "8589934592"
+      mark_cache_size: "5368709120"
+      mmap_cache_size: "1000"
+      compiled_expression_cache_size: "134217728"
+      compiled_expression_cache_elements_size: "10000"
+      builtin_dictionaries_reload_interval: "3600"
+      max_session_timeout: "3600"
+      default_session_timeout: "60"
+      merge_tree/max_bytes_to_merge_at_max_space_in_pool: "1073741824"
+      merge_tree/number_of_free_entries_in_pool_to_execute_mutation: "2"
+      merge_tree/number_of_free_entries_in_pool_to_execute_optimize_entire_partition: "2"
+      logger/level: warning
+
+    zookeeper:
+      nodes:
+        - host: chk-posthog-keeper-keeper-0-0
+          port: 2181
+
+    clusters:
+      - name: posthog
+        secret:
+          auto: "true"
+        layout:
+          shardsCount: 1
+          replicasCount: 1
+
+    files:
+      ## PostHog migration macros
+      config.d/posthog_macros.xml: |
+        <clickhouse>
+          <macros>
+            <hostClusterType>online</hostClusterType>
+            <hostClusterRole>data</hostClusterRole>
+          </macros>
+        </clickhouse>
+      ## System log tables required by PostHog migrations
+      config.d/posthog_system_logs.xml: |
+        <clickhouse>
+          <crash_log>
+            <database>system</database>
+            <table>crash_log</table>
+            <flush_interval_milliseconds>1000</flush_interval_milliseconds>
+            <flush_on_crash>true</flush_on_crash>
+          </crash_log>
+          <error_log>
+            <database>system</database>
+            <table>error_log</table>
+            <flush_interval_milliseconds>1000</flush_interval_milliseconds>
+            <collect_interval_milliseconds>1000</collect_interval_milliseconds>
+          </error_log>
+          <metric_log>
+            <database>system</database>
+            <table>metric_log</table>
+            <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+            <collect_interval_milliseconds>1000</collect_interval_milliseconds>
+          </metric_log>
+        </clickhouse>
+      ## Kafka named collections for ClickHouse Kafka engine tables
+      config.d/named_collections.xml: |
+        <clickhouse>
+          <named_collections>
+            <msk_cluster>
+              <kafka_broker_list from_env="KAFKA_HOSTS"/>
+            </msk_cluster>
+            <warpstream_ingestion>
+              <kafka_broker_list from_env="KAFKA_HOSTS"/>
+            </warpstream_ingestion>
+          </named_collections>
+        </clickhouse>
+
+  templates:
+    podTemplates:
+      - name: clickhouse
+        spec:
+          containers:
+            - name: clickhouse
+              image: ghcr.io/blitss/posthog-clickhouse:25.9.7
+              env:
+                - name: KAFKA_HOSTS
+                  value: posthog-kafka:9092
+              volumeMounts:
+                - name: initdb
+                  mountPath: /docker-entrypoint-initdb.d
               resources:
                 requests:
-                  storage: 50Gi
-  componentSpecs:
-    - name: ch-keeper
-      componentDef: clickhouse-keeper-1.0.3
-      podUpdatePolicy: PreferInPlace
-      replicas: 1
-      serviceVersion: 25.9.7-posthog.1
-      resources:
-        requests:
-          cpu: "250m"
-          memory: 512Mi
-        limits:
-          cpu: "1"
-          memory: 1Gi
-      volumeClaimTemplates:
-        - name: data
-          spec:
-            accessModes:
-              - ReadWriteOnce
-            resources:
-              requests:
-                storage: 10Gi
+                  cpu: "1"
+                  memory: 4Gi
+                limits:
+                  cpu: "2"
+                  memory: 8Gi
+          volumes:
+            - name: initdb
+              configMap:
+                name: posthog-clickhouse-initdb
+
+    volumeClaimTemplates:
+      - name: data
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 50Gi

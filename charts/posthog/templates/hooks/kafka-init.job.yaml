@@ -1,0 +1,37 @@
+{{/*
+  Hook weight 0: Create Kafka topics on external Kafka clusters.
+  Skipped when using the bundled bitnami kafka (it has its own provisioning).
+*/}}
+{{- if and .Values.kafkaInit.enabled (not .Values.kafka.enabled) }}
+{{- $kafkaBrokers := .Values.externalKafka.brokers }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.fullname" . }}-kafka-init
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "kafka-init") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "kafka-init") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: kafka-init
+          image: bitnami/kafka:3.7
+          command:
+            - sh
+            - -c
+            - |
+              {{- range .Values.kafkaInit.topics }}
+              kafka-topics.sh --bootstrap-server {{ $kafkaBrokers }} --create --if-not-exists --topic {{ . }} || true
+              {{- end }}
+              echo "All topics created successfully."
+{{- end }}

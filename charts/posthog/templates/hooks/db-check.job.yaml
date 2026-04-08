@@ -1,0 +1,60 @@
+{{/*
+  Hook weight -1: Wait for all infrastructure dependencies to be reachable
+  before any other hooks run.
+*/}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.fullname" . }}-db-check
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "db-check") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 30
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "db-check") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-check
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              check() {
+                echo "Checking $1:$2 ..."
+                while ! nc -z "$1" "$2"; do
+                  echo "  $1:$2 not ready, retrying in 5s..."
+                  sleep 5
+                done
+                echo "  $1:$2 is up"
+              }
+
+              {{- if .Values.redis.enabled }}
+              check {{ include "posthog.fullname" . }}-redis 6379
+              {{- end }}
+
+              {{- $kafkaBrokers := .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) }}
+              {{- $kafkaParts := split ":" $kafkaBrokers }}
+              check {{ $kafkaParts._0 }} {{ $kafkaParts._1 }}
+
+              {{- if .Values.zookeeper.enabled }}
+              check {{ include "posthog.fullname" . }}-zookeeper 2181
+              {{- end }}
+
+              {{- if not .Values.clickhouse.enabled }}
+              check {{ .Values.externalClickhouse.host }} 8123
+              {{- end }}
+
+              {{- if not .Values.postgresql.enabled }}
+              check {{ .Values.externalPostgresql.host }} {{ .Values.externalPostgresql.port }}
+              {{- end }}
+
+              echo "All dependencies are up!"

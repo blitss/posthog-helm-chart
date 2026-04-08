@@ -1,0 +1,47 @@
+posthog:
+  image:
+    repository: local/posthog-worker
+    tag: test
+    pullPolicy: IfNotPresent
+
+clickhouse:
+  enabled: false
+
+
+web:
+  image:
+    repository: local/posthog-web
+    tag: test
+    pullPolicy: IfNotPresent
+
+worker:
+  image:
+    repository: local/posthog-worker
+    tag: test
+    pullPolicy: IfNotPresent
+
+workerExports:
+  enabled: true
+  image:
+    repository: local/posthog-worker-exports
+    tag: test
+    pullPolicy: IfNotPresent
+
+temporalDjangoWorker:
+  image:
+    repository: local/posthog-worker
+    tag: test
+    pullPolicy: IfNotPresent
+
+migrate:
+  image:
+    repository: local/posthog-migrate
+    tag: test
+    pullPolicy: IfNotPresent
+
+asyncMigrationsCheck:
+  image:
+    repository: local/posthog-migrate
+    tag: test
+    pullPolicy: IfNotPresent
+
