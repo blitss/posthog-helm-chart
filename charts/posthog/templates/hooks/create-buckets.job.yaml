@@ -10,10 +10,6 @@ metadata:
   name: {{ include "posthog.fullname" . }}-create-buckets
   labels:
     {{- include "posthog.componentLabels" (dict "root" . "component" "create-buckets") | nindent 4 }}
-  annotations:
-    "helm.sh/hook": post-install
-    "helm.sh/hook-weight": "1"
-    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
 spec:
   backoffLimit: 10
   template:
@@ -42,6 +38,17 @@ spec:
             - sh
             - -c
             - |
+              check() {
+                echo "Checking $1:$2 ..."
+                while ! nc -z "$1" "$2"; do
+                  echo "  $1:$2 not ready, retrying in 5s..."
+                  sleep 5
+                done
+                echo "  $1:$2 is up"
+              }
+
+              check {{ include "posthog.fullname" . }}-rustfs-svc 9000
+
               mc alias set rustfs http://{{ include "posthog.fullname" . }}-rustfs-svc:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY"
               mc mb --ignore-existing rustfs/posthog
               mc ls rustfs/

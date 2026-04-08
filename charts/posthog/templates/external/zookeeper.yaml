@@ -1,4 +1,9 @@
-{{- if .Values.zookeeper.enabled }}
+{{/*
+  ZooKeeper is only needed by the bundled ClickHouse (clickhouse.enabled=true).
+  When using external ClickHouse, the external deployment has its own keeper/
+  zookeeper and this StatefulSet is skipped.
+*/}}
+{{- if and .Values.zookeeper.enabled .Values.clickhouse.enabled }}
 ---
 apiVersion: v1
 kind: Service

@@ -1,0 +1,74 @@
+apiVersion: cluster.redpanda.com/v1alpha2
+kind: Redpanda
+metadata:
+  name: posthog-redpanda
+  namespace: posthog
+spec:
+  chartRef: {}
+  clusterSpec:
+    image:
+      tag: v26.1.1
+
+    ## Single broker for dev/staging. Bump replicas to 3 for production.
+    statefulset:
+      replicas: 1
+
+    ## Disable the bundled console/connectors — PostHog doesn't need them.
+    console:
+      enabled: false
+    connectors:
+      enabled: false
+
+    ## TLS disabled for now — internal cluster traffic only.
+    ## TODO: enable TLS once externalKafka.tls is wired through the chart
+    ## (CA mount on every PostHog component + CHI Kafka named_collections).
+    tls:
+      enabled: false
+
+    auth:
+      sasl:
+        enabled: false
+
+    listeners:
+      kafka:
+        port: 9093
+        tls:
+          enabled: false
+      admin:
+        port: 9644
+        tls:
+          enabled: false
+      rpc:
+        port: 33145
+        tls:
+          enabled: false
+      schemaRegistry:
+        enabled: false
+      http:
+        enabled: false
+
+    ## No NodePort/LoadBalancer — internal only.
+    external:
+      enabled: false
+
+    resources:
+      cpu:
+        cores: 1
+      memory:
+        container:
+          max: 2Gi
+
+    storage:
+      persistentVolume:
+        enabled: true
+        size: 20Gi
+
+    config:
+      cluster:
+        ## PostHog workers will create topics on first use, but we also let
+        ## librdkafka auto-create for topics that slip through.
+        auto_create_topics_enabled: true
+        default_topic_replications: 1
+        default_topic_partitions: 1
+      tunable:
+        group_topic_partitions: 1

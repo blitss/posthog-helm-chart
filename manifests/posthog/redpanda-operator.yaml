@@ -1,0 +1,33 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: redpanda
+  namespace: posthog
+spec:
+  url: https://charts.redpanda.com
+  interval: 1h
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: redpanda-operator
+  namespace: posthog
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: operator
+      sourceRef:
+        kind: HelmRepository
+        name: redpanda
+        namespace: posthog
+      version: "v26.1.2"
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+  values:
+    crds:
+      enabled: true

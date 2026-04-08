@@ -157,7 +157,7 @@ spec:
               image: ghcr.io/blitss/posthog-clickhouse:25.9.7
               env:
                 - name: KAFKA_HOSTS
-                  value: posthog-kafka:9092
+                  value: posthog-redpanda.posthog.svc.cluster.local:9093
               volumeMounts:
                 - name: initdb
                   mountPath: /docker-entrypoint-initdb.d
