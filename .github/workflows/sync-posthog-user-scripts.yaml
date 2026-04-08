@@ -14,17 +14,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Clone upstream PostHog user scripts
+      - name: Clone upstream PostHog ClickHouse assets
         shell: bash
         run: |
           set -euo pipefail
 
           tmpdir="$(mktemp -d)"
           git clone --depth 1 --filter=blob:none --sparse https://github.com/PostHog/posthog.git "${tmpdir}/posthog"
-          git -C "${tmpdir}/posthog" sparse-checkout set posthog/user_scripts
+          git -C "${tmpdir}/posthog" sparse-checkout set posthog/user_scripts docker/clickhouse/user_defined_function.xml
 
           mkdir -p vendor/posthog
           rsync -a --delete "${tmpdir}/posthog/posthog/user_scripts/" vendor/posthog/user_scripts/
+          mkdir -p vendor/posthog/docker/clickhouse
+          cp "${tmpdir}/posthog/docker/clickhouse/user_defined_function.xml" vendor/posthog/docker/clickhouse/user_defined_function.xml
 
       - name: Detect changes
         id: changes
