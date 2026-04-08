@@ -16,9 +16,7 @@ spec:
     {{- if .Values.captureAi.enabled }}
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
     - matches:
-        - path:
-            type: PathPrefix
-            value: /i/v0/ai
+{{ include "posthog.gatewayPathMatches" "/i/v0/ai" | indent 8 }}
       backendRefs:
         - name: {{ include "posthog.fullname" . }}-capture-ai
           port: 3000
@@ -26,12 +24,8 @@ spec:
     {{- if .Values.captureLogs.enabled }}
     ## OTel logs/traces capture -> capture-logs service
     - matches:
-        - path:
-            type: PathPrefix
-            value: /i/v1/logs
-        - path:
-            type: PathPrefix
-            value: /i/v1/traces
+{{ include "posthog.gatewayPathMatches" "/i/v1/logs" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/i/v1/traces" | indent 8 }}
       backendRefs:
         - name: {{ include "posthog.fullname" . }}-capture-logs
           port: 4318
@@ -39,18 +33,10 @@ spec:
     {{- if .Values.capture.enabled }}
     ## Event capture endpoints -> capture service
     - matches:
-        - path:
-            type: PathPrefix
-            value: /e
-        - path:
-            type: PathPrefix
-            value: /i/v0
-        - path:
-            type: PathPrefix
-            value: /batch
-        - path:
-            type: PathPrefix
-            value: /capture
+{{ include "posthog.gatewayPathMatches" "/e" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/i/v0" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/batch" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/capture" | indent 8 }}
       backendRefs:
         - name: {{ include "posthog.fullname" . }}-capture
           port: 3000
@@ -58,9 +44,7 @@ spec:
     {{- if .Values.replayCapture.enabled }}
     ## Session recording -> replay-capture service
     - matches:
-        - path:
-            type: PathPrefix
-            value: /s
+{{ include "posthog.gatewayPathMatches" "/s" | indent 8 }}
       backendRefs:
         - name: {{ include "posthog.fullname" . }}-replay-capture
           port: 3000
@@ -68,9 +52,7 @@ spec:
     {{- if .Values.featureFlags.enabled }}
     ## Feature flags -> feature-flags service
     - matches:
-        - path:
-            type: PathPrefix
-            value: /flags
+{{ include "posthog.gatewayPathMatches" "/flags" | indent 8 }}
       backendRefs:
         - name: {{ include "posthog.fullname" . }}-feature-flags
           port: 3001
@@ -78,9 +60,7 @@ spec:
     {{- if .Values.livestream.enabled }}
     ## Livestream -> livestream service (WebSocket)
     - matches:
-        - path:
-            type: PathPrefix
-            value: /livestream
+{{ include "posthog.gatewayPathMatches" "/livestream" | indent 8 }}
       filters:
         - type: URLRewrite
           urlRewrite:
@@ -94,18 +74,14 @@ spec:
     {{- if .Values.plugins.enabled }}
     ## Public webhooks -> plugins service
     - matches:
-        - path:
-            type: PathPrefix
-            value: /public/webhooks
+{{ include "posthog.gatewayPathMatches" "/public/webhooks" | indent 8 }}
       backendRefs:
         - name: {{ include "posthog.fullname" . }}-plugins
           port: 6738
     {{- end }}
     ## Object storage proxy
     - matches:
-        - path:
-            type: PathPrefix
-            value: /posthog
+{{ include "posthog.gatewayPathMatches" "/posthog" | indent 8 }}
       backendRefs:
         {{- if .Values.rustfs.enabled }}
         - name: {{ include "posthog.fullname" . }}-rustfs-svc

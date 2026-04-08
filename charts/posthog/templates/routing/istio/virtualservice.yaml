@@ -18,8 +18,7 @@ spec:
     {{- if .Values.captureAi.enabled }}
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
     - match:
-        - uri:
-            prefix: /i/v0/ai
+{{ include "posthog.istioPathMatches" "/i/v0/ai" | indent 8 }}
       route:
         - destination:
             host: {{ include "posthog.fullname" . }}-capture-ai
@@ -29,10 +28,8 @@ spec:
     {{- if .Values.captureLogs.enabled }}
     ## OTel logs/traces -> capture-logs service
     - match:
-        - uri:
-            prefix: /i/v1/logs
-        - uri:
-            prefix: /i/v1/traces
+{{ include "posthog.istioPathMatches" "/i/v1/logs" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/i/v1/traces" | indent 8 }}
       route:
         - destination:
             host: {{ include "posthog.fullname" . }}-capture-logs
@@ -42,14 +39,10 @@ spec:
     {{- if .Values.capture.enabled }}
     ## Event capture endpoints -> capture service
     - match:
-        - uri:
-            prefix: /e
-        - uri:
-            prefix: /i/v0
-        - uri:
-            prefix: /batch
-        - uri:
-            prefix: /capture
+{{ include "posthog.istioPathMatches" "/e" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/i/v0" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/batch" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/capture" | indent 8 }}
       route:
         - destination:
             host: {{ include "posthog.fullname" . }}-capture
@@ -59,8 +52,7 @@ spec:
     {{- if .Values.replayCapture.enabled }}
     ## Session recording -> replay-capture service
     - match:
-        - uri:
-            prefix: /s
+{{ include "posthog.istioPathMatches" "/s" | indent 8 }}
       route:
         - destination:
             host: {{ include "posthog.fullname" . }}-replay-capture
@@ -70,8 +62,7 @@ spec:
     {{- if .Values.featureFlags.enabled }}
     ## Feature flags -> feature-flags service
     - match:
-        - uri:
-            prefix: /flags
+{{ include "posthog.istioPathMatches" "/flags" | indent 8 }}
       route:
         - destination:
             host: {{ include "posthog.fullname" . }}-feature-flags
@@ -81,8 +72,7 @@ spec:
     {{- if .Values.livestream.enabled }}
     ## Livestream -> livestream service (WebSocket)
     - match:
-        - uri:
-            prefix: /livestream
+{{ include "posthog.istioPathMatches" "/livestream" | indent 8 }}
       rewrite:
         uri: /
       route:
@@ -94,8 +84,7 @@ spec:
     {{- if .Values.plugins.enabled }}
     ## Public webhooks -> plugins service
     - match:
-        - uri:
-            prefix: /public/webhooks
+{{ include "posthog.istioPathMatches" "/public/webhooks" | indent 8 }}
       route:
         - destination:
             host: {{ include "posthog.fullname" . }}-plugins
@@ -104,8 +93,7 @@ spec:
     {{- end }}
     ## Object storage proxy
     - match:
-        - uri:
-            prefix: /posthog
+{{ include "posthog.istioPathMatches" "/posthog" | indent 8 }}
       route:
         - destination:
             {{- if .Values.rustfs.enabled }}
