@@ -7,10 +7,11 @@ What this repo contains:
 - `charts/posthog`: the Helm chart
 - `images/clickhouse/Dockerfile`: custom ClickHouse image with PostHog UDFs
 - `vendor/posthog/user_scripts`: vendored upstream PostHog UDF assets
+- `vendor/posthog/docker/clickhouse/user_defined_function.xml`: vendored upstream ClickHouse UDF registration file
 - `manifests/kubeblocks`: KubeBlocks core addon wiring for ClickHouse and PostgreSQL
 - `manifests/posthog`: example KubeBlocks clusters for ClickHouse and PostgreSQL
 - `.github/workflows/publish-posthog-artifacts.yaml`: publishes the chart to GHCR OCI and builds the custom ClickHouse image
-- `.github/workflows/sync-posthog-user-scripts.yaml`: syncs `posthog/user_scripts` from upstream PostHog
+- `.github/workflows/sync-posthog-user-scripts.yaml`: syncs `posthog/user_scripts` and `docker/clickhouse/user_defined_function.xml` from upstream PostHog
 
 ## Publish targets
 
@@ -89,7 +90,7 @@ Notes:
   - `images.clickhouse` controls the main ClickHouse component container image.
   - `images.memberJoin`, `images.memberLeave`, `images.role-probe`, and `images.switchover` control the Keeper kbagent/action image path.
   - The live KubeBlocks Keeper main `clickhouse` container still uses the addon default `apecloud/clickhouse` image unless you customize the addon/component-definition layer further.
-- The ClickHouse Dockerfile no longer depends on `posthog/posthog`; it copies vendored files from `vendor/posthog/user_scripts` and uses `latest_user_defined_function.xml` from that tree.
+- The ClickHouse Dockerfile no longer depends on `posthog/posthog`; it copies vendored files from `vendor/posthog/user_scripts` and uses the upstream source-of-truth registration file from `vendor/posthog/docker/clickhouse/user_defined_function.xml`.
 - KubeBlocks generates the credential secrets used by the bundle.
   - ClickHouse admin secret follows the standard pattern `<cluster>-<component>-account-admin`, which is `posthog-ch-clickhouse-account-admin` in the example.
   - PostgreSQL postgres superuser secret follows `<cluster>-<component>-account-postgres`, which is `posthog-pg-postgresql-account-postgres` in the example.
