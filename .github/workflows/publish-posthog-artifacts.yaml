@@ -122,7 +122,11 @@ jobs:
 
       - name: Build dependencies
         shell: bash
-        run: helm dependency build "${CHART_PATH}"
+        run: |
+          set -euo pipefail
+          # Non-OCI subchart repos need to be registered before `helm dependency build`
+          helm repo add rustfs https://charts.rustfs.com
+          helm dependency build "${CHART_PATH}"
 
       - name: Lint chart
         shell: bash
