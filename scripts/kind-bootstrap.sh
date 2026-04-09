@@ -10,7 +10,7 @@ KIND_CONFIG="${KIND_CONFIG:-${REPO_ROOT}/kind-config.local.yaml}"
 VALUES_FILE="${VALUES_FILE:-${REPO_ROOT}/manifests/posthog/kind-values.local.yaml}"
 NAMESPACE="${POSTHOG_NAMESPACE:-posthog-kind}"
 RELEASE_NAME="${POSTHOG_RELEASE_NAME:-posthog-kind}"
-MIRROR_HOST="${MIRROR_HOST:-REDACTED_MIRROR_HOST}"
+MIRROR_HOST="${MIRROR_HOST:-}"
 RECREATE=0
 INSTALL_POSTHOG=0
 LOAD_LOCAL_IMAGES=1
@@ -26,9 +26,11 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [options]
 
-Creates a local kind cluster configured to pull docker.io and ghcr.io images
-through ${MIRROR_HOST}, and optionally loads the local PostHog split images and
-installs the chart.
+Creates a local kind cluster and optionally loads the local PostHog split
+images and installs the chart. Optionally configures container registry
+mirrors on the kind nodes (for docker.io, ghcr.io, docker.redpanda.com) if
+MIRROR_HOST is set — the mirror is expected to speak the Harbor
+project-prefixed path convention (\`/v2/<source>/...\`).
 
 Options:
   --cluster-name NAME     kind cluster name (default: ${CLUSTER_NAME})
@@ -37,7 +39,7 @@ Options:
   --recreate              delete any existing cluster with the same name first
   --skip-load-images      do not load local posthog images into kind
   --install-posthog       run helm upgrade --install after cluster creation
-  --mirror-host HOST      mirror host prefix (default: ${MIRROR_HOST})
+  --mirror-host HOST      registry mirror host (no default; can also be set via MIRROR_HOST env var)
   --help                  show this message
 EOF
 }
@@ -72,6 +74,11 @@ EOF
 }
 
 configure_node_mirrors() {
+  if [[ -z "${MIRROR_HOST}" ]]; then
+    echo "MIRROR_HOST not set, skipping registry mirror configuration" >&2
+    return 0
+  fi
+
   local node
   while IFS= read -r node; do
     write_hosts_toml "${node}" "docker.io" "https://registry-1.docker.io" "v2/docker.io"
