@@ -422,6 +422,7 @@ kafka:
       - name: clickhouse_app_metrics2
       - name: clickhouse_behavioral_cohorts_matches
       - name: clickhouse_document_embeddings
+      - name: clickhouse_error_tracking_fingerprint_issue_state
       - name: clickhouse_error_tracking_issue_fingerprint
       - name: clickhouse_error_tracking_issue_fingerprint_embeddings
       - name: clickhouse_error_tracking_issue_fingerprint_overrides
@@ -1055,6 +1056,7 @@ kafkaInit:
     - clickhouse_app_metrics2
     - clickhouse_behavioral_cohorts_matches
     - clickhouse_document_embeddings
+    - clickhouse_error_tracking_fingerprint_issue_state
     - clickhouse_error_tracking_issue_fingerprint
     - clickhouse_error_tracking_issue_fingerprint_embeddings
     - clickhouse_error_tracking_issue_fingerprint_overrides
