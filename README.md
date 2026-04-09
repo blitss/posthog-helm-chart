@@ -1,62 +1,59 @@
 # PostHog Bundle
 
-Standalone PostHog bundle for running the local Helm chart on another cluster.
+Kubernetes deployment of [PostHog](https://posthog.com) with two install paths:
 
-What this repo contains:
+1. **Chart** (`helm install`) — self-contained, bundled infrastructure, one command to get running.
+2. **Manifests** (GitOps / Flux + operators) — hardened production setup where every stateful dependency is managed by a dedicated operator.
 
-- `charts/posthog`: the Helm chart
-- `images/clickhouse/Dockerfile`: custom ClickHouse image with PostHog UDFs
-- `vendor/posthog/user_scripts`: vendored upstream PostHog UDF assets
-- `vendor/posthog/docker/clickhouse/user_defined_function.xml`: vendored upstream ClickHouse UDF registration file
-- `manifests/kubeblocks`: KubeBlocks core addon wiring for ClickHouse and PostgreSQL
-- `manifests/posthog`: example KubeBlocks clusters for ClickHouse and PostgreSQL
-- `.github/workflows/publish-posthog-artifacts.yaml`: publishes the chart to GHCR OCI and builds the custom ClickHouse image
-- `.github/workflows/sync-posthog-user-scripts.yaml`: syncs `posthog/user_scripts` and `docker/clickhouse/user_defined_function.xml` from upstream PostHog
+Both paths deploy the same PostHog app; they differ only in how infrastructure (ClickHouse, Kafka, Postgres, object storage) is provisioned.
 
-## Publish targets
+## What's in the repo
 
-- Chart OCI: `oci://ghcr.io/blitss/charts/posthog`
-- Image: `ghcr.io/blitss/posthog-clickhouse`
+```
+charts/posthog/              # Helm chart (both paths use this)
+  templates/hooks/           # Install hooks: db-check, kafka-init, create-buckets, migrate, async-migrations
+  templates/external/        # Bundled infra deployments (used only when enabled=true)
+  templates/posthog/         # PostHog application Deployments
+  templates/routing/         # Ingress / Gateway API / Traefik / Istio / OpenShift route options
+  charts/                    # Subchart dependencies: bitnami/kafka, rustfs  (gitignored)
 
-## Quick start
+manifests/                   # GitOps path — Flux-managed operators and CRs
+  infra/                     # cert-manager, CNPG, CRDs — cluster-wide prerequisites
+  posthog/                   # PostHog namespace: operators, CRs, Flux HelmRelease
 
-1. Install KubeBlocks, database addons, and the ClickHouse image binding:
+images/
+  clickhouse/                # Custom ClickHouse image with PostHog UDF scripts
+  posthog/                   # Split Python-slim images: web, worker, worker-exports, migrate
 
-```bash
-kubectl apply -k manifests/kubeblocks
+scripts/
+  kind-bootstrap.sh          # Create a local kind cluster with registry mirrors + loaded images
+  update-topics.sh           # Sync Kafka topic list from upstream PostHog
+
+.github/workflows/
+  build-posthog-images.yaml  # Build and publish split PostHog images + ClickHouse to ghcr.io
+  sync-posthog-topics.yaml   # Daily PR to sync Kafka topics with upstream
+  sync-posthog-user-scripts.yaml  # Daily sync of ClickHouse UDF scripts
+
+vendor/posthog/              # Upstream PostHog UDFs (auto-synced from github.com/PostHog/posthog)
 ```
 
-2. Create the `posthog` namespace and external databases:
+## Which path to use
 
-```bash
-kubectl apply -k manifests/posthog
-```
+| | Chart | Manifests |
+|---|---|---|
+| **Use when** | Local dev, quick demo, POC | Production, HA, proper operator story |
+| **ClickHouse** | StatefulSet in chart | Altinity Clickhouse Operator + CHI + CHK (keeper) |
+| **Kafka** | bitnami/kafka subchart (KRaft) | Redpanda Operator + `Redpanda` CR |
+| **Postgres** | StatefulSet in chart | CloudNativePG (`Cluster` CR) |
+| **Object storage** | rustfs subchart | rustfs subchart (still in chart) |
+| **Deployment tooling** | `helm install` | Flux HelmRelease + Kustomize |
+| **Hook order resolution** | Helm `--wait` | Flux `disableWait: true` + pod crash-loop backoff |
 
-Or equivalently:
+See [charts/posthog/README.md](charts/posthog/README.md) for the chart path, and [manifests/README.md](manifests/README.md) for the GitOps path.
 
-```bash
-kubectl apply -k manifests
-```
+## Local testing with kind
 
-That second apply now does all of:
-
-- creates the `posthog` namespace
-- provisions ClickHouse and PostgreSQL clusters
-- relies on KubeBlocks-generated account secrets for ClickHouse and PostgreSQL
-- bootstraps the `posthog`, `cyclotron`, `temporal`, and `temporal_visibility` databases
-- creates a Flux `OCIRepository` for the chart
-- creates a Flux `HelmRelease` that deploys PostHog from GHCR OCI
-
-3. Adjust the example values file:
-
-- set `ingress.hostname`
-- replace the R2 placeholders in `manifests/posthog/release.yaml`
-- create your own `posthog-oidc` Secret from `manifests/posthog/oidc-secret.example.yaml`
-- if you rename the KubeBlocks clusters, update the generated secret references in `manifests/posthog/release.yaml`
-
-## Local kind
-
-For local chart testing with the split PostHog images, use the bootstrap script:
+Both paths can be tested on a single-node kind cluster. The bootstrap script creates the cluster, installs container registry mirrors, and loads locally-built images:
 
 ```bash
 ./scripts/kind-bootstrap.sh --recreate
@@ -64,35 +61,33 @@ For local chart testing with the split PostHog images, use the bootstrap script:
 
 What it does:
 
-- creates a single-node kind cluster from `kind-config.local.yaml`
-- writes containerd mirror config for `docker.io` and `ghcr.io`
-- points both registries at `https://REDACTED_MIRROR_HOST/docker.io` and `https://REDACTED_MIRROR_HOST/ghcr.io`
-- loads any locally built `local/posthog-*` images into the cluster
+- Creates a single-node cluster from `kind-config.local.yaml`
+- Configures containerd mirrors so `docker.io/*` and `ghcr.io/*` pulls go through an internal Harbor proxy (configurable via `MIRROR_HOST`)
+- Loads any local `local/posthog-*:test` images into the cluster so you don't need to push them
 
-If you also want the script to install the chart with the local values file:
+After that, follow either install path below.
+
+## Custom images
+
+The chart and manifests reference pre-built images on `ghcr.io/blitss/`:
+
+- `posthog-web`, `posthog-worker`, `posthog-worker-exports`, `posthog-migrate` — split Python-slim images (2–4 GB each instead of the 9.8 GB upstream monolith)
+- `posthog-clickhouse` — stock ClickHouse plus PostHog UDF scripts baked in
+
+These are published by `.github/workflows/build-posthog-images.yaml`. To build locally:
 
 ```bash
-./scripts/kind-bootstrap.sh --recreate --install-posthog
+docker build -f images/posthog/Dockerfile.web -t local/posthog-web:test .
+docker build -f images/posthog/Dockerfile.worker -t local/posthog-worker:test .
+docker build -f images/posthog/Dockerfile.worker-exports -t local/posthog-worker-exports:test .
+docker build -f images/posthog/Dockerfile.migrate -t local/posthog-migrate:test .
+docker build -f images/clickhouse/Dockerfile -t local/posthog-clickhouse:test .
 ```
 
-Notes:
+The chart and manifests work with either `ghcr.io/blitss/*` or `local/*:test` — override via `--set` / `values.yaml`.
 
-- `manifests/posthog/kind-values.local.yaml` is the local chart override file
-- that local values file rewrites Kafka to `docker.io/redpandadata/redpanda` so it also goes through the Docker Hub mirror path
-- the split PostHog images still need to exist locally if you want the local install to succeed
+## Publish targets
 
-## Notes
-
-- ClickHouse defaults to KubeBlocks. The chart does not assume an in-chart ClickHouse deployment path for this bundle.
-- The example keeps Redis, Kafka, MinIO, SeaweedFS, Elasticsearch, and Temporal inside the chart so only PostgreSQL is additionally externalized in values.
-- `posthog-clickhouse-component-version.yaml` is the important reproducibility bit: it binds the custom KubeBlocks service version `25.9.7-posthog.1` to the ClickHouse image published by this repo.
-- The image binding lives in `manifests/kubeblocks/posthog-clickhouse-component-version.yaml`.
-  - `images.clickhouse` controls the main ClickHouse component container image.
-  - `images.memberJoin`, `images.memberLeave`, `images.role-probe`, and `images.switchover` control the Keeper kbagent/action image path.
-  - The live KubeBlocks Keeper main `clickhouse` container still uses the addon default `apecloud/clickhouse` image unless you customize the addon/component-definition layer further.
-- The ClickHouse Dockerfile no longer depends on `posthog/posthog`; it copies vendored files from `vendor/posthog/user_scripts` and uses the upstream source-of-truth registration file from `vendor/posthog/docker/clickhouse/user_defined_function.xml`.
-- KubeBlocks generates the credential secrets used by the bundle.
-  - ClickHouse admin secret follows the standard pattern `<cluster>-<component>-account-admin`, which is `posthog-ch-clickhouse-account-admin` in the example.
-  - PostgreSQL postgres superuser secret follows `<cluster>-<component>-account-postgres`, which is `posthog-pg-postgresql-account-postgres` in the example.
-- The PostHog release manifest uses direct `docker.io` / `ghcr.io` image references and generic placeholder infrastructure values.
-- `release.yaml` currently uses `posthog.example.com` as the ingress host. Change it before applying if you want a real hostname.
+- Chart OCI: `oci://ghcr.io/blitss/charts/posthog`
+- ClickHouse image: `ghcr.io/blitss/posthog-clickhouse`
+- Split PostHog images: `ghcr.io/blitss/posthog-{web,worker,worker-exports,migrate}`
