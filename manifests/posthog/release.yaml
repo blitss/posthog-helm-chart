@@ -40,6 +40,7 @@ spec:
       optOutCapture: true
       image:
         repository: docker.io/posthog/posthog
+        tag: latest@sha256:c65363156df88bb12b6d28cb3c6f0ad2a823631327c224c673d8b58eae48521c
       env:
         # Allows creating multiple organizations in your instance (multi-tenancy). Requires a premium license.
         MULTI_ORG_ENABLED: "0"
@@ -47,15 +48,11 @@ spec:
         OIDC_RSA_PRIVATE_KEY:
           name: posthog-oidc-generated
           key: tls.key
-
-    ## Split images — built by .github/workflows/build-posthog-images.yaml
-    ## Replace OWNER below with your GitHub org/user.
     web:
       enabled: true
       image:
-        repository: ghcr.io/blitss/posthog-web
-        tag: latest
-        pullPolicy: Always
+        repository: docker.io/posthog/posthog
+        tag: latest@sha256:c65363156df88bb12b6d28cb3c6f0ad2a823631327c224c673d8b58eae48521c
       replicas: 1
       resources:
         requests:
@@ -86,6 +83,7 @@ spec:
       user: default
       apiUser: api
       appUser: app
+      logsDatabase: posthog
       cluster: posthog
       migrationsCluster: posthog
       singleShardCluster: posthog
@@ -106,27 +104,33 @@ spec:
       enabled: true
     elasticsearch:
       enabled: true
-    ## ZooKeeper not needed — ClickHouse uses ClickHouseKeeperInstallation
+    externalElasticsearch:
+      host: ""
+      scheme: http
+      user: ""
+      secretName: ""
+      passwordKey: ""
+      version: v8
     zookeeper:
       enabled: false
-
     minio:
       enabled: false
+    rustfs:
+      enabled: true
     seaweedfs:
       enabled: false
     objectStorage:
       enabled: true
-
     externalObjectStorage:
-      endpoint: https://example-account-id.r2.cloudflarestorage.com
-      accessKey: REPLACE_ME
-      secretKey: REPLACE_ME
-
+      # The chart uses the fixed bucket name "posthog".
+      endpoint: https://example.r2.cloudflarestorage.com
+      accessKey: ""
+      secretKey: ""
     externalSeaweedfs:
-      endpoint: https://example-account-id.r2.cloudflarestorage.com
-      accessKey: REPLACE_ME
-      secretKey: REPLACE_ME
-
+      # Session recordings also target the fixed bucket name "posthog".
+      endpoint: https://example.r2.cloudflarestorage.com
+      accessKey: ""
+      secretKey: ""
     temporal:
       enabled: true
       server:
@@ -141,7 +145,6 @@ spec:
         image:
           repository: docker.io/temporalio/ui
           tag: "2.48.1@sha256:edb5dd1b3e0ddb35611939dde9b573533afd6fbafbbf077b73c7131a30ca91ff"
-
     worker:
       image:
         repository: ghcr.io/blitss/posthog-worker
@@ -156,69 +159,70 @@ spec:
           memory: 1Gi
         limits:
           memory: 8Gi
-
     workerExports:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-worker-exports
         tag: latest
         pullPolicy: Always
-
     temporalDjangoWorker:
       image:
         repository: ghcr.io/blitss/posthog-worker
         tag: latest
         pullPolicy: Always
-
     migrate:
       image:
         repository: ghcr.io/blitss/posthog-migrate
         tag: latest
         pullPolicy: Always
-
     asyncMigrationsCheck:
       image:
         repository: ghcr.io/blitss/posthog-migrate
         tag: latest
         pullPolicy: Always
-
     plugins:
       image:
         repository: docker.io/posthog/posthog-node
         tag: latest@sha256:863e76e040ad41aef79f605c33ec71f1529bddf94cfd88941c935da9bde97235
-
     capture:
       image:
         repository: ghcr.io/posthog/posthog/capture
+        tag: master@sha256:3025464aed4d316f729bb85ab798416aa295f947b8ea86f62d2300f1eac7dec5
     replayCapture:
       image:
         repository: ghcr.io/posthog/posthog/capture
+        tag: master@sha256:3025464aed4d316f729bb85ab798416aa295f947b8ea86f62d2300f1eac7dec5
     captureAi:
       image:
         repository: ghcr.io/posthog/posthog/capture
+        tag: master@sha256:3025464aed4d316f729bb85ab798416aa295f947b8ea86f62d2300f1eac7dec5
     captureLogs:
       image:
         repository: ghcr.io/posthog/posthog/capture-logs
+        tag: master@sha256:13bb230987f091a2a426a1b5531eef04ce30b5f0b4bb7128b5c3ba667718475c
     featureFlags:
       image:
         repository: ghcr.io/posthog/posthog/feature-flags
+        tag: master@sha256:607cf70a5808d089abd7b3ee493314e16651351e9dbbd831b2d4e1dd96a495e4
     propertyDefsRs:
       image:
         repository: ghcr.io/posthog/posthog/property-defs-rs
+        tag: master@sha256:fc6c59d5f1f2355a1d4d18641651aa4afcbda4b16e99fe3ab32751d4f924b4b7
     livestream:
       enabled: true
       image:
         repository: ghcr.io/posthog/posthog/livestream
+        tag: master@sha256:cd1c09922dadca934beb580a727dbbd8aeb572e821c580f3990a707022d2e0be
     cymbal:
       image:
         repository: ghcr.io/posthog/posthog/cymbal
+        tag: master@sha256:57b7e1bfe4e2e20f749e5de15b834e73d2a8f2a89fe0bfea08126cf319e774ec
     cyclotronJanitor:
       image:
         repository: ghcr.io/posthog/posthog/cyclotron-janitor
-
+        tag: master@sha256:c672a970c9597b94f04b721e1717a054f32073d885c9b76259b9cf33461240dc
     global:
       containerSecurityContext: {}
       podSecurityContext: {}
-
     networkPolicies:
       enabled: false

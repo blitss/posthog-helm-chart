@@ -90,7 +90,7 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: /_health
+              path: /preflight
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 10
@@ -98,7 +98,7 @@ spec:
             failureThreshold: 15
           livenessProbe:
             httpGet:
-              path: /_health
+              path: /preflight
               port: 8000
             initialDelaySeconds: 120
             periodSeconds: 15
@@ -106,7 +106,7 @@ spec:
             failureThreshold: 10
           startupProbe:
             httpGet:
-              path: /_health
+              path: /preflight
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -348,13 +348,13 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: /_health
+              path: /preflight
               port: 6738
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /_health
+              path: /preflight
               port: 6738
             initialDelaySeconds: 30
             periodSeconds: 15

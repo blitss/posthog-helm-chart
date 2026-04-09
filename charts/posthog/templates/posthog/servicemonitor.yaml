@@ -18,7 +18,7 @@ spec:
     - port: http
       interval: {{ .Values.metrics.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
-      path: /_health
+      path: /preflight
 ## Plugins ServiceMonitor
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -38,7 +38,7 @@ spec:
     - port: http
       interval: {{ .Values.metrics.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
-      path: /_health
+      path: /preflight
 ## Capture ServiceMonitor
 ---
 apiVersion: monitoring.coreos.com/v1
