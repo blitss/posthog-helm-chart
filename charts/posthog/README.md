@@ -2,6 +2,8 @@
 
 Deploys [PostHog](https://posthog.com) on Kubernetes with bundled infrastructure (ClickHouse, Kafka, Postgres, Redis, object storage). Use this path for **local dev, POCs, and quick self-host demos**. For a production-grade operator-based setup, use the manifests path in [`../../manifests`](../../manifests/README.md).
 
+For anything beyond dev/demo, **use external ClickHouse and Kafka** — the bundled ClickHouse is a single-node StatefulSet, and the `kafka` subchart is `bitnami/kafka` which pulls from the unmaintained `bitnamilegacy/*` mirrors. The [manifests path](../../manifests/README.md) wires up the Altinity ClickHouse Operator and the Redpanda operator for you.
+
 ## Prerequisites
 
 - Kubernetes 1.24+

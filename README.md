@@ -39,11 +39,13 @@ vendor/posthog/              # Upstream PostHog UDFs (auto-synced from github.co
 
 ## Which path to use
 
+For production use external ClickHouse and Kafka — the bundled ClickHouse is single-node and the `kafka` subchart is `bitnami/kafka` (now `bitnamilegacy`, unmaintained). The manifests path sets both up via operators.
+
 | | Chart | Manifests |
 |---|---|---|
 | **Use when** | Local dev, quick demo, POC | Production, HA, proper operator story |
-| **ClickHouse** | StatefulSet in chart | Altinity Clickhouse Operator + CHI + CHK (keeper) |
-| **Kafka** | bitnami/kafka subchart (KRaft) | Redpanda Operator + `Redpanda` CR |
+| **ClickHouse** | Single-node StatefulSet | Altinity Clickhouse Operator + CHI + CHK (keeper) |
+| **Kafka** | bitnami/kafka subchart | Redpanda Operator + `Redpanda` CR |
 | **Postgres** | StatefulSet in chart | CloudNativePG (`Cluster` CR) |
 | **Object storage** | rustfs subchart | rustfs subchart (still in chart) |
 | **Deployment tooling** | `helm install` | Flux HelmRelease + Kustomize |

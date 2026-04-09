@@ -9,3 +9,5 @@ resources:
   - https://github.com/carvel-dev/secretgen-controller/releases/download/v0.20.1/release.yml
   - cert-manager.yaml
   - cnpg.yaml
+  - altinity-clickhouse-operator.yaml
+  - redpanda-operator.yaml

@@ -120,12 +120,16 @@ jobs:
 
       - uses: azure/setup-helm@v4
 
+      - name: Build dependencies
+        shell: bash
+        run: helm dependency build "${CHART_PATH}"
+
       - name: Lint chart
         shell: bash
         run: |
           set -euo pipefail
           helm lint "${CHART_PATH}"
-          helm template posthog "${CHART_PATH}" -f "${CHART_PATH}/examples/values-kubeblocks-external.yaml" >/dev/null
+          helm template posthog "${CHART_PATH}" >/dev/null
 
       - name: Log in to GHCR for Helm
         shell: bash
