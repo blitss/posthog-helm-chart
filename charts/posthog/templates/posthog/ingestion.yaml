@@ -25,6 +25,10 @@ spec:
       serviceAccountName: {{ include "posthog.serviceAccountName" . }}
       {{- include "posthog.imagePullSecrets" . | nindent 6 }}
       {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: ingestion-general
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
@@ -39,12 +43,23 @@ spec:
               value: "6379"
             - name: CDP_REDIS_HOST
               value: {{ $redisHost | quote }}
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
+          {{- if .Values.geoip.enabled }}
+          volumeMounts:
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+          {{- end }}
           resources:
             requests:
               cpu: 500m
               memory: 1Gi
             limits:
               memory: 2Gi
+      {{- if .Values.geoip.enabled }}
+      volumes:
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+      {{- end }}
 ---
 ## ------------------------------------------------------------------
 ## Ingestion Session Replay
@@ -68,6 +83,10 @@ spec:
       serviceAccountName: {{ include "posthog.serviceAccountName" . }}
       {{- include "posthog.imagePullSecrets" . | nindent 6 }}
       {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: ingestion-sessionreplay
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
@@ -76,12 +95,23 @@ spec:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
               value: "recordings-blob-ingestion-v2"
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
+          {{- if .Values.geoip.enabled }}
+          volumeMounts:
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+          {{- end }}
           resources:
             requests:
               cpu: 250m
               memory: 512Mi
             limits:
               memory: 1Gi
+      {{- if .Values.geoip.enabled }}
+      volumes:
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+      {{- end }}
 ---
 ## ------------------------------------------------------------------
 ## Recording API
@@ -121,6 +151,10 @@ spec:
       serviceAccountName: {{ include "posthog.serviceAccountName" . }}
       {{- include "posthog.imagePullSecrets" . | nindent 6 }}
       {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: recording-api
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
@@ -136,12 +170,35 @@ spec:
               value: {{ $redisHost | quote }}
             - name: SESSION_RECORDING_API_REDIS_PORT
               value: "6379"
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
+          {{- if .Values.geoip.enabled }}
+          volumeMounts:
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /_ready
+              port: 6738
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_health
+              port: 6738
+            initialDelaySeconds: 30
+            periodSeconds: 15
           resources:
             requests:
               cpu: 250m
               memory: 512Mi
             limits:
               memory: 1Gi
+      {{- if .Values.geoip.enabled }}
+      volumes:
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+      {{- end }}
 ---
 ## ------------------------------------------------------------------
 ## Ingestion Error Tracking
@@ -165,6 +222,10 @@ spec:
       serviceAccountName: {{ include "posthog.serviceAccountName" . }}
       {{- include "posthog.imagePullSecrets" . | nindent 6 }}
       {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: ingestion-error-tracking
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
@@ -175,12 +236,23 @@ spec:
               value: "ingestion-errortracking"
             - name: CDP_REDIS_HOST
               value: {{ $redisHost | quote }}
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
+          {{- if .Values.geoip.enabled }}
+          volumeMounts:
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+          {{- end }}
           resources:
             requests:
               cpu: 250m
               memory: 512Mi
             limits:
               memory: 1Gi
+      {{- if .Values.geoip.enabled }}
+      volumes:
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+      {{- end }}
 ---
 ## ------------------------------------------------------------------
 ## Ingestion Logs
@@ -204,6 +276,10 @@ spec:
       serviceAccountName: {{ include "posthog.serviceAccountName" . }}
       {{- include "posthog.imagePullSecrets" . | nindent 6 }}
       {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: ingestion-logs
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
@@ -218,12 +294,23 @@ spec:
               value: "6379"
             - name: LOGS_REDIS_TLS
               value: "false"
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
+          {{- if .Values.geoip.enabled }}
+          volumeMounts:
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+          {{- end }}
           resources:
             requests:
               cpu: 250m
               memory: 512Mi
             limits:
               memory: 1Gi
+      {{- if .Values.geoip.enabled }}
+      volumes:
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+      {{- end }}
 ---
 ## ------------------------------------------------------------------
 ## Ingestion Traces
@@ -247,6 +334,10 @@ spec:
       serviceAccountName: {{ include "posthog.serviceAccountName" . }}
       {{- include "posthog.imagePullSecrets" . | nindent 6 }}
       {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: ingestion-traces
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
@@ -267,10 +358,21 @@ spec:
               value: "6379"
             - name: LOGS_REDIS_TLS
               value: "false"
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
+          {{- if .Values.geoip.enabled }}
+          volumeMounts:
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+          {{- end }}
           resources:
             requests:
               cpu: 250m
               memory: 512Mi
             limits:
               memory: 1Gi
+      {{- if .Values.geoip.enabled }}
+      volumes:
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+      {{- end }}
 {{- end }}

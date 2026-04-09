@@ -308,6 +308,10 @@ spec:
       {{- include "posthog.affinity" (dict "root" . "component" "plugins") | nindent 6 }}
       {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "plugins") | nindent 6 }}
       terminationGracePeriodSeconds: 60
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: plugins
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
@@ -337,32 +341,41 @@ spec:
               value: {{ $redisHost | quote }}
             - name: COOKIELESS_REDIS_PORT
               value: "6379"
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
             {{- with .Values.plugins.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           resources:
             {{- toYaml .Values.plugins.resources | nindent 12 }}
-          {{- with .Values.plugins.extraVolumeMounts }}
           volumeMounts:
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+            {{- end }}
+            {{- with .Values.plugins.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           readinessProbe:
             httpGet:
-              path: /preflight
+              path: /_ready
               port: 6738
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /preflight
+              path: /_health
               port: 6738
             initialDelaySeconds: 30
             periodSeconds: 15
         {{- with .Values.plugins.sidecarContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.plugins.extraVolumes }}
       volumes:
+        {{- if .Values.geoip.enabled }}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+        {{- end }}
+        {{- with .Values.plugins.extraVolumes }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
 {{- end }}

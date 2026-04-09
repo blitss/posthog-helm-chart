@@ -776,6 +776,40 @@ Call with dict "root" .
 {{- end }}
 
 {{/*
+GeoIP volume mount entry for an application container.
+Call with dict "root" .
+*/}}
+{{- define "posthog.geoipVolumeMount" -}}
+- name: geoip-db
+  mountPath: /share
+  readOnly: true
+{{- end }}
+
+{{/*
+GeoIP emptyDir volume for a pod spec.
+Call with dict "root" .
+*/}}
+{{- define "posthog.geoipVolume" -}}
+- name: geoip-db
+  emptyDir: {}
+{{- end }}
+
+{{/*
+Env vars that point PostHog services at the downloaded MMDB file.
+Set explicitly so the path isn't dependent on container WORKDIR or upstream
+defaults — both Node.js (MMDB_FILE_LOCATION) and Rust (MAXMIND_DB_PATH) are
+included since the helper is used across both service types.
+Call with dict "root" .
+*/}}
+{{- define "posthog.geoipEnv" -}}
+- name: MMDB_FILE_LOCATION
+  value: /share/{{ .root.Values.geoip.filename }}
+- name: MAXMIND_DB_PATH
+  value: /share/{{ .root.Values.geoip.filename }}
+{{- end }}
+
+
+{{/*
 Topology spread constraints for HA - preferred spread across zones and nodes.
 Call with dict "root" . "component" "name" where name is the component label value.
 */}}
