@@ -611,6 +611,11 @@ elasticsearch:
 ## External Elasticsearch (used when elasticsearch.enabled=false)
 externalElasticsearch:
   host: '' # e.g. posthog-es-elasticsearch
+  scheme: http
+  user: ''
+  password: ''
+  secretName: ''
+  passwordKey: password
   version: v7 # v7 or v8
 ## ------------------------------------------------------------------
 ## Temporal (workflow orchestration)

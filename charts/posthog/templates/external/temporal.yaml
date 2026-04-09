@@ -96,6 +96,22 @@ spec:
               value: "true"
             - name: ES_SEEDS
               value: {{ .Values.externalElasticsearch.host | default (printf "%s-elasticsearch" (include "posthog.fullname" .)) | quote }}
+            - name: ES_SCHEME
+              value: {{ .Values.externalElasticsearch.scheme | default "http" | quote }}
+            {{- if .Values.externalElasticsearch.user }}
+            - name: ES_USER
+              value: {{ .Values.externalElasticsearch.user | quote }}
+            {{- end }}
+            {{- if .Values.externalElasticsearch.password }}
+            - name: ES_PWD
+              value: {{ .Values.externalElasticsearch.password | quote }}
+            {{- else if .Values.externalElasticsearch.secretName }}
+            - name: ES_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalElasticsearch.secretName | quote }}
+                  key: {{ .Values.externalElasticsearch.passwordKey | default "password" | quote }}
+            {{- end }}
             - name: ES_VERSION
               value: {{ .Values.externalElasticsearch.version | default "v7" | quote }}
           resources:
