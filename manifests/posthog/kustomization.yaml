@@ -6,11 +6,10 @@ resources:
   - oidc-certificate.yaml
   - postgres-cnpg.yaml
   - clickhouse-password.yaml
-  - altinity-clickhouse-operator.yaml
   - clickhouse-keeper.yaml
   - clickhouse-initdb.yaml
   - clickhouse.yaml
-  - redpanda-operator.yaml
+  - elasticsearch.yaml
   - redpanda.yaml
   - ocirepository.yaml
   - release.yaml

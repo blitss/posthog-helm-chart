@@ -32,6 +32,7 @@ What each piece does:
 | **CloudNativePG** | Postgres clusters with backups, failover, PITR | `Cluster` |
 | **Altinity ClickHouse Operator** | ClickHouse deployments with cluster topology, users, macros | `ClickHouseInstallation` |
 | **Altinity ClickHouse Keeper Operator** | Raft-based ClickHouse coordinator (replaces ZooKeeper) | `ClickHouseKeeperInstallation` |
+| **Elastic Cloud on Kubernetes** | Elasticsearch deployment for Temporal visibility | `Elasticsearch` |
 | **Redpanda Operator** | Kafka-compatible message broker | `Redpanda` |
 | **Flux helm-controller** | Deploys the PostHog Helm chart from OCI | `HelmRelease` |
 | **Flux kustomize-controller** | Reconciles any of these from git (optional — you can also `kubectl apply -k`) | `Kustomization` |
@@ -56,6 +57,8 @@ manifests/
     namespaces.yaml               # cert-manager, cnpg-system namespaces
     cert-manager.yaml             # HelmRelease for cert-manager
     cnpg.yaml                     # HelmRelease for CloudNativePG
+    # ECK is installed from Elastic's official crds.yaml + operator.yaml
+    # because the Helm chart tarball endpoint currently returns 403.
     # ... plus remote CRD references:
     #   external-snapshotter CRDs
     #   gateway-api standard-install
@@ -68,11 +71,10 @@ manifests/
     oidc-certificate.yaml         # cert-manager Certificate for OIDC RSA keypair
     postgres-cnpg.yaml            # CNPG Cluster CR (posthog-pg)
     clickhouse-password.yaml      # secretgen.k14s.io Password CR (auto-generated)
-    altinity-clickhouse-operator.yaml   # Altinity operator HelmRelease
     clickhouse-keeper.yaml        # ClickHouseKeeperInstallation CR
     clickhouse-initdb.yaml        # ConfigMap with init script for /docker-entrypoint-initdb.d
     clickhouse.yaml               # ClickHouseInstallation CR with cluster + user config
-    redpanda-operator.yaml        # Redpanda operator HelmRelease
+    elasticsearch.yaml            # ECK Elasticsearch CR for Temporal visibility
     redpanda.yaml                 # Redpanda CR
     ocirepository.yaml            # Flux OCIRepository pointing at ghcr.io/blitss/charts/posthog
     release.yaml                  # Flux HelmRelease for PostHog
@@ -88,7 +90,8 @@ flux install
 # 2. Apply everything (may need two passes on first install — CRDs need to land
 #    before CRs can be validated)
 kubectl apply -k manifests/
-# ... wait for cert-manager + CNPG HelmReleases to report Ready
+# ... wait for cert-manager + CNPG + Altinity + Redpanda HelmReleases
+#     and the ECK operator StatefulSet to report Ready
 kubectl apply -k manifests/
 ```
 
@@ -96,7 +99,7 @@ Or with Flux's kustomize-controller, commit the repo and create a root `Kustomiz
 
 ## Why `kubectl apply -k` twice
 
-First pass creates the HelmReleases for cert-manager and CNPG, which install their CRDs. The second pass applies the CRs that depend on those CRDs (`Certificate`, `Issuer`, `Cluster`, `ClickHouseInstallation`, `Redpanda`, etc.). Running the command twice is fine — everything is idempotent.
+First pass creates the HelmReleases for cert-manager, CNPG, Altinity, and Redpanda, installs ECK from Elastic's official YAML manifests, and lands the CRDs. The second pass applies the CRs that depend on those CRDs (`Certificate`, `Issuer`, `Cluster`, `Elasticsearch`, `ClickHouseInstallation`, `Redpanda`, etc.). Running the command twice is fine — everything is idempotent.
 
 With Flux's kustomize-controller, this dance happens automatically (it retries failed resources), so you only need one commit.
 
@@ -105,7 +108,7 @@ With Flux's kustomize-controller, this dance happens automatically (it retries f
 ```bash
 # Operators and CRs
 kubectl get helmrelease -A
-kubectl get clickhouseinstallation,clickhousekeeperinstallation,redpanda,cluster -n posthog
+kubectl get clickhouseinstallation,clickhousekeeperinstallation,elasticsearch,redpanda,cluster -n posthog
 
 # PostHog app
 kubectl get pods -n posthog
