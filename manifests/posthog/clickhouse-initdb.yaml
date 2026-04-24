@@ -8,9 +8,17 @@ data:
     #!/bin/bash
     set -e
 
-    echo "Creating posthog database..."
-    clickhouse client -n <<-'EOSQL'
-      CREATE DATABASE IF NOT EXISTS posthog;
+    CLICKHOUSE_DB="${CLICKHOUSE_DB:-posthog}"
+    case "${CLICKHOUSE_DB}" in
+      *[!A-Za-z0-9_]*)
+        echo "Invalid CLICKHOUSE_DB: ${CLICKHOUSE_DB}" >&2
+        exit 1
+        ;;
+    esac
+
+    echo "Creating ${CLICKHOUSE_DB} database..."
+    clickhouse client -n <<-EOSQL
+      CREATE DATABASE IF NOT EXISTS ${CLICKHOUSE_DB};
     EOSQL
 
     echo "Flushing logs to create system log tables..."

@@ -1,7 +1,8 @@
 FROM clickhouse/clickhouse-server:25.9.7
 
-# PostHog UDF scripts (Python-based aggregate funnels, etc.)
-COPY --chmod=755 vendor/posthog/user_scripts/ /var/lib/clickhouse/user_scripts/
+# PostHog UDF scripts must not live under /var/lib/clickhouse because the data
+# volume is mounted there and hides image-baked files at runtime.
+COPY --chmod=755 vendor/posthog/user_scripts/ /usr/local/share/posthog/user_scripts/
 COPY vendor/posthog/docker/clickhouse/user_defined_function.xml /etc/clickhouse-server/user_defined_function.xml
 
 # PostHog server tuning and profile settings (config.d/ overlay — merges with

@@ -78,6 +78,7 @@ spec:
       mmap_cache_size: "1000"
       compiled_expression_cache_size: "134217728"
       compiled_expression_cache_elements_size: "10000"
+      user_scripts_path: /usr/local/share/posthog/user_scripts/
       builtin_dictionaries_reload_interval: "3600"
       max_session_timeout: "3600"
       default_session_timeout: "60"
@@ -211,17 +212,16 @@ spec:
         spec:
           containers:
             - name: clickhouse
-              image: ghcr.io/blitss/posthog-clickhouse:25.9.7@sha256:b7b1a60a73f39dcaf81608b6f6435d3b3c0e7b7bce1ebc33418ccd7e5dd255d6
-              imagePullPolicy: IfNotPresent
+              image: ghcr.io/blitss/posthog-clickhouse:25.9.7
+              imagePullPolicy: Always
               env:
+                - name: CLICKHOUSE_DB
+                  value: posthog
                 - name: KAFKA_HOSTS
                   value: posthog-redpanda.posthog.svc.cluster.local:9093
               volumeMounts:
                 - name: initdb
                   mountPath: /docker-entrypoint-initdb.d
-                - name: udf-config
-                  mountPath: /etc/clickhouse-server/user_defined_function.xml
-                  subPath: user_defined_function.xml
               resources:
                 requests:
                   cpu: "1"
@@ -233,9 +233,6 @@ spec:
             - name: initdb
               configMap:
                 name: posthog-clickhouse-initdb
-            - name: udf-config
-              configMap:
-                name: posthog-clickhouse-udf
     volumeClaimTemplates:
       - name: data
         spec:
