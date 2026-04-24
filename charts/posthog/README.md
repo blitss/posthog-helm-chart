@@ -32,7 +32,7 @@ Defaults deploy:
 
 | Component | How |
 |---|---|
-| ClickHouse | Single-node StatefulSet, stock `clickhouse/clickhouse-server` |
+| ClickHouse | Single-node StatefulSet, `ghcr.io/blitss/posthog-clickhouse` with PostHog UDFs |
 | Kafka | bitnami/kafka subchart in KRaft mode with topic auto-provisioning |
 | Postgres | Single StatefulSet with `postgres:15-alpine` |
 | Redis | Single StatefulSet with `redis:7-alpine` |
@@ -82,11 +82,6 @@ externalClickhouse:
   apiUser: api
   appUser: app
   cluster: posthog
-  migrationsCluster: posthog
-  singleShardCluster: posthog
-  writableCluster: posthog
-  primaryReplicaCluster: posthog
-  logsCluster: posthog
   secretName: posthog-clickhouse-password
   secretPasswordKey: password
 ```
@@ -162,7 +157,7 @@ Set `ingress.hostname` before installing — the default `posthog.example.com` w
 - [ ] Enable TLS: `ingress.nginx.tls.enabled=true` with cert-manager or a pre-populated secret
 - [ ] Switch at least Postgres and ClickHouse to external managed services
 - [ ] Enable `podDisruptionBudget.enabled=true` on `web`, `worker`, `capture`
-- [ ] Enable `autoscaling.enabled=true` on `web`, `capture`, `feature-flags`
+- [ ] Enable `autoscaling.enabled=true` on horizontally scalable services such as `web`, `capture`, `feature-flags`, `workerExports`, and `temporalDjangoWorker`
 - [ ] Pin storage classes via `persistence.storageClass`
 - [ ] Enable `networkPolicies.enabled=true` for network-level isolation
 - [ ] Enable `metrics.enabled=true` if you run `prometheus-operator`
@@ -195,7 +190,7 @@ All configuration is in [`values.yaml`](values.yaml), organized by top-level sec
 | `elasticsearch` | Temporal visibility backend |
 | `temporal` | Workflow orchestrator |
 | `geoip` | MaxMind GeoIP sidecar |
-| `web` / `worker` / `workerExports` | Django app + Celery workers |
+| `web` / `worker` / `workerBeat` / `workerExports` | Django app, Celery workers, and Celery scheduler |
 | `plugins` | Node.js CDP / ingestion service |
 | `capture` / `replayCapture` / `captureAi` / `captureLogs` | Rust capture services |
 | `featureFlags` / `propertyDefsRs` / `livestream` / `cymbal` / `cyclotronJanitor` | Auxiliary Rust services |
@@ -205,6 +200,8 @@ All configuration is in [`values.yaml`](values.yaml), organized by top-level sec
 | `metrics` | Prometheus ServiceMonitor CRs |
 
 Each application component supports `replicas`, `image`, `resources`, `podSecurityContext`, `containerSecurityContext`, `nodeSelector`, `tolerations`, `affinity`, `podAnnotations`, `extraEnv`, and (where relevant) `autoscaling`, `podDisruptionBudget`, `extraVolumes`, `extraVolumeMounts`, `sidecarContainers`.
+
+Worker scaling is controlled with `worker.replicas`, `worker.concurrency`, `worker.autoscaling`, `workerExports.replicas`, `workerExports.concurrency`, and `temporalDjangoWorker.autoscaling`. The chart maps worker concurrency to `WEB_CONCURRENCY`, which is the value consumed by PostHog's Celery entrypoint, and also emits `CELERY_WORKER_CONCURRENCY` for compatibility/visibility. `workerBeat.enabled=true` runs RedBeat as a separate scheduler pod, so scheduler restarts do not restart the main Celery worker.
 
 ## Chart dependencies
 

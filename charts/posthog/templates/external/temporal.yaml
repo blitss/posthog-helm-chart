@@ -189,7 +189,9 @@ metadata:
   labels:
     {{- include "posthog.componentLabels" (dict "root" . "component" "temporal-django-worker") | nindent 4 }}
 spec:
+  {{- if not .Values.temporalDjangoWorker.autoscaling.enabled }}
   replicas: {{ .Values.temporalDjangoWorker.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "temporal-django-worker") | nindent 6 }}

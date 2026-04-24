@@ -281,8 +281,8 @@ clickhouse:
   ## Set to false for production — use externalClickhouse with an operator or managed service.
   enabled: true
   image:
-    repository: clickhouse/clickhouse-server
-    tag: 25.12.5.44
+    repository: ghcr.io/blitss/posthog-clickhouse
+    tag: 25.9.7
   database: posthog
   secure: false
   verify: false
@@ -314,10 +314,10 @@ clickhouse:
   podAnnotations: {}
 ## External ClickHouse (used when clickhouse.enabled=false)
 externalClickhouse:
-  host: posthog-ch-clickhouse
-  user: admin
-  apiUser: admin
-  appUser: admin
+  host: ''
+  user: ''
+  apiUser: ''
+  appUser: ''
   ## Cluster name used for all cluster env vars (CLICKHOUSE_CLUSTER,
   ## CLICKHOUSE_MIGRATIONS_CLUSTER, CLICKHOUSE_WRITABLE_CLUSTER, etc.).
   ## Override individual cluster names only for advanced multi-shard setups.
@@ -330,7 +330,7 @@ externalClickhouse:
   logsDatabase: default
   logsPort: 9000
   satelliteClusters: ''
-  secretName: posthog-ch-clickhouse-account-admin
+  secretName: ''
   secretPasswordKey: password
   createDatabase: true
 ## ------------------------------------------------------------------
@@ -718,6 +718,9 @@ worker:
   enabled: true
   image: {}
   replicas: 1
+  ## Optional comma-separated queue list. Leave empty to use the worker image's
+  ## upstream queue defaults.
+  queues: ''
   ## Celery prefork concurrency. Defaults to 4 to avoid spawning a process per
   ## CPU core which leads to OOM on large nodes.
   concurrency: 4
@@ -743,6 +746,32 @@ worker:
     maxReplicas: 5
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+workerBeat:
+  ## Runs Celery beat / RedBeat separately from the worker. Keeping this in a
+  ## separate pod prevents RedBeat lock renewal failures from restarting the
+  ## main Celery worker process.
+  enabled: true
+  image: {}
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  sidecarContainers: []
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
@@ -1034,6 +1063,12 @@ temporalDjangoWorker:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
   podDisruptionBudget:
     enabled: false
     minAvailable: 1

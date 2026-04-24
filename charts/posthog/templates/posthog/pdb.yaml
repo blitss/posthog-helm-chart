@@ -55,6 +55,25 @@ spec:
     matchLabels:
       {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "worker-exports") | nindent 6 }}
 {{- end }}
+{{- if and .Values.worker.enabled .Values.workerBeat.enabled .Values.workerBeat.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-worker-beat
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "worker-beat") | nindent 4 }}
+spec:
+  {{- if .Values.workerBeat.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.workerBeat.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.workerBeat.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.workerBeat.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "worker-beat") | nindent 6 }}
+{{- end }}
 {{- if .Values.plugins.podDisruptionBudget.enabled }}
 ---
 apiVersion: policy/v1

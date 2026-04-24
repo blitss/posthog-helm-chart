@@ -307,6 +307,60 @@ Call with dict "root" . "database" "<db-name>"
 {{- end }}
 
 {{/*
+Canonical ClickHouse database names.
+*/}}
+{{- define "posthog.clickhouseDatabase" -}}
+{{- .Values.clickhouse.database | default "posthog" -}}
+{{- end }}
+
+{{- define "posthog.clickhouseLogsDatabase" -}}
+{{- .Values.externalClickhouse.logsDatabase | default "default" -}}
+{{- end }}
+
+{{- define "posthog.clickhouseHost" -}}
+{{- if .Values.clickhouse.enabled -}}
+{{- printf "%s-clickhouse" (include "posthog.fullname" .) -}}
+{{- else -}}
+{{- required "externalClickhouse.host is required when clickhouse.enabled=false" .Values.externalClickhouse.host -}}
+{{- end -}}
+{{- end }}
+
+{{- define "posthog.clickhouseUser" -}}
+{{- if .Values.clickhouse.enabled -}}
+{{- .Values.clickhouse.apiUser | default "api" -}}
+{{- else -}}
+{{- .Values.externalClickhouse.user | default .Values.externalClickhouse.appUser | default .Values.externalClickhouse.apiUser | default "default" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Canonical ClickHouse cluster names.
+*/}}
+{{- define "posthog.clickhouseCluster" -}}
+{{- .Values.externalClickhouse.cluster | default "default" -}}
+{{- end }}
+
+{{- define "posthog.clickhouseMigrationsCluster" -}}
+{{- .Values.externalClickhouse.migrationsCluster | default (include "posthog.clickhouseCluster" .) -}}
+{{- end }}
+
+{{- define "posthog.clickhouseSingleShardCluster" -}}
+{{- .Values.externalClickhouse.singleShardCluster | default (include "posthog.clickhouseCluster" .) -}}
+{{- end }}
+
+{{- define "posthog.clickhouseWritableCluster" -}}
+{{- .Values.externalClickhouse.writableCluster | default (include "posthog.clickhouseCluster" .) -}}
+{{- end }}
+
+{{- define "posthog.clickhousePrimaryReplicaCluster" -}}
+{{- .Values.externalClickhouse.primaryReplicaCluster | default (include "posthog.clickhouseCluster" .) -}}
+{{- end }}
+
+{{- define "posthog.clickhouseLogsCluster" -}}
+{{- .Values.externalClickhouse.logsCluster | default (include "posthog.clickhouseSingleShardCluster" .) -}}
+{{- end }}
+
+{{/*
 Returns true when a posthog.env or posthog.secretEnv override exists for a name
 */}}
 {{- define "posthog.hasEnvOverride" -}}
@@ -438,17 +492,17 @@ Common environment variables shared across PostHog application services
       key: redis-url
 {{- end }}
 - name: CLICKHOUSE_HOST
-  value: {{ .Values.externalClickhouse.host | default (printf "%s-clickhouse" (include "posthog.fullname" .)) | quote }}
+  value: {{ include "posthog.clickhouseHost" . | quote }}
 - name: CLICKHOUSE_LOGS_HOST
-  value: {{ .Values.externalClickhouse.host | default (printf "%s-clickhouse" (include "posthog.fullname" .)) | quote }}
+  value: {{ include "posthog.clickhouseHost" . | quote }}
 - name: CLICKHOUSE_LOGS_CLUSTER_HOST
-  value: {{ .Values.externalClickhouse.host | default (printf "%s-clickhouse" (include "posthog.fullname" .)) | quote }}
+  value: {{ include "posthog.clickhouseHost" . | quote }}
 - name: CLICKHOUSE_LOGS_CLUSTER_PORT
   value: {{ .Values.externalClickhouse.logsPort | default "9000" | quote }}
 - name: CLICKHOUSE_DATABASE
-  value: {{ .Values.clickhouse.database | default "posthog" | quote }}
+  value: {{ include "posthog.clickhouseDatabase" . | quote }}
 - name: CLICKHOUSE_LOGS_DATABASE
-  value: {{ .Values.externalClickhouse.logsDatabase | default "default" | quote }}
+  value: {{ include "posthog.clickhouseLogsDatabase" . | quote }}
 - name: CLICKHOUSE_SECURE
   value: {{ .Values.clickhouse.secure | default "false" | quote }}
 - name: CLICKHOUSE_LOGS_CLUSTER_SECURE
@@ -501,7 +555,7 @@ Common environment variables shared across PostHog application services
       key: {{ .Values.externalClickhouse.secretPasswordKey | default "password" | quote }}
 {{- end }}
 - name: CLICKHOUSE_USER
-  value: {{ .Values.externalClickhouse.user | default .Values.externalClickhouse.appUser | default .Values.externalClickhouse.apiUser | default (.Values.clickhouse.apiUser | default "default") | quote }}
+  value: {{ include "posthog.clickhouseUser" . | quote }}
 {{- if .Values.clickhouse.enabled }}
 - name: CLICKHOUSE_PASSWORD
   valueFrom:
@@ -515,17 +569,17 @@ Common environment variables shared across PostHog application services
       name: {{ .Values.externalClickhouse.secretName | quote }}
       key: {{ .Values.externalClickhouse.secretPasswordKey | default "password" | quote }}
 - name: CLICKHOUSE_CLUSTER
-  value: {{ .Values.externalClickhouse.cluster | default "default" | quote }}
+  value: {{ include "posthog.clickhouseCluster" . | quote }}
 - name: CLICKHOUSE_MIGRATIONS_CLUSTER
-  value: {{ .Values.externalClickhouse.migrationsCluster | default .Values.externalClickhouse.cluster | default "default" | quote }}
+  value: {{ include "posthog.clickhouseMigrationsCluster" . | quote }}
 - name: CLICKHOUSE_SINGLE_SHARD_CLUSTER
-  value: {{ .Values.externalClickhouse.singleShardCluster | default .Values.externalClickhouse.cluster | default "default" | quote }}
+  value: {{ include "posthog.clickhouseSingleShardCluster" . | quote }}
 - name: CLICKHOUSE_WRITABLE_CLUSTER
-  value: {{ .Values.externalClickhouse.writableCluster | default .Values.externalClickhouse.cluster | default "default" | quote }}
+  value: {{ include "posthog.clickhouseWritableCluster" . | quote }}
 - name: CLICKHOUSE_PRIMARY_REPLICA_CLUSTER
-  value: {{ .Values.externalClickhouse.primaryReplicaCluster | default .Values.externalClickhouse.cluster | default "default" | quote }}
+  value: {{ include "posthog.clickhousePrimaryReplicaCluster" . | quote }}
 - name: CLICKHOUSE_LOGS_CLUSTER
-  value: {{ .Values.externalClickhouse.logsCluster | default .Values.externalClickhouse.singleShardCluster | default .Values.externalClickhouse.cluster | default "default" | quote }}
+  value: {{ include "posthog.clickhouseLogsCluster" . | quote }}
 - name: CLICKHOUSE_SATELLITE_CLUSTERS
   value: {{ .Values.externalClickhouse.satelliteClusters | default "" | quote }}
 {{- end }}

@@ -160,12 +160,24 @@ spec:
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "worker") | nindent 10 }}
           command:
             - ./bin/docker-worker-celery
+            {{- if not .Values.workerBeat.enabled }}
             - --with-scheduler
+            {{- end }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- if .Values.worker.queues }}
+            - name: CELERY_WORKER_QUEUES
+              value: {{ .Values.worker.queues | quote }}
+            {{- end }}
+            {{- $hasWorkerWebConcurrency := false }}
             {{- $hasWorkerConcurrency := false }}
             {{- range .Values.worker.extraEnv }}
+            {{- if eq .name "WEB_CONCURRENCY" }}{{ $hasWorkerWebConcurrency = true }}{{ end }}
             {{- if eq .name "CELERY_WORKER_CONCURRENCY" }}{{ $hasWorkerConcurrency = true }}{{ end }}
+            {{- end }}
+            {{- if not $hasWorkerWebConcurrency }}
+            - name: WEB_CONCURRENCY
+              value: {{ .Values.worker.concurrency | default 4 | quote }}
             {{- end }}
             {{- if not $hasWorkerConcurrency }}
             - name: CELERY_WORKER_CONCURRENCY
@@ -184,6 +196,70 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- with .Values.worker.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+
+{{- if and .Values.worker.enabled .Values.workerBeat.enabled }}
+## ------------------------------------------------------------------
+## PostHog Worker Beat (Celery scheduler / RedBeat)
+## ------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-worker-beat
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "worker-beat") | nindent 4 }}
+spec:
+  replicas: {{ .Values.workerBeat.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "worker-beat") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "worker-beat") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "workerBeat") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "workerBeat") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "workerBeat") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "workerBeat") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "workerBeat") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker-beat") | nindent 6 }}
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: worker-beat
+          {{- $beatImage := .Values.workerBeat.image | default dict }}
+          {{- $workerImage := .Values.worker.image | default dict }}
+          {{- $posthogImage := .Values.posthog.image | default dict }}
+          {{- $beatRepository := default (default $posthogImage.repository $workerImage.repository) $beatImage.repository }}
+          {{- $beatTag := default (default $posthogImage.tag $workerImage.tag) $beatImage.tag }}
+          {{- $beatPullPolicy := default (default ($posthogImage.pullPolicy | default "Always") $workerImage.pullPolicy) $beatImage.pullPolicy }}
+          image: "{{ $beatRepository }}:{{ $beatTag }}"
+          imagePullPolicy: {{ $beatPullPolicy }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "workerBeat") | nindent 10 }}
+          command:
+            - ./bin/docker-worker-beat
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- with .Values.workerBeat.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.workerBeat.resources | nindent 12 }}
+          {{- with .Values.workerBeat.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- with .Values.workerBeat.sidecarContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.workerBeat.extraVolumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -233,9 +309,15 @@ spec:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: CELERY_WORKER_QUEUES
               value: {{ .Values.workerExports.queue | default "exports" | quote }}
+            {{- $hasExportsWebConcurrency := false }}
             {{- $hasExportsConcurrency := false }}
             {{- range .Values.workerExports.extraEnv }}
+            {{- if eq .name "WEB_CONCURRENCY" }}{{ $hasExportsWebConcurrency = true }}{{ end }}
             {{- if eq .name "CELERY_WORKER_CONCURRENCY" }}{{ $hasExportsConcurrency = true }}{{ end }}
+            {{- end }}
+            {{- if not $hasExportsWebConcurrency }}
+            - name: WEB_CONCURRENCY
+              value: {{ .Values.workerExports.concurrency | default 2 | quote }}
             {{- end }}
             {{- if not $hasExportsConcurrency }}
             - name: CELERY_WORKER_CONCURRENCY

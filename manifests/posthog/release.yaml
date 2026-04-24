@@ -83,13 +83,8 @@ spec:
       user: default
       apiUser: api
       appUser: app
-      logsDatabase: posthog
+      logsDatabase: default
       cluster: posthog
-      migrationsCluster: posthog
-      singleShardCluster: posthog
-      writableCluster: posthog
-      primaryReplicaCluster: posthog
-      logsCluster: posthog
       secretName: posthog-clickhouse-password
       secretPasswordKey: password
 
@@ -99,17 +94,17 @@ spec:
     externalKafka:
       brokers: posthog-redpanda.posthog.svc.cluster.local:9093
 
-    ## Redis, Elasticsearch — bundled via chart
+    ## Redis — bundled via chart. Elasticsearch is managed by ECK.
     redis:
       enabled: true
     elasticsearch:
-      enabled: true
+      enabled: false
     externalElasticsearch:
-      host: ""
+      host: posthog-elastic-es-http.posthog.svc.cluster.local
       scheme: http
-      user: ""
-      secretName: ""
-      passwordKey: ""
+      user: elastic
+      secretName: posthog-elastic-es-elastic-user
+      passwordKey: elastic
       version: v8
     zookeeper:
       enabled: false
@@ -150,26 +145,72 @@ spec:
         repository: ghcr.io/blitss/posthog-worker
         tag: latest
         pullPolicy: Always
-      extraEnv:
-        - name: CELERY_WORKER_CONCURRENCY
-          value: "2"
+      replicas: 1
+      concurrency: 2
+      autoscaling:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 4
+        targetCPUUtilizationPercentage: 70
+        targetMemoryUtilizationPercentage: 80
       resources:
         requests:
           cpu: 500m
           memory: 1Gi
         limits:
           memory: 8Gi
+    workerBeat:
+      enabled: true
+      image:
+        repository: ghcr.io/blitss/posthog-worker
+        tag: latest
+        pullPolicy: Always
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
     workerExports:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-worker-exports
         tag: latest
         pullPolicy: Always
+      replicas: 1
+      queue: exports
+      concurrency: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 3
+        targetCPUUtilizationPercentage: 70
+        targetMemoryUtilizationPercentage: 80
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          memory: 8Gi
     temporalDjangoWorker:
       image:
         repository: ghcr.io/blitss/posthog-worker
         tag: latest
         pullPolicy: Always
+      replicas: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 3
+        targetCPUUtilizationPercentage: 70
+        targetMemoryUtilizationPercentage: 80
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          memory: 4Gi
     migrate:
       image:
         repository: ghcr.io/blitss/posthog-migrate

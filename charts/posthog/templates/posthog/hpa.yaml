@@ -97,6 +97,39 @@ spec:
           averageUtilization: {{ .Values.workerExports.autoscaling.targetMemoryUtilizationPercentage }}
     {{- end }}
 {{- end }}
+{{- if .Values.temporalDjangoWorker.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posthog.fullname" . }}-temporal-django-worker
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "temporal-django-worker") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posthog.fullname" . }}-temporal-django-worker
+  minReplicas: {{ .Values.temporalDjangoWorker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.temporalDjangoWorker.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.temporalDjangoWorker.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.temporalDjangoWorker.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.temporalDjangoWorker.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.temporalDjangoWorker.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
 {{- if .Values.plugins.autoscaling.enabled }}
 ---
 apiVersion: autoscaling/v2
