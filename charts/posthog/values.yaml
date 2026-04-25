@@ -422,6 +422,7 @@ kafka:
       - name: clickhouse_app_metrics2
       - name: clickhouse_behavioral_cohorts_matches
       - name: clickhouse_document_embeddings
+      - name: clickhouse_error_tracking_fingerprint_issue_state
       - name: clickhouse_error_tracking_issue_fingerprint
       - name: clickhouse_error_tracking_issue_fingerprint_embeddings
       - name: clickhouse_error_tracking_issue_fingerprint_overrides
@@ -443,10 +444,10 @@ kafka:
       - name: clickhouse_prefiltered_events
       - name: clickhouse_session_recording_events
       - name: clickhouse_session_replay_events
+      - name: clickhouse_session_replay_features
       - name: clickhouse_tophog
       - name: clickhouse_traces
       - name: cohort_membership_changed
-      - name: cohort_membership_changed_trigger
       - name: conversion_events_buffer
       - name: data_warehouse_source_webhooks
       - name: data_warehouse_source_webhooks_dlq
@@ -1095,6 +1096,7 @@ kafkaInit:
     - clickhouse_app_metrics2
     - clickhouse_behavioral_cohorts_matches
     - clickhouse_document_embeddings
+    - clickhouse_error_tracking_fingerprint_issue_state
     - clickhouse_error_tracking_issue_fingerprint
     - clickhouse_error_tracking_issue_fingerprint_embeddings
     - clickhouse_error_tracking_issue_fingerprint_overrides
@@ -1116,10 +1118,10 @@ kafkaInit:
     - clickhouse_prefiltered_events
     - clickhouse_session_recording_events
     - clickhouse_session_replay_events
+    - clickhouse_session_replay_features
     - clickhouse_tophog
     - clickhouse_traces
     - cohort_membership_changed
-    - cohort_membership_changed_trigger
     - conversion_events_buffer
     - data_warehouse_source_webhooks
     - data_warehouse_source_webhooks_dlq
