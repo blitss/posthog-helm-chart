@@ -33,7 +33,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch recent PostHog upstream commits
+      - name: Fetch and pre-filter PostHog upstream commits
         id: commits
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,18 +42,70 @@ jobs:
           set -euo pipefail
           SINCE=$(date -u -d "${SINCE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)
           echo "Fetching PostHog/posthog master commits since $SINCE"
-          gh api \
-            "repos/PostHog/posthog/commits?sha=master&since=${SINCE}&per_page=100" \
-            --jq '[.[] | {
-              sha: .sha,
-              message: .commit.message,
-              author: .commit.author.name,
-              date: .commit.author.date,
-              url: .html_url
-            }]' > /tmp/posthog-commits.json
-          COUNT=$(jq length /tmp/posthog-commits.json)
-          echo "Found $COUNT commits in window"
-          if [ "$COUNT" -eq 0 ]; then
+
+          # Paginate up to 500 commits to support extended since_hours windows.
+          : > /tmp/posthog-commits-raw.json
+          echo "[" > /tmp/posthog-commits-raw.json
+          first=true
+          for page in 1 2 3 4 5; do
+            page_data=$(gh api \
+              "repos/PostHog/posthog/commits?sha=master&since=${SINCE}&per_page=100&page=${page}" \
+              --jq '[.[] | {sha: .sha, message: .commit.message, author: .commit.author.name, date: .commit.author.date, url: .html_url}]')
+            page_count=$(echo "$page_data" | jq length)
+            [ "$page_count" -eq 0 ] && break
+            entries=$(echo "$page_data" | jq -c '.[]')
+            while IFS= read -r entry; do
+              if [ "$first" = true ]; then first=false; else echo "," >> /tmp/posthog-commits-raw.json; fi
+              echo "$entry" >> /tmp/posthog-commits-raw.json
+            done <<< "$entries"
+            [ "$page_count" -lt 100 ] && break
+          done
+          echo "]" >> /tmp/posthog-commits-raw.json
+          RAW_COUNT=$(jq length /tmp/posthog-commits-raw.json)
+          echo "Total commits in window: $RAW_COUNT"
+
+          if [ "$RAW_COUNT" -eq 0 ]; then
+            echo "has_commits=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Path-based pre-filter. Watched paths in upstream PostHog/posthog:
+          #   - docker-compose*.yml
+          #   - production.Dockerfile, *.Dockerfile, Dockerfile
+          #   - docker/** (clickhouse XMLs, etc.)
+          #   - bin/** (entrypoints)
+          #   - charts/** (their reference helm chart)
+          #   - .github/workflows/build-* (image build pipeline)
+          # We filter server-side here so Claude only sees commits that touch
+          # these paths — message-first triage was missing infra changes with
+          # generic commit messages.
+          WATCHED_REGEX='^(docker-compose|production\.Dockerfile|Dockerfile|.*\.Dockerfile$|docker/|bin/|charts/|\.github/workflows/build-)'
+
+          echo "Pre-filtering commits by changed paths…"
+          : > /tmp/posthog-commits-filtered.ndjson
+          fetched=0
+          while IFS= read -r commit; do
+            sha=$(echo "$commit" | jq -r .sha)
+            files_json=$(gh api "repos/PostHog/posthog/commits/${sha}" \
+              --jq '[.files[].filename]' 2>/dev/null || echo '[]')
+            watched=$(echo "$files_json" | jq --arg re "$WATCHED_REGEX" \
+              '[.[] | select(test($re))]')
+            watched_count=$(echo "$watched" | jq 'length')
+            if [ "$watched_count" -gt 0 ]; then
+              echo "$commit" | jq --argjson files "$watched" \
+                '. + {watchedFiles: $files}' >> /tmp/posthog-commits-filtered.ndjson
+            fi
+            fetched=$((fetched + 1))
+            if [ $((fetched % 25)) -eq 0 ]; then
+              echo "  …$fetched/$RAW_COUNT processed"
+            fi
+          done < <(jq -c '.[]' /tmp/posthog-commits-raw.json)
+
+          jq -s . /tmp/posthog-commits-filtered.ndjson > /tmp/posthog-commits.json
+          KEPT=$(jq length /tmp/posthog-commits.json)
+          echo "Surviving commits after path filter: $KEPT/$RAW_COUNT"
+
+          if [ "$KEPT" -eq 0 ]; then
             echo "has_commits=false" >> "$GITHUB_OUTPUT"
           else
             echo "has_commits=true" >> "$GITHUB_OUTPUT"
@@ -143,10 +195,25 @@ jobs:
           COMMITS TO TRIAGE (already fetched, do not re-list):
           ${COMMITS}
 
+          IMPORTANT: The commit list below has ALREADY been path-filtered. Every
+          commit here touches at least one watched path (listed in its
+          \`watchedFiles\` field). You do NOT need to re-filter by path — that's
+          done. Your job is the second-stage filter: is the change structural,
+          or is it just a version/tag/digest bump?
+
           STEPS:
-          1. Skim each commit message. Discard obvious non-infra (UI, tests, docs, telemetry, refactors, version bumps). Only commit messages that plausibly imply a change to docker-compose, Dockerfiles, bin/ entrypoints, or ClickHouse XML are worth a diff.
-          2. For surviving candidates only, fetch the diff: \`gh api repos/PostHog/posthog/commits/<sha>\`. Confirm the change is structural and within the FILES THAT MATTER list.
-          3. Decide priority: Breaking (this chart is broken or will break without action), Important (config drift, missing functionality), Minor (cosmetic, optional).
+          1. For each commit, fetch the diff for its watched files only:
+             \`gh api repos/PostHog/posthog/commits/<sha>\` and inspect the
+             relevant patches.
+          2. If the change inside watched files is purely a version bump (image
+             tag, dependency version, base image SHA), drop it — Renovate
+             handles those.
+          3. If the change is structural (new service block in docker-compose,
+             new build stage, new entrypoint flag, new config key, removed
+             component), classify priority and act:
+             - Breaking: chart is or will be broken without action.
+             - Important: config drift, missing functionality.
+             - Minor: cosmetic / optional.
           4. ${ACTION_INSTRUCTION}
 
           IMPORTANT:
