@@ -48,7 +48,6 @@ COPY --from=upstream --chown=posthog:posthog /code/ee /code/ee
 COPY --from=upstream --chown=posthog:posthog /code/common/hogvm /code/common/hogvm
 COPY --from=upstream --chown=posthog:posthog /code/common/migration_utils /code/common/migration_utils
 COPY --from=upstream --chown=posthog:posthog /code/products /code/products
-COPY --from=upstream --chown=posthog:posthog /code/share /code/share
 
 # Built frontend assets. Django templates resolve from frontend/dist, while the
 # staticfiles tree serves the hashed asset paths generated from the same build.

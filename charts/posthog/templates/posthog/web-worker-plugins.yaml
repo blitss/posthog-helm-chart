@@ -52,6 +52,10 @@ spec:
       {{- include "posthog.affinity" (dict "root" . "component" "web") | nindent 6 }}
       {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "web") | nindent 6 }}
       terminationGracePeriodSeconds: 120
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: web
           image: "{{ include "posthog.imageRef" (dict "root" . "component" "web" "fallbackComponent" "posthog") }}"
@@ -84,9 +88,14 @@ spec:
             {{- end }}
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
-          {{- with .Values.web.extraVolumeMounts }}
+          {{- if or .Values.geoip.enabled .Values.web.extraVolumeMounts }}
           volumeMounts:
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipVolumeMount" (dict "root" . "mountPath" "/code/share") | nindent 12 }}
+            {{- end }}
+            {{- with .Values.web.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -114,9 +123,14 @@ spec:
         {{- with .Values.web.sidecarContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.web.extraVolumes }}
+      {{- if or .Values.geoip.enabled .Values.web.extraVolumes }}
       volumes:
+        {{- if .Values.geoip.enabled }}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+        {{- end }}
+        {{- with .Values.web.extraVolumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
 {{- end }}
 
@@ -153,6 +167,10 @@ spec:
       {{- include "posthog.affinity" (dict "root" . "component" "worker") | nindent 6 }}
       {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker") | nindent 6 }}
       terminationGracePeriodSeconds: 300
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: worker
           image: "{{ include "posthog.imageRef" (dict "root" . "component" "worker" "fallbackComponent" "posthog") }}"
@@ -188,16 +206,26 @@ spec:
             {{- end }}
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
-          {{- with .Values.worker.extraVolumeMounts }}
+          {{- if or .Values.geoip.enabled .Values.worker.extraVolumeMounts }}
           volumeMounts:
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipVolumeMount" (dict "root" . "mountPath" "/code/share") | nindent 12 }}
+            {{- end }}
+            {{- with .Values.worker.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
         {{- with .Values.worker.sidecarContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.worker.extraVolumes }}
+      {{- if or .Values.geoip.enabled .Values.worker.extraVolumes }}
       volumes:
+        {{- if .Values.geoip.enabled }}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+        {{- end }}
+        {{- with .Values.worker.extraVolumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
 {{- end }}
 
@@ -298,6 +326,10 @@ spec:
       {{- include "posthog.affinity" (dict "root" . "component" "workerExports") | nindent 6 }}
       {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker-exports") | nindent 6 }}
       terminationGracePeriodSeconds: 300
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
       containers:
         - name: worker-exports
           image: "{{ include "posthog.imageRef" (dict "root" . "component" "workerExports" "fallbackComponent" "posthog") }}"
@@ -328,16 +360,26 @@ spec:
             {{- end }}
           resources:
             {{- toYaml .Values.workerExports.resources | nindent 12 }}
-          {{- with .Values.workerExports.extraVolumeMounts }}
+          {{- if or .Values.geoip.enabled .Values.workerExports.extraVolumeMounts }}
           volumeMounts:
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipVolumeMount" (dict "root" . "mountPath" "/code/share") | nindent 12 }}
+            {{- end }}
+            {{- with .Values.workerExports.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
         {{- with .Values.workerExports.sidecarContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.workerExports.extraVolumes }}
+      {{- if or .Values.geoip.enabled .Values.workerExports.extraVolumes }}
       volumes:
+        {{- if .Values.geoip.enabled }}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+        {{- end }}
+        {{- with .Values.workerExports.extraVolumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
 {{- end }}
 

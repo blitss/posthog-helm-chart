@@ -831,11 +831,13 @@ Call with dict "root" .
 
 {{/*
 GeoIP volume mount entry for an application container.
-Call with dict "root" .
+Call with dict "root" . [ "mountPath" "/code/share" ]. Defaults to /share, which
+is what the Node/Rust services read via MMDB_FILE_LOCATION/MAXMIND_DB_PATH.
+Django reads from BASE_DIR/share (i.e. /code/share) — pass that explicitly.
 */}}
 {{- define "posthog.geoipVolumeMount" -}}
 - name: geoip-db
-  mountPath: /share
+  mountPath: {{ .mountPath | default "/share" }}
   readOnly: true
 {{- end }}
 
