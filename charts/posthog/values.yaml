@@ -498,7 +498,7 @@ zookeeper:
   enabled: true
   image:
     repository: zookeeper
-    tag: 3.7.0
+    tag: 3.9.5
   persistence:
     enabled: true
     size: 5Gi
