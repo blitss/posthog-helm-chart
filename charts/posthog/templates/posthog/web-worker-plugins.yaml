@@ -117,6 +117,11 @@ spec:
             ## so bin/docker-server-unit can write unit.json there.
             - name: entrypoint-d
               mountPath: /docker-entrypoint.d
+            ## Empty /var/lib/unit. Unit's /usr/local/bin/docker-entrypoint.sh
+            ## skips applying /docker-entrypoint.d/*.json on startup if this
+            ## directory has ANY content, and the image baked some files in.
+            - name: unit-lib
+              mountPath: /var/lib/unit
             {{- with .Values.web.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -153,6 +158,8 @@ spec:
         - name: var-run
           emptyDir: {}
         - name: entrypoint-d
+          emptyDir: {}
+        - name: unit-lib
           emptyDir: {}
         {{- with .Values.web.extraVolumes }}
         {{- toYaml . | nindent 8 }}
