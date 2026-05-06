@@ -1261,7 +1261,7 @@ kafkaInit:
   enabled: true
   image:
     repository: bitnamilegacy/kafka
-    tag: "3.7"
+    tag: "4.0"
     pullPolicy: IfNotPresent
   topics:
     - cdp_backfill_events
