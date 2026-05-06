@@ -633,7 +633,7 @@ temporal:
   server:
     image:
       repository: temporalio/auto-setup
-      tag: 1.20.0
+      tag: 1.29.6
     resources:
       requests:
         cpu: 250m
