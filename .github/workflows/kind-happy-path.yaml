@@ -191,9 +191,13 @@ jobs:
 
           dump_posthog() {
             kubectl get helmrelease,ocirepository -n posthog || true
+            kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.allocatable.cpu,MEMORY:.status.allocatable.memory || true
             kubectl get jobs -n posthog -o wide || true
             kubectl get pods -n posthog -o wide || true
             kubectl get events -n posthog --sort-by=.lastTimestamp | tail -120 || true
+
+            echo "--- pod memory requests ---"
+            kubectl get pods -n posthog -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.containers[*]}{.name}{"="}{.resources.requests.memory}{","}{end}{"\n"}{end}' || true
 
             echo "--- helmrelease/posthog conditions ---"
             kubectl get helmrelease posthog -n posthog -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason} {.message}{"\n"}{end}' || true

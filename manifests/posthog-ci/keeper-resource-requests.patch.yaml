@@ -2,4 +2,4 @@
   path: /spec/templates/podTemplates/0/spec/containers/0/resources/requests
   value:
     cpu: 50m
-    memory: 256Mi
+    memory: 128Mi

@@ -2,4 +2,4 @@
   path: /spec/resources/requests
   value:
     cpu: 50m
-    memory: 256Mi
+    memory: 128Mi
