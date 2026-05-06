@@ -1,0 +1,141 @@
+- op: replace
+  path: /spec/values/web/resources/requests
+  value:
+    cpu: 50m
+    memory: 256Mi
+- op: replace
+  path: /spec/values/redis/resources/requests
+  value:
+    cpu: 10m
+    memory: 64Mi
+- op: replace
+  path: /spec/values/rustfs/resources/requests
+  value:
+    cpu: 10m
+    memory: 128Mi
+- op: add
+  path: /spec/values/temporal/server/resources
+  value:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+- op: add
+  path: /spec/values/temporal/ui/resources
+  value:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+- op: replace
+  path: /spec/values/worker/resources/requests
+  value:
+    cpu: 50m
+    memory: 256Mi
+- op: replace
+  path: /spec/values/workerBeat/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/workerExports/resources/requests
+  value:
+    cpu: 25m
+    memory: 256Mi
+- op: replace
+  path: /spec/values/temporalDjangoWorker/resources/requests
+  value:
+    cpu: 25m
+    memory: 256Mi
+- op: replace
+  path: /spec/values/plugins/resources/requests
+  value:
+    cpu: 25m
+    memory: 128Mi
+- op: replace
+  path: /spec/values/capture/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/replayCapture/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/captureAi/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/captureLogs/resources/requests
+  value:
+    cpu: 10m
+    memory: 64Mi
+- op: replace
+  path: /spec/values/featureFlags/resources/requests
+  value:
+    cpu: 10m
+    memory: 64Mi
+- op: replace
+  path: /spec/values/hypercacheServer/resources/requests
+  value:
+    cpu: 10m
+    memory: 64Mi
+- op: replace
+  path: /spec/values/propertyDefsRs/resources/requests
+  value:
+    cpu: 10m
+    memory: 64Mi
+- op: replace
+  path: /spec/values/livestream/resources/requests
+  value:
+    cpu: 10m
+    memory: 64Mi
+- op: replace
+  path: /spec/values/cymbal/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/ingestionGeneral/resources/requests
+  value:
+    cpu: 25m
+    memory: 128Mi
+- op: replace
+  path: /spec/values/ingestionSessionReplay/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/recordingApi/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/ingestionErrorTracking/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/ingestionLogs/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/ingestionTraces/resources/requests
+  value:
+    cpu: 10m
+    memory: 96Mi
+- op: replace
+  path: /spec/values/personhogReplica/resources/requests
+  value:
+    cpu: 10m
+    memory: 64Mi
+- op: replace
+  path: /spec/values/personhogRouter/resources/requests
+  value:
+    cpu: 10m
+    memory: 64Mi

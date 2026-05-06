@@ -1,0 +1,5 @@
+- op: replace
+  path: /spec/resources/requests
+  value:
+    cpu: 50m
+    memory: 256Mi

@@ -166,7 +166,7 @@ jobs:
           kubectl create namespace elastic-system --dry-run=client -o yaml | kubectl apply -f -
           kubectl create namespace secretgen-controller --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply --dry-run=server -k /tmp/ci-manifests/infra
-          kubectl apply --dry-run=server -k /tmp/ci-manifests/posthog || true
+          kubectl apply --dry-run=server -k /tmp/ci-manifests/posthog-ci || true
 
       - name: Apply infra manifests
         shell: bash
@@ -189,49 +189,117 @@ jobs:
         run: |
           set -euo pipefail
 
+          dump_posthog() {
+            kubectl get helmrelease,ocirepository -n posthog || true
+            kubectl get jobs -n posthog -o wide || true
+            kubectl get pods -n posthog -o wide || true
+            kubectl get events -n posthog --sort-by=.lastTimestamp | tail -120 || true
+
+            echo "--- helmrelease/posthog conditions ---"
+            kubectl get helmrelease posthog -n posthog -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason} {.message}{"\n"}{end}' || true
+
+            echo "--- not-ready pods ---"
+            kubectl get pods -n posthog --no-headers 2>/dev/null | awk '
+              $3 == "Completed" { next }
+              $3 != "Running" { print; next }
+              {
+                split($2, ready, "/")
+                if (ready[1] != ready[2]) print
+              }
+            ' || true
+
+            echo "--- hook logs ---"
+            for job in posthog-db-check posthog-migrate posthog-async-migrations-check posthog-kafka-init posthog-create-buckets; do
+              if kubectl get job -n posthog "$job" >/dev/null 2>&1; then
+                echo "### $job"
+                kubectl logs -n posthog "job/$job" --tail=160 || true
+              fi
+            done
+
+            echo "--- redpanda logs ---"
+            kubectl logs -n posthog posthog-redpanda-0 --all-containers --tail=200 --prefix || true
+            kubectl logs -n posthog posthog-redpanda-0 -c redpanda --previous --tail=200 --prefix || true
+
+            echo "--- web logs ---"
+            kubectl logs -n posthog -l app.kubernetes.io/component=web --all-containers --tail=120 --prefix || true
+
+            echo "--- worker logs ---"
+            kubectl logs -n posthog -l app.kubernetes.io/component=worker --all-containers --tail=120 --prefix || true
+          }
+
           watch_posthog() {
             while true; do
               echo "::group::posthog cluster state $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-              kubectl get helmrelease,ocirepository -n posthog || true
-              kubectl get jobs -n posthog -o wide || true
-              kubectl get pods -n posthog -o wide || true
-              kubectl get events -n posthog --sort-by=.lastTimestamp | tail -80 || true
-
-              echo "--- helmrelease/posthog conditions ---"
-              kubectl get helmrelease posthog -n posthog -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason} {.message}{"\n"}{end}' || true
-
-              echo "--- not-ready pods ---"
-              kubectl get pods -n posthog --no-headers 2>/dev/null | awk '
-                $3 == "Completed" { next }
-                $3 != "Running" { print; next }
-                {
-                  split($2, ready, "/")
-                  if (ready[1] != ready[2]) print
-                }
-              ' || true
-
-              echo "--- hook logs ---"
-              for job in posthog-db-check posthog-migrate posthog-async-migrations-check posthog-kafka-init posthog-create-buckets; do
-                if kubectl get job -n posthog "$job" >/dev/null 2>&1; then
-                  echo "### $job"
-                  kubectl logs -n posthog "job/$job" --tail=80 || true
-                fi
-              done
+              dump_posthog
               echo "::endgroup::"
               sleep 30
             done
+          }
+
+          fail_fast_on_cluster_errors() {
+            failed_jobs="$(kubectl get jobs -n posthog -o jsonpath='{range .items[?(@.status.failed>0)]}{.metadata.name}{" "}{end}' 2>/dev/null || true)"
+            if [[ -n "${failed_jobs}" ]]; then
+              echo "failed jobs: ${failed_jobs}" >&2
+              return 1
+            fi
+
+            fatal_pods="$(
+              kubectl get pods -n posthog --no-headers 2>/dev/null | awk '
+                $3 ~ /CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|RunContainerError|PostStartHookError|OOMKilled/ { print }
+              '
+            )"
+            if [[ -n "${fatal_pods}" ]]; then
+              echo "fatal pod states:" >&2
+              echo "${fatal_pods}" >&2
+              return 1
+            fi
+
+            unschedulable="$(
+              kubectl get events -n posthog --field-selector reason=FailedScheduling --sort-by=.lastTimestamp 2>/dev/null | tail -20 | grep -E 'Insufficient|didn.t match|node\\(s\\) had' || true
+            )"
+            if [[ -n "${unschedulable}" ]]; then
+              echo "unschedulable pods:" >&2
+              echo "${unschedulable}" >&2
+              return 1
+            fi
+
           }
 
           watch_posthog &
           WATCH_PID="$!"
           trap 'kill "${WATCH_PID}" 2>/dev/null || true' EXIT
 
-          kubectl apply -k /tmp/ci-manifests/posthog
+          kubectl apply -k /tmp/ci-manifests/posthog-ci
           kubectl wait --for=condition=Ready ocirepository/posthog-chart -n posthog --timeout=10m
-          kubectl wait --for=condition=Ready helmrelease/posthog -n posthog --timeout=45m
 
-          deadline=$((SECONDS + 2700))
+          deadline=$((SECONDS + 1200))
           while true; do
+            if ! fail_fast_on_cluster_errors; then
+              dump_posthog
+              exit 1
+            fi
+
+            ready="$(kubectl get helmrelease posthog -n posthog -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}' 2>/dev/null || true)"
+            if [[ "${ready}" == "True" ]]; then
+              break
+            fi
+
+            if (( SECONDS > deadline )); then
+              echo "timed out waiting for helmrelease/posthog to become Ready" >&2
+              dump_posthog
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          deadline=$((SECONDS + 600))
+          while true; do
+            if ! fail_fast_on_cluster_errors; then
+              dump_posthog
+              exit 1
+            fi
+
             not_ready="$(
               kubectl get pods -n posthog --no-headers | awk '
                 $3 == "Completed" { next }

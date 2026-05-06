@@ -1,0 +1,5 @@
+- op: replace
+  path: /spec/nodeSets/0/podTemplate/spec/containers/0/resources/requests
+  value:
+    cpu: 50m
+    memory: 768Mi

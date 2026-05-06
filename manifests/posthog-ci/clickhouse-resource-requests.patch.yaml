@@ -1,0 +1,5 @@
+- op: replace
+  path: /spec/templates/podTemplates/0/spec/containers/0/resources/requests
+  value:
+    cpu: 250m
+    memory: 768Mi
