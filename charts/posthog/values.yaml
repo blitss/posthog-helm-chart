@@ -648,7 +648,7 @@ temporal:
     enabled: true
     image:
       repository: temporalio/ui
-      tag: 2.31.2
+      tag: 2.49.1
     resources:
       requests:
         cpu: 50m
