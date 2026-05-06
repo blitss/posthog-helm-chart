@@ -26,6 +26,13 @@ patches:
       kind: ClickHouseKeeperInstallation
       name: posthog-keeper
       namespace: posthog
+  - path: redpanda-resource-requests.patch.yaml
+    target:
+      group: cluster.redpanda.com
+      version: v1alpha2
+      kind: Redpanda
+      name: posthog-redpanda
+      namespace: posthog
   - path: elasticsearch-resource-requests.patch.yaml
     target:
       group: elasticsearch.k8s.elastic.co

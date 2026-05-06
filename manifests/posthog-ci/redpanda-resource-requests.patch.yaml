@@ -1,0 +1,10 @@
+- op: add
+  path: /spec/clusterSpec/statefulset/podTemplate
+  value:
+    spec:
+      containers:
+        - name: redpanda
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi

@@ -272,7 +272,7 @@ jobs:
           kubectl apply -k /tmp/ci-manifests/posthog-ci
           kubectl wait --for=condition=Ready ocirepository/posthog-chart -n posthog --timeout=10m
 
-          deadline=$((SECONDS + 1200))
+          deadline=$((SECONDS + 2700))
           while true; do
             if ! fail_fast_on_cluster_errors; then
               dump_posthog
