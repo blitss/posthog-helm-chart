@@ -188,6 +188,44 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          watch_posthog() {
+            while true; do
+              echo "::group::posthog cluster state $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              kubectl get helmrelease,ocirepository -n posthog || true
+              kubectl get jobs -n posthog -o wide || true
+              kubectl get pods -n posthog -o wide || true
+              kubectl get events -n posthog --sort-by=.lastTimestamp | tail -80 || true
+
+              echo "--- helmrelease/posthog conditions ---"
+              kubectl get helmrelease posthog -n posthog -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason} {.message}{"\n"}{end}' || true
+
+              echo "--- not-ready pods ---"
+              kubectl get pods -n posthog --no-headers 2>/dev/null | awk '
+                $3 == "Completed" { next }
+                $3 != "Running" { print; next }
+                {
+                  split($2, ready, "/")
+                  if (ready[1] != ready[2]) print
+                }
+              ' || true
+
+              echo "--- hook logs ---"
+              for job in posthog-db-check posthog-migrate posthog-async-migrations-check posthog-kafka-init posthog-create-buckets; do
+                if kubectl get job -n posthog "$job" >/dev/null 2>&1; then
+                  echo "### $job"
+                  kubectl logs -n posthog "job/$job" --tail=80 || true
+                fi
+              done
+              echo "::endgroup::"
+              sleep 30
+            done
+          }
+
+          watch_posthog &
+          WATCH_PID="$!"
+          trap 'kill "${WATCH_PID}" 2>/dev/null || true' EXIT
+
           kubectl apply -k /tmp/ci-manifests/posthog
           kubectl wait --for=condition=Ready ocirepository/posthog-chart -n posthog --timeout=10m
           kubectl wait --for=condition=Ready helmrelease/posthog -n posthog --timeout=45m
