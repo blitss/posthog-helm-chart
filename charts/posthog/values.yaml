@@ -680,7 +680,7 @@ geoip:
   ## Filename served over HTTP and written into consumer pods
   filename: GeoLite2-City.mmdb
   ## Image used for the download init container
-  image: alpine:3.21
+  image: alpine:3.23
   ## Mount an existing PVC instead of downloading.
   ## The PVC must contain the MMDB file at its root.
   # existingPvc: geoip-db
