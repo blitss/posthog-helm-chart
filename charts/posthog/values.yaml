@@ -643,7 +643,7 @@ temporal:
   adminTools:
     image:
       repository: temporalio/admin-tools
-      tag: 1.20.0
+      tag: 1.31.0
   ui:
     enabled: true
     image:
