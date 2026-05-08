@@ -8,7 +8,7 @@ spec:
   clusterSpec:
     image:
       repository: docker.redpanda.com/redpandadata/redpanda
-      tag: v26.1.1
+      tag: v26.1.7
 
     ## Single broker for dev/staging. Bump replicas to 3 for production.
     statefulset:
