@@ -593,7 +593,7 @@ elasticsearch:
   enabled: true
   image:
     repository: elasticsearch
-    tag: 7.17.28
+    tag: 9.4.1
   resources:
     requests:
       cpu: 500m
