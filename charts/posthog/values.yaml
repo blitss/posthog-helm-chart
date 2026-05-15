@@ -422,6 +422,7 @@ kafka:
       - name: clickhouse_app_metrics2
       - name: clickhouse_behavioral_cohorts_matches
       - name: clickhouse_document_embeddings
+      - name: clickhouse_error_tracking_fingerprint_issue_state
       - name: clickhouse_error_tracking_issue_fingerprint
       - name: clickhouse_error_tracking_issue_fingerprint_embeddings
       - name: clickhouse_error_tracking_issue_fingerprint_overrides
@@ -430,6 +431,7 @@ kafka:
       - name: clickhouse_heatmap_events
       - name: clickhouse_ingestion_warnings
       - name: clickhouse_logs
+      - name: clickhouse_metrics
       - name: clickhouse_metrics_time_to_see_data
       - name: clickhouse_performance_events
       - name: clickhouse_person
@@ -441,12 +443,13 @@ kafka:
       - name: clickhouse_person_unique_id
       - name: clickhouse_precalculated_person_properties
       - name: clickhouse_prefiltered_events
+      - name: clickhouse_property_values
       - name: clickhouse_session_recording_events
       - name: clickhouse_session_replay_events
+      - name: clickhouse_session_replay_features
       - name: clickhouse_tophog
       - name: clickhouse_traces
       - name: cohort_membership_changed
-      - name: cohort_membership_changed_trigger
       - name: conversion_events_buffer
       - name: data_warehouse_source_webhooks
       - name: data_warehouse_source_webhooks_dlq
@@ -473,6 +476,9 @@ kafka:
       - name: logs_ingestion
       - name: logs_ingestion_dlq
       - name: logs_ingestion_overflow
+      - name: metrics_ingestion
+      - name: metrics_ingestion_dlq
+      - name: metrics_ingestion_overflow
       - name: notification_events
       - name: plugin_log_entries
       - name: session_recording_events
@@ -1143,7 +1149,6 @@ cyclotronJanitor:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-
 ## Personhog — gRPC backend that serves persons reads from a replicated
 ## Postgres. Web/worker call into it at a progressive rollout percentage.
 ## Disabled by default; enable once you've decided on a posthog_persons DB
@@ -1274,6 +1279,7 @@ kafkaInit:
     - clickhouse_app_metrics2
     - clickhouse_behavioral_cohorts_matches
     - clickhouse_document_embeddings
+    - clickhouse_error_tracking_fingerprint_issue_state
     - clickhouse_error_tracking_issue_fingerprint
     - clickhouse_error_tracking_issue_fingerprint_embeddings
     - clickhouse_error_tracking_issue_fingerprint_overrides
@@ -1282,6 +1288,7 @@ kafkaInit:
     - clickhouse_heatmap_events
     - clickhouse_ingestion_warnings
     - clickhouse_logs
+    - clickhouse_metrics
     - clickhouse_metrics_time_to_see_data
     - clickhouse_performance_events
     - clickhouse_person
@@ -1293,12 +1300,13 @@ kafkaInit:
     - clickhouse_person_unique_id
     - clickhouse_precalculated_person_properties
     - clickhouse_prefiltered_events
+    - clickhouse_property_values
     - clickhouse_session_recording_events
     - clickhouse_session_replay_events
+    - clickhouse_session_replay_features
     - clickhouse_tophog
     - clickhouse_traces
     - cohort_membership_changed
-    - cohort_membership_changed_trigger
     - conversion_events_buffer
     - data_warehouse_source_webhooks
     - data_warehouse_source_webhooks_dlq
@@ -1325,6 +1333,9 @@ kafkaInit:
     - logs_ingestion
     - logs_ingestion_dlq
     - logs_ingestion_overflow
+    - metrics_ingestion
+    - metrics_ingestion_dlq
+    - metrics_ingestion_overflow
     - notification_events
     - plugin_log_entries
     - session_recording_events
