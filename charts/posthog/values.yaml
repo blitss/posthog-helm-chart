@@ -220,7 +220,7 @@ postgresql:
   enabled: true
   image:
     repository: postgres
-    tag: 15.12-alpine
+    tag: 18.4-alpine
   auth:
     username: posthog
     password: posthog
