@@ -537,7 +537,7 @@ rustfs:
       tag: latest
     initImage:
       repository: busybox
-      tag: "1.37"
+      tag: "1.38"
       pullPolicy: IfNotPresent
     clientImage:
       repository: quay.io/minio/mc
