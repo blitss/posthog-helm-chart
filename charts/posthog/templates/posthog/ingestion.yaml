@@ -358,3 +358,109 @@ spec:
         {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
       {{- end }}
 {{- end }}
+{{- if and .Values.plugins.enabled .Values.cdpHogflowScheduler.enabled }}
+---
+## ------------------------------------------------------------------
+## CDP HogFlow Scheduler (triggers scheduled/recurring HogFlow executions)
+## ------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-cdp-hogflow-scheduler
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cdp-hogflow-scheduler") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cdp-hogflow-scheduler") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cdp-hogflow-scheduler") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: cdp-hogflow-scheduler
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: PLUGIN_SERVER_MODE
+              value: "cdp-hogflow-scheduler"
+            - name: CDP_REDIS_HOST
+              value: {{ $redisHost | quote }}
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
+          {{- if .Values.geoip.enabled }}
+          volumeMounts:
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.cdpHogflowScheduler.resources | nindent 12 }}
+      {{- if .Values.geoip.enabled }}
+      volumes:
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- if and .Values.plugins.enabled .Values.cdpCyclotronV2Janitor.enabled }}
+---
+## ------------------------------------------------------------------
+## CDP Cyclotron v2 Janitor (requeues stalled Cyclotron jobs)
+## ------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-cdp-cyclotron-v2-janitor
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cdp-cyclotron-v2-janitor") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cdp-cyclotron-v2-janitor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cdp-cyclotron-v2-janitor") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- if .Values.geoip.enabled }}
+      initContainers:
+        {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
+        {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: cdp-cyclotron-v2-janitor
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            - name: PLUGIN_SERVER_MODE
+              value: "cdp-cyclotron-v2-janitor"
+            - name: CDP_REDIS_HOST
+              value: {{ $redisHost | quote }}
+            {{- if .Values.geoip.enabled }}
+            {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
+            {{- end }}
+          {{- if .Values.geoip.enabled }}
+          volumeMounts:
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.cdpCyclotronV2Janitor.resources | nindent 12 }}
+      {{- if .Values.geoip.enabled }}
+      volumes:
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
+      {{- end }}
+{{- end }}

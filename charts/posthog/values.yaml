@@ -69,6 +69,11 @@ posthog:
   secret: ''
   ## Encryption salt (auto-generated if empty)
   encryptionSaltKeys: ''
+  ## Shared secret used to authenticate Django internal API calls
+  ## (e.g. the HogFlow scheduler -> /api/internal/...). Injected into every
+  ## PostHog application container so both sides share the same value.
+  ## Auto-generated and preserved across upgrades if left empty.
+  internalApiSecret: ''
   ## Set to "true" to disable anonymous telemetry
   optOutCapture: 'false'
   ## Additional upstream PostHog self-host environment variables injected into
@@ -158,8 +163,8 @@ posthog:
 ## When set, the chart will NOT create its own Secret and will instead
 ## reference this existing Kubernetes Secret for all secret values.
 ## The Secret must contain these keys:
-##   posthog-secret, encryption-salt-keys, database-url, redis-url,
-##   clickhouse-api-password, clickhouse-app-password,
+##   posthog-secret, encryption-salt-keys, internal-api-secret, database-url,
+##   redis-url, clickhouse-api-password, clickhouse-app-password,
 ##   object-storage-access-key, object-storage-secret-key,
 ##   seaweedfs-access-key, seaweedfs-secret-key, postgresql-password
 ## ------------------------------------------------------------------
@@ -906,6 +911,27 @@ ingestionTraces:
       memory: 512Mi
     limits:
       memory: 1Gi
+## Dedicated singleton that triggers scheduled/recurring/time-based HogFlow
+## ("Workflows" product) executions via the Django internal API. Required
+## because the plugin-server's default mode gates this capability to dev only.
+cdpHogflowScheduler:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+## Dedicated singleton that requeues stalled Cyclotron v2 jobs. Gated to dev
+## only in the plugin-server's default mode, so it needs its own pod.
+cdpCyclotronV2Janitor:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
 capture:
   enabled: true
   image:

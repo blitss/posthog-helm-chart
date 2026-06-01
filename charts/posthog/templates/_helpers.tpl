@@ -421,7 +421,7 @@ Renders all remaining custom env vars except the excluded names.
 Common environment variables shared across PostHog application services
 */}}
 {{- define "posthog.commonEnv" -}}
-{{- $overridableEnvNames := list "SECRET_KEY" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "CYCLOTRON_DATABASE_URL" "PERSONS_DATABASE_URL" -}}
+{{- $overridableEnvNames := list "SECRET_KEY" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "CYCLOTRON_DATABASE_URL" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" -}}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{- else }}
@@ -788,6 +788,17 @@ Common environment variables shared across PostHog application services
   value: {{ printf "https://%s/livestream" .Values.ingress.hostname | quote }}
 - name: FLAGS_REDIS_ENABLED
   value: "false"
+- name: INTERNAL_API_BASE_URL
+  value: {{ printf "http://%s-web:8000" (include "posthog.fullname" .) | quote }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "INTERNAL_API_SECRET") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "INTERNAL_API_SECRET") }}
+{{- else }}
+- name: INTERNAL_API_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: internal-api-secret
+{{- end }}
 {{ include "posthog.renderRemainingCustomEnv" (dict "root" . "excluded" $overridableEnvNames) }}
 {{- with .Values.global.extraEnv }}
 {{ toYaml . }}
