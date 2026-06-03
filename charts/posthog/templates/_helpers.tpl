@@ -738,14 +738,29 @@ Common environment variables shared across PostHog application services
 {{- end }}
 {{- end }}
 {{- /*
-  The Node/v2 cyclotron components (the rerun worker, cdp-cyclotron-v2-janitor,
-  and the default-mode cdpCyclotronWorkerHogFlow consumer) read
-  CYCLOTRON_NODE_DATABASE_URL and abort at startup if it is unset. Mirror it to
-  whichever cyclotron DB CYCLOTRON_DATABASE_URL resolved to above (k8s expands
-  the $(VAR) reference against the already-defined env var, for every branch).
+  The Node/v2 cyclotron components (cdp-cyclotron-v2 worker/janitor, rerun
+  worker, default-mode cdpCyclotronWorkerHogFlow consumer) read
+  CYCLOTRON_NODE_DATABASE_URL and abort at startup if it is unset. It must point
+  at a database SEPARATE from the Rust cyclotron (CYCLOTRON_DATABASE_URL) —
+  otherwise both janitors clean the same cyclotron_jobs table. Built the same
+  way as CYCLOTRON_DATABASE_URL above, but against cyclotronNodeDatabase.
 */}}
+{{- if .Values.postgresql.enabled }}
 - name: CYCLOTRON_NODE_DATABASE_URL
-  value: "$(CYCLOTRON_DATABASE_URL)"
+  value: {{ printf "postgres://%s:%s@%s-postgresql:5432/%s" .Values.postgresql.auth.username .Values.postgresql.auth.password (include "posthog.fullname" .) (.Values.externalPostgresql.cyclotronNodeDatabase | default "cyclotron_node") | quote }}
+{{- else if .Values.externalPostgresql.cyclotronNodeUrl }}
+- name: CYCLOTRON_NODE_DATABASE_URL
+  value: {{ .Values.externalPostgresql.cyclotronNodeUrl | quote }}
+{{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+- name: CYCLOTRON_NODE_DATABASE_URL
+  value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.cyclotronNodeDatabase | default "cyclotron_node")) | quote }}
+{{- else if .Values.externalPostgresql.secretName }}
+- name: CYCLOTRON_NODE_DATABASE_URL
+  value: {{ required "externalPostgresql.cyclotronNodeUrl is required when using a URI-key secret for cyclotron" .Values.externalPostgresql.cyclotronNodeUrl | quote }}
+{{- else }}
+- name: CYCLOTRON_NODE_DATABASE_URL
+  value: {{ printf "postgres://$(_CNPG_USER):$(_CNPG_PASS)@%s-rw:5432/%s" (include "posthog.fullname" .) (.Values.externalPostgresql.cyclotronNodeDatabase | default "cyclotron_node") | quote }}
+{{- end }}
 {{- if .Values.postgresql.enabled }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
