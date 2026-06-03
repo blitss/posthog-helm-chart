@@ -102,3 +102,24 @@ spec:
       interval: {{ .Values.metrics.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
 {{- end }}
+{{- if and .Values.metrics.enabled .Values.cymbalResolution.enabled }}
+## Cymbal Resolution ServiceMonitor (Prometheus metrics on cymbalResolution.metricsPort)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "posthog.fullname" . }}-cymbal-resolution
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cymbal-resolution") | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cymbal-resolution") | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+{{- end }}

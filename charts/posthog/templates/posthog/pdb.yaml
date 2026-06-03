@@ -226,3 +226,22 @@ spec:
     matchLabels:
       {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "personhog-router") | nindent 6 }}
 {{- end }}
+{{- if and .Values.cymbalResolution.enabled .Values.cymbalResolution.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posthog.fullname" . }}-cymbal-resolution
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cymbal-resolution") | nindent 4 }}
+spec:
+  {{- if .Values.cymbalResolution.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.cymbalResolution.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.cymbalResolution.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.cymbalResolution.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cymbal-resolution") | nindent 6 }}
+{{- end }}
