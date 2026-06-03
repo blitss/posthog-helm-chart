@@ -261,6 +261,10 @@ externalPostgresql:
   personsUrl: ''
   ## Optional override for the Cyclotron DB URL.
   cyclotronUrl: ''
+  ## Optional override for the Node/v2 Cyclotron DB URL. The Node v2 cyclotron
+  ## (cdp-cyclotron-v2 worker/janitor) MUST use a database separate from the
+  ## Rust cyclotron, otherwise both janitors clean the same jobs table.
+  cyclotronNodeUrl: ''
   ## Secret-backed alternative to inline URLs for external Postgres.
   ## When `host` is set, the chart will build connection URLs from this
   ## credential secret instead of expecting prebuilt URI keys.
@@ -270,6 +274,8 @@ externalPostgresql:
   database: posthog
   personsDatabase: ''
   cyclotronDatabase: cyclotron
+  ## Separate database for the Node/v2 cyclotron (cdp-cyclotron-v2).
+  cyclotronNodeDatabase: cyclotron_node
   uriKey: uri
   personsUriKey: persons-uri
   cyclotronUriKey: cyclotron-uri
@@ -1360,6 +1366,19 @@ migrate:
   enabled: true
   image: {}
   ## Resource requests/limits for the migrate hook Job (default: none).
+  resources: {}
+## Create + migrate the cyclotron / cyclotron_node databases via sqlx (the
+## canonical cyclotron migration engine). Disabled by default for
+## backwards-compat: it needs the dedicated posthog-cyclotron-migrate image
+## (built from images/posthog/Dockerfile.cyclotron-migrate) since the runtime
+## PostHog images don't ship sqlx or the cyclotron migrations. Enable wherever
+## the plugin-server cyclotron / cdp-cyclotron-v2 components run.
+cyclotronMigrate:
+  enabled: false
+  image:
+    repository: ghcr.io/blitss/posthog-cyclotron-migrate
+    tag: latest
+    pullPolicy: Always
   resources: {}
 kafkaInit:
   ## Create Kafka topics on external clusters (ignored when kafka.enabled=true,

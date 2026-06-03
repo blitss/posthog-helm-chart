@@ -43,6 +43,8 @@ jobs:
             dockerfile: images/posthog/Dockerfile.worker-exports
           - image: posthog-migrate
             dockerfile: images/posthog/Dockerfile.migrate
+          - image: posthog-cyclotron-migrate
+            dockerfile: images/posthog/Dockerfile.cyclotron-migrate
     runs-on: ubuntu-latest
     steps:
       - run: df -h

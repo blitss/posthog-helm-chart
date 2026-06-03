@@ -1,0 +1,46 @@
+{{/*
+  Hook weight 6: create + migrate the cyclotron and cyclotron_node databases
+  using sqlx (the canonical cyclotron migration engine, same as upstream
+  rust/bin/migrate-cyclotron[-node]). Runs from the dedicated
+  posthog-cyclotron-migrate image because the runtime PostHog images ship
+  neither sqlx nor the cyclotron migrations.
+
+  Disabled by default for backwards-compatibility: it requires the
+  posthog-cyclotron-migrate image and a reachable cyclotron database. Enable it
+  wherever the plugin-server's cyclotron / cdp-cyclotron-v2 components run.
+*/}}
+{{- if .Values.cyclotronMigrate.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.fullname" . }}-cyclotron-migrate
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cyclotron-migrate") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "6"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cyclotron-migrate") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: cyclotron-migrate
+          image: "{{ .Values.cyclotronMigrate.image.repository }}:{{ .Values.cyclotronMigrate.image.tag }}"
+          imagePullPolicy: {{ .Values.cyclotronMigrate.image.pullPolicy | default "Always" }}
+          # The image entrypoint runs `sqlx database create` + `sqlx migrate run`
+          # for $CYCLOTRON_DATABASE_URL and $CYCLOTRON_NODE_DATABASE_URL, both
+          # provided by commonEnv below.
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+          {{- with .Values.cyclotronMigrate.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
