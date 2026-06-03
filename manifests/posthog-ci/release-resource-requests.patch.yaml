@@ -168,3 +168,23 @@
   value:
     cpu: 10m
     memory: 64Mi
+# Enable the dedicated HogFlow (Workflows) pods so CI exercises the full stack
+# (they're disabled by default in the chart for backwards-compat). The chart's
+# default plugins image (ghcr posthog-node:master) has the cdp-hogflow-scheduler
+# mode, so these boot here. Tiny resources to fit the single-node kind cluster.
+- op: add
+  path: /spec/values/cdpHogflowScheduler
+  value:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+- op: add
+  path: /spec/values/cdpCyclotronV2Janitor
+  value:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
