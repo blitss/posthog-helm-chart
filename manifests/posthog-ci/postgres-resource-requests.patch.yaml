@@ -1,5 +1,10 @@
+# Postgres and the migrate hook are the sequential critical path; give them a
+# large CPU-share weight so they win contention against the ~28 mostly-idle pods.
 - op: replace
   path: /spec/resources/requests
   value:
-    cpu: 50m
+    cpu: 500m
     memory: 128Mi
+# CI is ephemeral and the node has spare RAM; don't cap the critical-path DB.
+- op: remove
+  path: /spec/resources/limits

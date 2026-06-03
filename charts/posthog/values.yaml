@@ -1280,6 +1280,8 @@ migrate:
   ## Run Django migrations on install/upgrade
   enabled: true
   image: {}
+  ## Resource requests/limits for the migrate hook Job (default: none).
+  resources: {}
 kafkaInit:
   ## Create Kafka topics on external clusters (ignored when kafka.enabled=true,
   ## because the bitnami subchart handles provisioning via kafka.provisioning).

@@ -59,6 +59,18 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # Restore the most recent pre-migrated Postgres snapshot (zstd via cache v5).
+      # The key is unique per run so it never hits exactly; restore-keys falls back
+      # to the latest prior snapshot. Shared across all images on purpose — Django
+      # migrations are incremental, so the migrate hook just applies the delta.
+      - name: Restore Postgres migration snapshot
+        uses: actions/cache/restore@v5
+        with:
+          path: /tmp/pg-snapshot
+          key: posthog-pg-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            posthog-pg-snapshot-
+
       - uses: azure/setup-helm@v4
 
       - name: Install kind and Flux
@@ -276,6 +288,44 @@ jobs:
           kubectl apply -k /tmp/ci-manifests/posthog-ci
           kubectl wait --for=condition=Ready ocirepository/posthog-chart -n posthog --timeout=10m
 
+          # The HelmRelease is applied suspended; bring Postgres up and restore the
+          # cached snapshot before the migrate hook runs, so it only applies the
+          # delta of new migrations instead of the full set.
+          echo "::group::wait for CNPG postgres to be ready"
+          kubectl wait --for=condition=Ready clusters.postgresql.cnpg.io/posthog-pg -n posthog --timeout=10m
+          echo "::endgroup::"
+
+          PG_PRIMARY="$(kubectl get pods -n posthog -l 'cnpg.io/cluster=posthog-pg,role=primary' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+          if [[ -z "${PG_PRIMARY}" ]]; then
+            PG_PRIMARY="$(kubectl get pods -n posthog -l 'cnpg.io/cluster=posthog-pg,cnpg.io/instanceRole=primary' -o jsonpath='{.items[0].metadata.name}')"
+          fi
+          echo "postgres primary pod: ${PG_PRIMARY}"
+
+          if ls /tmp/pg-snapshot/*.dump >/dev/null 2>&1; then
+            echo "::group::restore Postgres migration snapshot"
+            for dump in /tmp/pg-snapshot/*.dump; do
+              db="$(basename "${dump}" .dump)"
+              echo "restoring ${db}"
+              # If a cached dump is no longer restorable (e.g. PG major bump), reset
+              # that DB to empty so the migrate hook runs it in full — self-healing
+              # cache rather than a poisoned one that fails every subsequent run.
+              if ! kubectl exec -i -n posthog "${PG_PRIMARY}" -c postgres -- \
+                   pg_restore -U postgres -d "${db}" --no-acl --exit-on-error < "${dump}"; then
+                echo "::warning::restore of ${db} failed; resetting it so migrate runs full"
+                kubectl exec -n posthog "${PG_PRIMARY}" -c postgres -- \
+                  psql -U postgres -d "${db}" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION posthog;"
+              fi
+            done
+            echo "::endgroup::"
+          else
+            echo "no cached snapshot found — cold run, migrate will run in full"
+          fi
+
+          # Resume the chart so the migrate hook runs against the restored DBs.
+          kubectl patch helmrelease posthog -n posthog --type=merge -p '{"spec":{"suspend":false}}'
+          kubectl annotate helmrelease posthog -n posthog \
+            reconcile.fluxcd.io/requestedAt="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite
+
           deadline=$((SECONDS + 4500))
           while true; do
             if ! fail_fast_on_cluster_errors; then
@@ -374,6 +424,34 @@ jobs:
           kubectl exec -n posthog chi-posthog-posthog-0-0-0 -- clickhouse client --password "${CH_PW}" --database system --query "SELECT version()"
           kubectl exec -n posthog chi-posthog-posthog-0-0-0 -- clickhouse client --password "${CH_PW}" --database system --query "SELECT throwIf(count() = 0, 'aggregate_funnel missing') FROM system.functions WHERE name = 'aggregate_funnel'"
           kubectl exec -n posthog chi-posthog-posthog-0-0-0 -- clickhouse client --password "${CH_PW}" --database system --query "SELECT throwIf(count() < 4, 'warpstream named collections missing') FROM system.named_collections WHERE name LIKE 'warpstream_%'"
+
+      # Only snapshot after a green run, so the cache always holds known-good,
+      # fully-migrated state. Dumps the migrate-populated databases only (Temporal
+      # DBs are managed by its own auto-setup, not the migrate hook).
+      - name: Snapshot Postgres for cache
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pg-snapshot
+          rm -f /tmp/pg-snapshot/*.dump
+          PG_PRIMARY="$(kubectl get pods -n posthog -l 'cnpg.io/cluster=posthog-pg,role=primary' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+          if [[ -z "${PG_PRIMARY}" ]]; then
+            PG_PRIMARY="$(kubectl get pods -n posthog -l 'cnpg.io/cluster=posthog-pg,cnpg.io/instanceRole=primary' -o jsonpath='{.items[0].metadata.name}')"
+          fi
+          for db in posthog posthog_persons cyclotron cyclotron_node behavioral_cohorts ducklake; do
+            echo "dumping ${db}"
+            kubectl exec -n posthog "${PG_PRIMARY}" -c postgres -- \
+              pg_dump -U postgres -Fc --compress=zstd "${db}" > "/tmp/pg-snapshot/${db}.dump"
+          done
+          ls -lh /tmp/pg-snapshot
+
+      - name: Save Postgres migration snapshot
+        if: success()
+        uses: actions/cache/save@v5
+        with:
+          path: /tmp/pg-snapshot
+          key: posthog-pg-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Dump diagnostics
         if: failure()
