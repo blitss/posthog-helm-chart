@@ -701,6 +701,11 @@ spec:
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cyclotronJanitor") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            # The Rust cyclotron-janitor reads DATABASE_URL for the cyclotron job
+            # queue, but commonEnv points DATABASE_URL at the main app DB. Override
+            # to the cyclotron DB (matches upstream docker-compose); last value wins.
+            - name: DATABASE_URL
+              value: "$(CYCLOTRON_DATABASE_URL)"
             {{- with .Values.cyclotronJanitor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
