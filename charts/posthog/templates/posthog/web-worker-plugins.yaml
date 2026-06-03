@@ -598,6 +598,7 @@ spec:
               name: http
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.personhogEnv" . | nindent 12 }}
             {{- $redisHost := .Values.externalRedis.url | default (printf "%s-redis" (include "posthog.fullname" .)) }}
             - name: SESSION_RECORDING_API_REDIS_HOST
               value: {{ $redisHost | quote }}
