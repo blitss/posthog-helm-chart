@@ -21,7 +21,7 @@ spec:
         kind: HelmRepository
         name: cnpg
         namespace: cnpg-system
-      version: "0.25.0"
+      version: "0.28.2"
   install:
     crds: CreateReplace
     remediation:
