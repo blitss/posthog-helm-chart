@@ -361,3 +361,36 @@ spec:
           averageUtilization: {{ .Values.personhogRouter.autoscaling.targetMemoryUtilizationPercentage }}
     {{- end }}
 {{- end }}
+{{- if and .Values.cymbalResolution.enabled .Values.cymbalResolution.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posthog.fullname" . }}-cymbal-resolution
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cymbal-resolution") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posthog.fullname" . }}-cymbal-resolution
+  minReplicas: {{ .Values.cymbalResolution.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.cymbalResolution.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.cymbalResolution.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.cymbalResolution.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.cymbalResolution.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.cymbalResolution.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}

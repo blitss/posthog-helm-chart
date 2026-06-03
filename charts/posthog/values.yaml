@@ -1124,6 +1124,67 @@ cymbal:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
+  ## Remote exception-frame resolution offloaded to the cymbalResolution gRPC
+  ## service below. The CYMBAL_REMOTE_RESOLUTION_* env vars are only rendered on
+  ## the cymbal pods when remoteResolution.enabled=true, so cymbal is unchanged
+  ## by default. Mirrors the upstream prod default: a 0.0 sample rate keeps it a
+  ## no-op even when enabled, until you deliberately ramp the rollout.
+  remoteResolution:
+    enabled: false
+    ## 0.0 = no traffic routed to cymbal-resolution (prod-safe default).
+    sampleRate: "0.0"
+    ## When empty, defaults to the in-cluster cymbal-resolution Service.
+    host: ''
+    port: 50061
+    dnsRefreshSecs: 30
+    subscribeTickHintMs: 100
+
+## Cymbal Resolution — gRPC service split out from cymbal that resolves
+## exception stack frames remotely (upstream `bin/start-rust-service
+## cymbal-resolution`). Reuses the cymbal image (no separate published image),
+## just a different mode. Needs only Postgres + S3, both provided via the shared
+## posthog env. Disabled by default; it is dormant upstream (prod sample rate
+## 0.0) until the rollout ramps. Enable alongside cymbal.remoteResolution.
+cymbalResolution:
+  enabled: false
+  image:
+    ## Reuses the cymbal image — falls back to the cymbal image when unset.
+    repository: ghcr.io/posthog/posthog/cymbal
+    tag: master
+    pullPolicy: Always
+  ## Entry point selecting the cymbal-resolution mode of the shared rust binary.
+  command:
+    - ./bin/start-rust-service
+    - cymbal-resolution
+  replicas: 1
+  ## gRPC and Prometheus metrics ports (upstream dev defaults 50061 / 9106).
+  grpcPort: 50061
+  metricsPort: 9106
+  rustLog: info
+  ## gRPC connections benefit from drain time on rolling updates / node drains.
+  terminationGracePeriodSeconds: 30
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
 cyclotronJanitor:
   enabled: true
   image:
