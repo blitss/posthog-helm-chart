@@ -47,3 +47,10 @@ patches:
       kind: Cluster
       name: posthog-pg
       namespace: posthog
+  - path: postgres-ephemeral-tuning.patch.yaml
+    target:
+      group: postgresql.cnpg.io
+      version: v1
+      kind: Cluster
+      name: posthog-pg
+      namespace: posthog

@@ -421,7 +421,7 @@ Renders all remaining custom env vars except the excluded names.
 Common environment variables shared across PostHog application services
 */}}
 {{- define "posthog.commonEnv" -}}
-{{- $overridableEnvNames := list "SECRET_KEY" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "CYCLOTRON_DATABASE_URL" "PERSONS_DATABASE_URL" -}}
+{{- $overridableEnvNames := list "SECRET_KEY" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "CYCLOTRON_DATABASE_URL" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" -}}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{- else }}
@@ -597,6 +597,17 @@ Common environment variables shared across PostHog application services
   value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
 - name: KAFKA_WAREHOUSE_PRODUCER_METADATA_BROKER_LIST
   value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
+{{- /*
+  Current plugin-server (master) split its Kafka producers into per-purpose
+  producers, each reading its own KAFKA_<NAME>_METADATA_BROKER_LIST and
+  defaulting to "kafka:9092" when unset. Without these, the default-mode CDP
+  pod and the cdp-hogflow-scheduler crash with "Failed to resolve 'kafka:9092'".
+  Point them all at the same broker as the other producers above.
+*/}}
+{{- range tuple "KAFKA_DEFAULT_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_INGESTION_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_CALCULATED_EVENTS_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_CYCLOTRON_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_LOGS_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_METRICS_PRODUCER_METADATA_BROKER_LIST" }}
+- name: {{ . }}
+  value: {{ $.Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" $)) | quote }}
+{{- end }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SITE_URL") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "SITE_URL") }}
 {{- else }}
@@ -788,6 +799,17 @@ Common environment variables shared across PostHog application services
   value: {{ printf "https://%s/livestream" .Values.ingress.hostname | quote }}
 - name: FLAGS_REDIS_ENABLED
   value: "false"
+- name: INTERNAL_API_BASE_URL
+  value: {{ printf "http://%s-web:8000" (include "posthog.fullname" .) | quote }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "INTERNAL_API_SECRET") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "INTERNAL_API_SECRET") }}
+{{- else }}
+- name: INTERNAL_API_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: internal-api-secret
+{{- end }}
 {{ include "posthog.renderRemainingCustomEnv" (dict "root" . "excluded" $overridableEnvNames) }}
 {{- with .Values.global.extraEnv }}
 {{ toYaml . }}

@@ -1,0 +1,12 @@
+# CI-only: this Postgres is thrown away after the run, so trade durability for
+# speed. PostHog applies ~1000+ Django migrations as many tiny transactions;
+# disabling per-commit fsync is the dominant win on migrate-job wall time.
+- op: add
+  path: /spec/postgresql
+  value:
+    parameters:
+      fsync: "off"
+      synchronous_commit: "off"
+      full_page_writes: "off"
+      max_wal_size: "4GB"
+      checkpoint_timeout: "30min"

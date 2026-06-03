@@ -1,11 +1,33 @@
 - op: replace
   path: /spec/timeout
   value: 75m
+# Start suspended so Flux applies the manifests (incl. the CNPG Cluster) without
+# installing the chart yet. CI restores the cached Postgres snapshot into the
+# empty DBs, then unsuspends so the migrate hook only applies the new-migration
+# delta instead of the full ~28 min run.
+- op: add
+  path: /spec/suspend
+  value: true
+# Migrate hook is BestEffort by default (no requests); give it a real CPU-share
+# weight so the critical-path migrations win contention on the single node.
+- op: add
+  path: /spec/values/migrate/resources
+  value:
+    requests:
+      cpu: 500m
+      memory: 512Mi
 - op: replace
   path: /spec/values/web/resources/requests
   value:
     cpu: 50m
     memory: 256Mi
+# Web's entrypoint blocks on the migrate job before granian serves /preflight.
+# Give the startup probe a budget beyond the HelmRelease timeout so a slow
+# migrate can't trip it and restart-thrash the web pod. (period 10s x 300.)
+- op: add
+  path: /spec/values/web/startupProbe
+  value:
+    failureThreshold: 300
 - op: replace
   path: /spec/values/redis/resources/requests
   value:
@@ -146,3 +168,23 @@
   value:
     cpu: 10m
     memory: 64Mi
+# Enable the dedicated HogFlow (Workflows) pods so CI exercises the full stack
+# (they're disabled by default in the chart for backwards-compat). The chart's
+# default plugins image (ghcr posthog-node:master) has the cdp-hogflow-scheduler
+# mode, so these boot here. Tiny resources to fit the single-node kind cluster.
+- op: add
+  path: /spec/values/cdpHogflowScheduler
+  value:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+- op: add
+  path: /spec/values/cdpCyclotronV2Janitor
+  value:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi

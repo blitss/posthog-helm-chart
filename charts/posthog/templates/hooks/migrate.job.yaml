@@ -58,4 +58,8 @@ spec:
               python manage.py run_async_migrations
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+          {{- with .Values.migrate.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 {{- end }}

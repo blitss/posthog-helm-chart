@@ -69,6 +69,11 @@ posthog:
   secret: ''
   ## Encryption salt (auto-generated if empty)
   encryptionSaltKeys: ''
+  ## Shared secret used to authenticate Django internal API calls
+  ## (e.g. the HogFlow scheduler -> /api/internal/...). Injected into every
+  ## PostHog application container so both sides share the same value.
+  ## Auto-generated and preserved across upgrades if left empty.
+  internalApiSecret: ''
   ## Set to "true" to disable anonymous telemetry
   optOutCapture: 'false'
   ## Additional upstream PostHog self-host environment variables injected into
@@ -158,8 +163,8 @@ posthog:
 ## When set, the chart will NOT create its own Secret and will instead
 ## reference this existing Kubernetes Secret for all secret values.
 ## The Secret must contain these keys:
-##   posthog-secret, encryption-salt-keys, database-url, redis-url,
-##   clickhouse-api-password, clickhouse-app-password,
+##   posthog-secret, encryption-salt-keys, internal-api-secret, database-url,
+##   redis-url, clickhouse-api-password, clickhouse-app-password,
 ##   object-storage-access-key, object-storage-secret-key,
 ##   seaweedfs-access-key, seaweedfs-secret-key, postgresql-password
 ## ------------------------------------------------------------------
@@ -842,8 +847,12 @@ workerExports:
 plugins:
   enabled: true
   image:
-    repository: posthog/posthog-node
-    tag: latest
+    ## docker.io/posthog/posthog-node:latest is frozen (PostHog stopped
+    ## publishing it ~2026-03-31) and lacks the cdp-hogflow-scheduler mode +
+    ## current HogFlow consumers. Track ghcr master like the other posthog
+    ## components in this chart.
+    repository: ghcr.io/posthog/posthog-node
+    tag: master
     pullPolicy: Always
   replicas: 1
   resources:
@@ -913,6 +922,35 @@ ingestionTraces:
       memory: 512Mi
     limits:
       memory: 1Gi
+## Dedicated singleton that triggers scheduled/recurring/time-based HogFlow
+## ("Workflows" product) executions via the Django internal API. Required
+## because the plugin-server's default mode gates this capability to dev only.
+## Disabled by default for backwards-compatibility: it only works on a
+## plugin-server image new enough to have the cdp-hogflow-scheduler mode
+## (current ghcr master). Deployments pinning an older plugins.image must keep
+## this off (otherwise the pod CrashLoops on "Invalid PLUGIN_SERVER_MODE").
+## Enable it together with a current plugins.image to make scheduled HogFlows
+## fire. Auth to Django uses the shared internal-api-secret (see commonEnv).
+cdpHogflowScheduler:
+  enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+## Dedicated singleton that requeues stalled Cyclotron v2 jobs. Gated to dev
+## only in the plugin-server's default mode, so it needs its own pod. Disabled
+## by default for the same backwards-compatibility reason as the scheduler
+## above — enable alongside a current plugins.image.
+cdpCyclotronV2Janitor:
+  enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
 capture:
   enabled: true
   image:
@@ -1321,6 +1359,8 @@ migrate:
   ## Run Django migrations on install/upgrade
   enabled: true
   image: {}
+  ## Resource requests/limits for the migrate hook Job (default: none).
+  resources: {}
 kafkaInit:
   ## Create Kafka topics on external clusters (ignored when kafka.enabled=true,
   ## because the bitnami subchart handles provisioning via kafka.provisioning).

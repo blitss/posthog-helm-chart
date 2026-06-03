@@ -1,0 +1,156 @@
+name: posthog-tracker-resolve
+
+# Companion to posthog-tracker.yaml. The tracker FILES issues for upstream
+# PostHog changes that may require chart updates; this workflow RESOLVES them.
+# It runs automatically when a `posthog-tracker` issue is filed (the tracker
+# applies that label on creation), and Claude implements the chart changes on a
+# branch and opens a draft PR. The POC-guard in the prompt keeps it from opening
+# speculative PRs on "track and revisit" issues.
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to resolve"
+        required: true
+
+concurrency:
+  # One resolve run per issue at a time; don't cancel an in-flight run.
+  group: posthog-tracker-resolve-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # create branch + commit chart changes
+  issues: write # comment on the issue
+  pull-requests: write # open the draft PR
+  id-token: write
+
+jobs:
+  resolve:
+    # Three ways in: the `posthog-tracker` label (auto-applied when the tracker
+    # files an issue), a `/resolve` issue comment, or manual dispatch. The
+    # comment trigger is restricted to issues (not PRs) and uses `/resolve`
+    # rather than `@claude` so it doesn't double-fire claude.yml.
+    #
+    # Author guard: labeling and workflow_dispatch already require repo
+    # write/triage access, so they're implicitly trusted. The comment path is
+    # open to anyone, so it additionally requires the commenter to be an OWNER,
+    # MEMBER, or COLLABORATOR — otherwise a drive-by `/resolve` could make the
+    # agent push branches and open PRs.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'posthog-tracker') ||
+      (github.event_name == 'issue_comment' &&
+       !github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/resolve') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Give the agent the real upstream tree (not just gh-api diffs) so it can
+      # read bin/, docker/, docker-compose*, and Dockerfiles as context for the
+      # issue. Cloned OUTSIDE the repo working tree ($RUNNER_TEMP) so it can
+      # never be staged into the PR. Blobless partial clone: full commit graph
+      # (so any referenced SHA is reachable), blobs fetched lazily — keeps it light.
+      - name: Clone upstream PostHog (blobless)
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --single-branch --branch master \
+            https://github.com/PostHog/posthog.git "$RUNNER_TEMP/posthog-upstream"
+          echo "Upstream PostHog cloned to $RUNNER_TEMP/posthog-upstream (master HEAD: $(git -C "$RUNNER_TEMP/posthog-upstream" rev-parse --short HEAD))"
+
+      - name: Resolve issue (Claude Code)
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
+          UPSTREAM_DIR: ${{ runner.temp }}/posthog-upstream
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
+          prompt: |
+            You are resolving a `[posthog-tracker]` issue in THIS repository by
+            implementing the required chart changes and opening a DRAFT pull request.
+
+            The issue number is in the env var ISSUE_NUMBER. Start by reading it:
+            `gh issue view "$ISSUE_NUMBER" --json number,title,body,labels`.
+
+            UPSTREAM SOURCE IS CHECKED OUT LOCALLY at the path in the env var
+            UPSTREAM_DIR — a clone of `PostHog/posthog` at master, OUTSIDE this
+            repo. Use it as your primary context:
+            - Read the real upstream files the issue references (e.g.
+              `$UPSTREAM_DIR/bin/start-rust-service`, `$UPSTREAM_DIR/docker-compose*.yml`,
+              `$UPSTREAM_DIR/docker/clickhouse/**`, `$UPSTREAM_DIR/*.Dockerfile`) with Read/Grep/Glob.
+            - Inspect the exact upstream commit named in the issue with
+              `git -C "$UPSTREAM_DIR" show <sha>` (blobless clone — it fetches on demand).
+            - This is more reliable than `gh api` diffs; prefer reading the files directly.
+            - UPSTREAM_DIR is reference only. All your changes go in this repo's `charts/` etc.
+
+            ABOUT THIS REPO (`blitss/posthog-helm-chart`):
+            A self-hosted Helm chart that wraps upstream PostHog (`PostHog/posthog`)
+            for Kubernetes. It does NOT vendor the application code — it builds custom
+            container images from upstream and ships its own Helm chart and Flux
+            manifests around them.
+
+            RELEVANT PIECES OF THIS REPO:
+            - `charts/posthog/values.yaml` — defaults for every component (web, worker,
+              workerBeat, workerExports, temporalDjangoWorker, plugins, capture,
+              replayCapture, captureAi, captureLogs, featureFlags, propertyDefsRs,
+              livestream, cymbal, cyclotronJanitor, migrate, asyncMigrationsCheck) and
+              Kafka topic provisioning. New rust services follow the `featureFlags` /
+              `propertyDefsRs` / `cymbal` block shape.
+            - `charts/posthog/templates/posthog/` — Deployments, Services, ConfigMaps
+              per component.
+            - `charts/posthog/templates/external/clickhouse.yaml` — embedded ClickHouse
+              config.xml + users.xml.
+            - `charts/posthog/templates/_helpers.tpl` — shared template helpers.
+            - `images/posthog/Dockerfile.{web,worker,worker-exports,migrate,bootstrap-clickhouse}`
+              — custom images built from upstream.
+            - `manifests/posthog/release.yaml` — Flux HelmRelease values used in production.
+
+            HOW TO WORK:
+            1. Read the issue body fully — it lists the upstream commit(s), what changed
+               structurally, why it matters here, and the files in this repo likely
+               affected. Treat that "files likely affected" list as a starting point,
+               not gospel — confirm by reading the actual templates/values.
+            2. If the upstream change is still opt-in / POC (the issue says "track and
+               revisit", "no immediate chart change required", or the upstream feature
+               is gated behind `autostart: false` and not in production compose), DO NOT
+               write speculative code. Instead, post a concise comment on the issue
+               explaining that it's not actionable yet and what the trigger condition is,
+               then STOP without opening a PR.
+            3. Otherwise, implement the change following the existing conventions in the
+               repo. Mirror the closest existing component block (e.g. a new rust service
+               should look like `featureFlags`/`propertyDefsRs`/`cymbal` in values.yaml
+               and its template). Bump `charts/posthog/Chart.yaml` `version` (patch bump)
+               if you change chart templates or values.
+            4. Validate before opening the PR: run `helm lint charts/posthog` and
+               `helm template charts/posthog >/dev/null` and fix any errors.
+
+            DELIVERY (draft PR):
+            - Create a branch named `agent/tracker-${ISSUE_NUMBER}`.
+            - Commit your changes with a conventional-commit message.
+            - Push the branch and open a DRAFT PR with `gh pr create --draft`. The PR body
+              MUST start with `Closes #${ISSUE_NUMBER}` and summarize what changed, how it
+              maps to the upstream commit, and any TODOs / assumptions a reviewer should
+              check. Keep it scoped to what the issue describes.
+
+            CONSTRAINTS:
+            - Do NOT merge the PR. Draft only — a human reviews it.
+            - Stay within the scope of the issue. No unrelated refactors or version bumps
+              of unrelated components (Renovate handles dependency bumps).
+            - If you genuinely cannot determine the right change, comment on the issue with
+              your findings and the specific blocker instead of guessing.
+          claude_args: |
+            --model claude-opus-4-7
+            --verbose
+            --allowed-tools "Read,Edit,Write,Glob,Grep,Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh api:*),Bash(git:*),Bash(helm lint:*),Bash(helm template:*),Bash(jq:*)"
