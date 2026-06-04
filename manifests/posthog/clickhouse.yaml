@@ -213,6 +213,12 @@ spec:
             <warpstream_shared>
               <kafka_broker_list from_env="KAFKA_HOSTS"/>
             </warpstream_shared>
+            <!-- Kafka engine for kafka_hog_invocation_results (HogFlow/cyclotron
+                 results). The current migrate creates that table; without this
+                 collection the ClickHouse migration step fails. -->
+            <warpstream_cyclotron>
+              <kafka_broker_list from_env="KAFKA_HOSTS"/>
+            </warpstream_cyclotron>
           </named_collections>
         </clickhouse>
   templates:
