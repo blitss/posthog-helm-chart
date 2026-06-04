@@ -246,8 +246,11 @@ spec:
         pullPolicy: Always
     plugins:
       image:
-        repository: docker.io/posthog/posthog-node
-        tag: latest@sha256:863e76e040ad41aef79f605c33ec71f1529bddf94cfd88941c935da9bde97235
+        # docker.io/posthog/posthog-node:latest is frozen @863e (no
+        # cdp-hogflow-scheduler / cdp-cyclotron-v2-janitor modes), so the
+        # enabled scheduler/janitor pods CrashLoop. Use current ghcr master.
+        repository: ghcr.io/posthog/posthog-node
+        tag: master@sha256:e2f796aca39662ef6b439598a83ad836044e7852a55217f46516d38f9bd5bae0
       resources:
         requests:
           cpu: 100m
