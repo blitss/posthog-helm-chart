@@ -188,3 +188,14 @@
       requests:
         cpu: 10m
         memory: 128Mi
+# Migrate cyclotron + cyclotron_node (sqlx) so the v2 worker/janitor have a
+# schema; without it the cdp-cyclotron-v2-janitor CrashLoops on cyclotron_jobs.
+# Uses the chart's default ghcr.io/blitss/posthog-cyclotron-migrate image.
+- op: add
+  path: /spec/values/cyclotronMigrate
+  value:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
