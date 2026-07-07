@@ -654,6 +654,22 @@ Common environment variables shared across PostHog application services
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: object-storage-secret-key
+# Rust services (e.g. hypercache-server) build their S3 client from OBJECT_STORAGE_ENDPOINT/BUCKET/REGION
+# but resolve credentials via the default AWS SDK credential chain, so they need AWS_* set explicitly.
+# Without these the remote-config S3 fallback fails with "no providers in chain provided credentials"
+# and /array/<token>/config returns 404.
+- name: AWS_ACCESS_KEY_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: object-storage-access-key
+- name: AWS_SECRET_ACCESS_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: object-storage-secret-key
+- name: AWS_DEFAULT_REGION
+  value: "auto"
 - name: OBJECT_STORAGE_BUCKET
   value: "posthog"
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "OBJECT_STORAGE_PUBLIC_ENDPOINT") }}
