@@ -21,7 +21,7 @@ spec:
         kind: HelmRepository
         name: elastic
         namespace: elastic-system
-      version: "3.3.2"
+      version: "3.5.0"
   install:
     crds: CreateReplace
     remediation:
