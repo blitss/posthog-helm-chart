@@ -1,0 +1,111 @@
+{{- if .Values.mcp.enabled }}
+{{- $apiBaseUrl := .Values.mcp.apiBaseUrl | default (printf "https://%s" .Values.ingress.hostname) -}}
+{{- $publicUrl := .Values.mcp.publicUrl | default $apiBaseUrl -}}
+{{- $appsBaseUrl := .Values.mcp.appsBaseUrl | default $apiBaseUrl -}}
+---
+## ------------------------------------------------------------------
+## PostHog MCP server
+## ------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-mcp
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "mcp") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3001
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "mcp") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-mcp
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "mcp") | nindent 4 }}
+spec:
+  replicas: {{ .Values.mcp.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "mcp") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "mcp") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "mcp") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "mcp") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "mcp") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "mcp") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "mcp") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "mcp") | nindent 6 }}
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.redis.enabled }}
+      initContainers:
+        {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mcp
+          image: "{{ .Values.mcp.image.repository }}:{{ .Values.mcp.image.tag }}"
+          imagePullPolicy: {{ .Values.mcp.image.pullPolicy }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "mcp") | nindent 10 }}
+          ports:
+            - containerPort: 3001
+              name: http
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: redis-url
+            - name: POSTHOG_API_BASE_URL
+              value: {{ $apiBaseUrl | quote }}
+            - name: POSTHOG_PUBLIC_URL
+              value: {{ $publicUrl | quote }}
+            - name: MCP_APPS_BASE_URL
+              value: {{ $appsBaseUrl | quote }}
+            - name: MCP_SIGNED_STATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: mcp-signed-state-key
+            {{- with .Values.mcp.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.mcp.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 2
+            failureThreshold: 3
+{{- end }}

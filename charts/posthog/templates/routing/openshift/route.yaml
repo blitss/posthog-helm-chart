@@ -11,6 +11,44 @@
 {{- $annotations := .Values.ingress.openshift.annotations | default dict -}}
 {{- $tls := .Values.ingress.openshift.tls -}}
 
+{{- if .Values.mcp.enabled }}
+{{- range $name, $path := dict "protocol" "/mcp" "sse" "/sse" "ui-apps" "/ui-apps" "oauth-resource" "/.well-known/oauth-protected-resource" "openai-challenge" "/.well-known/openai-apps-challenge" }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullname }}-mcp-{{ $name }}
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $hostname | quote }}
+  path: {{ $path }}
+  to:
+    kind: Service
+    name: {{ $fullname }}-mcp
+  port:
+    targetPort: 3001
+  {{- with $tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    insecureEdgeTerminationPolicy: {{ .insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- if .certificate }}
+    certificate: {{ .certificate | quote }}
+    {{- end }}
+    {{- if .key }}
+    key: {{ .key | quote }}
+    {{- end }}
+    {{- if .caCertificate }}
+    caCertificate: {{ .caCertificate | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
 {{- if .Values.captureAi.enabled }}
 ---
 apiVersion: route.openshift.io/v1

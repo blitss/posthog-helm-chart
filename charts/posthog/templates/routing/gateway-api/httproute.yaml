@@ -13,6 +13,18 @@ spec:
   hostnames:
     - {{ .Values.ingress.hostname | quote }}
   rules:
+    {{- if .Values.mcp.enabled }}
+    ## MCP protocol, compatibility, UI apps, and OAuth metadata
+    - matches:
+{{ include "posthog.gatewayPathMatches" "/mcp" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/sse" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/ui-apps" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/.well-known/oauth-protected-resource" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/.well-known/openai-apps-challenge" | indent 8 }}
+      backendRefs:
+        - name: {{ include "posthog.fullname" . }}-mcp
+          port: 3001
+    {{- end }}
     {{- if .Values.captureAi.enabled }}
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
     - matches:

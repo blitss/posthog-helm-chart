@@ -13,6 +13,16 @@ spec:
   entryPoints:
     {{- toYaml .Values.ingress.traefik.entryPoints | nindent 4 }}
   routes:
+    {{- if .Values.mcp.enabled }}
+    {{- range $path := list "/mcp" "/sse" "/ui-apps" "/.well-known/oauth-protected-resource" "/.well-known/openai-apps-challenge" }}
+    ## MCP protocol, compatibility, UI apps, and OAuth metadata
+    - match: Host(`{{ $.Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" $path }}
+      kind: Rule
+      services:
+        - name: {{ include "posthog.fullname" $ }}-mcp
+          port: 3001
+    {{- end }}
+    {{- end }}
     {{- if .Values.captureAi.enabled }}
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
     - match: Host(`{{ .Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" "/i/v0/ai" }}

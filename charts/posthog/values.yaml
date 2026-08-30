@@ -749,6 +749,38 @@ web:
     enabled: false
     minAvailable: 1
     # maxUnavailable: 1
+## MCP server for agent access to PostHog.
+## Exposed at https://<ingress.hostname>/mcp when enabled.
+mcp:
+  enabled: false
+  image:
+    repository: ghcr.io/posthog/posthog-mcp
+    tag: latest
+    pullPolicy: Always
+  replicas: 1
+  ## Public PostHog URL used for API calls and OAuth. Defaults to the ingress URL.
+  apiBaseUrl: ''
+  ## Public URL rendered in tool responses. Defaults to apiBaseUrl.
+  publicUrl: ''
+  ## Public URL serving MCP UI app assets. Defaults to apiBaseUrl.
+  appsBaseUrl: ''
+  ## HMAC key for confirmed actions. Generated and preserved when empty.
+  ## When existingSecret is set, that Secret must contain mcp-signed-state-key.
+  signedStateKey: ''
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+
 worker:
   enabled: true
   image: {}

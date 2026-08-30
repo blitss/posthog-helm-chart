@@ -191,6 +191,7 @@ All configuration is in [`values.yaml`](values.yaml), organized by top-level sec
 | `temporal` | Workflow orchestrator |
 | `geoip` | MaxMind GeoIP sidecar |
 | `web` / `worker` / `workerBeat` / `workerExports` | Django app, Celery workers, and Celery scheduler |
+| `mcp` | Model Context Protocol server for agent access |
 | `plugins` | Node.js CDP / ingestion service |
 | `capture` / `replayCapture` / `captureAi` / `captureLogs` | Rust capture services |
 | `featureFlags` / `propertyDefsRs` / `livestream` / `cymbal` / `cyclotronJanitor` | Auxiliary Rust services |
@@ -202,6 +203,24 @@ All configuration is in [`values.yaml`](values.yaml), organized by top-level sec
 Each application component supports `replicas`, `image`, `resources`, `podSecurityContext`, `containerSecurityContext`, `nodeSelector`, `tolerations`, `affinity`, `podAnnotations`, `extraEnv`, and (where relevant) `autoscaling`, `podDisruptionBudget`, `extraVolumes`, `extraVolumeMounts`, `sidecarContainers`.
 
 Worker scaling is controlled with `worker.replicas`, `worker.concurrency`, `worker.autoscaling`, `workerExports.replicas`, `workerExports.concurrency`, and `temporalDjangoWorker.autoscaling`. The chart maps worker concurrency to `WEB_CONCURRENCY`, which is the value consumed by PostHog's Celery entrypoint, and also emits `CELERY_WORKER_CONCURRENCY` for compatibility/visibility. `workerBeat.enabled=true` runs RedBeat as a separate scheduler pod, so scheduler restarts do not restart the main Celery worker.
+
+### MCP server
+
+The MCP server is disabled by default. Enable it on the existing PostHog hostname:
+
+```yaml
+mcp:
+  enabled: true
+```
+
+MCP clients connect to `https://<ingress.hostname>/mcp`. The chart routes the
+protocol, legacy SSE, UI apps, and OAuth metadata paths to the MCP service while
+PostHog web continues to serve the OAuth authorization endpoints.
+
+`mcp.apiBaseUrl`, `mcp.publicUrl`, and `mcp.appsBaseUrl` default to
+`https://<ingress.hostname>` and can be overridden independently. The chart
+generates and preserves `mcp-signed-state-key`; when `existingSecret` is used,
+that Secret must provide both `redis-url` and `mcp-signed-state-key`.
 
 ## Chart dependencies
 

@@ -15,6 +15,20 @@ spec:
   gateways:
     - {{ .Values.ingress.istio.gateway | quote }}
   http:
+    {{- if .Values.mcp.enabled }}
+    ## MCP protocol, compatibility, UI apps, and OAuth metadata
+    - match:
+{{ include "posthog.istioPathMatches" "/mcp" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/sse" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/ui-apps" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/.well-known/oauth-protected-resource" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/.well-known/openai-apps-challenge" | indent 8 }}
+      route:
+        - destination:
+            host: {{ include "posthog.fullname" . }}-mcp
+            port:
+              number: 3001
+    {{- end }}
     {{- if .Values.captureAi.enabled }}
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
     - match:

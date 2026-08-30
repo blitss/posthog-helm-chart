@@ -38,6 +38,7 @@ spec:
           - feature-flags
           - hypercache-server
           - livestream
+          - mcp
           - plugins
           - rustfs
   policyTypes:

@@ -34,6 +34,18 @@ spec:
     - host: {{ .Values.ingress.hostname | quote }}
       http:
         paths:
+          {{- if .Values.mcp.enabled }}
+          {{- range $path := list "/mcp" "/sse" "/ui-apps" "/.well-known/oauth-protected-resource" "/.well-known/openai-apps-challenge" }}
+          ## MCP protocol, compatibility, UI apps, and OAuth metadata
+          - path: {{ printf "%s(/|$)(.*)" $path }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "posthog.fullname" $ }}-mcp
+                port:
+                  number: 3001
+          {{- end }}
+          {{- end }}
           {{- if .Values.captureAi.enabled }}
           ## AI capture endpoint -> capture-ai service (must be before /i/v0)
           - path: /i/v0/ai(/|$)(.*)
