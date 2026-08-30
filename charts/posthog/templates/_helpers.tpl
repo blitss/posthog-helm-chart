@@ -978,7 +978,7 @@ silently pointing web/worker at a non-existent Service.
 - name: PERSONHOG_ENABLED
   value: "true"
 - name: PERSONHOG_ADDR
-  value: {{ .Values.personhog.addr | default (printf "http://%s-personhog-router:%v" (include "posthog.fullname" .) (.Values.personhogRouter.grpcPort | default 50052)) | quote }}
+  value: {{ .Values.personhog.addr | default (printf "%s-personhog-router:%v" (include "posthog.fullname" .) (.Values.personhogRouter.grpcPort | default 50052)) | quote }}
 - name: PERSONHOG_ROLLOUT_PERCENTAGE
   value: {{ .Values.personhog.rolloutPercentage | default 0 | quote }}
 {{- end }}

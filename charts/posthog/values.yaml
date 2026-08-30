@@ -1295,7 +1295,8 @@ cyclotronJanitor:
 ## story and brought the replica + router up.
 personhog:
   enabled: false
-  ## When unset, defaults to the personhog-router Service inside the cluster.
+  ## Host and port without a URL scheme. When unset, defaults to the
+  ## personhog-router Service inside the cluster.
   addr: ''
   rolloutPercentage: 0
 personhogReplica:
