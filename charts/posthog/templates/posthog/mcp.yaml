@@ -66,6 +66,8 @@ spec:
             - containerPort: 3001
               name: http
           env:
+            - name: NODE_OPTIONS
+              value: {{ .Values.mcp.nodeOptions | quote }}
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:

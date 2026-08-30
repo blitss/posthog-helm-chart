@@ -758,6 +758,8 @@ mcp:
     tag: latest
     pullPolicy: Always
   replicas: 1
+  ## Node's automatic container heap cap is too small for the MCP tool catalog.
+  nodeOptions: '--max-old-space-size=768'
   ## Public PostHog URL used for API calls and OAuth. Defaults to the ingress URL.
   apiBaseUrl: ''
   ## Public URL rendered in tool responses. Defaults to apiBaseUrl.
