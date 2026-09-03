@@ -21,7 +21,7 @@ spec:
         kind: HelmRepository
         name: redpanda
         namespace: posthog
-      version: "26.1.4"
+      version: "26.2.3"
   install:
     crds: CreateReplace
     remediation:
