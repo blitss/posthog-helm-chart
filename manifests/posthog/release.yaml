@@ -154,15 +154,15 @@ spec:
       server:
         image:
           repository: docker.io/temporalio/auto-setup
-          tag: "1.29.6@sha256:1263120feed69d82e4ca23b8ca6f1d702c3029fe70714e382966d0192318eab6"
+          tag: "1.29.7@sha256:f14912b699cf73015ad5c4fc18d522d4b014db90e794039214dfb7c022c2644f"
       adminTools:
         image:
           repository: docker.io/temporalio/admin-tools
-          tag: "1.31.0@sha256:3e68adcd54195a7c1222e99f2dbc32a4fdbf44ad69e3bb48e21e85c4bf417c2e"
+          tag: "1.31.2@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107"
       ui:
         image:
           repository: docker.io/temporalio/ui
-          tag: "2.50.0@sha256:49a61456f6b770af926d6d7d74f63ebb4b9a3c5abc4fb68ddb146321d49391e4"
+          tag: "2.53.3@sha256:eef301146e60fad34b47adaecfae4149016e34b2d44ba94fca5fd8e5441f182a"
     worker:
       image:
         repository: ghcr.io/blitss/posthog-worker
@@ -250,7 +250,7 @@ spec:
         # cdp-hogflow-scheduler / cdp-cyclotron-v2-janitor modes), so the
         # enabled scheduler/janitor pods CrashLoop. Use current ghcr master.
         repository: ghcr.io/posthog/posthog-node
-        tag: master@sha256:e2f796aca39662ef6b439598a83ad836044e7852a55217f46516d38f9bd5bae0
+        tag: master@sha256:e95824f084ec59186612762cc53411092c28dbf4aa5aead9da05c9991221e14b
       resources:
         requests:
           cpu: 100m
@@ -260,7 +260,7 @@ spec:
     capture:
       image:
         repository: ghcr.io/posthog/posthog/capture
-        tag: master@sha256:ecb6da073ddb396f04ded2965880ad1abb581d49127bbc7e9f203bec659ab119
+        tag: master@sha256:7869522e4b65cf618a85af3d1dd04854c3b31dd9304af5ce8716020223ed30da
       resources:
         requests:
           cpu: 50m
@@ -270,7 +270,7 @@ spec:
     replayCapture:
       image:
         repository: ghcr.io/posthog/posthog/capture
-        tag: master@sha256:ecb6da073ddb396f04ded2965880ad1abb581d49127bbc7e9f203bec659ab119
+        tag: master@sha256:7869522e4b65cf618a85af3d1dd04854c3b31dd9304af5ce8716020223ed30da
       resources:
         requests:
           cpu: 50m
@@ -280,7 +280,7 @@ spec:
     captureAi:
       image:
         repository: ghcr.io/posthog/posthog/capture
-        tag: master@sha256:ecb6da073ddb396f04ded2965880ad1abb581d49127bbc7e9f203bec659ab119
+        tag: master@sha256:7869522e4b65cf618a85af3d1dd04854c3b31dd9304af5ce8716020223ed30da
       resources:
         requests:
           cpu: 50m
@@ -290,7 +290,7 @@ spec:
     captureLogs:
       image:
         repository: ghcr.io/posthog/posthog/capture-logs
-        tag: master@sha256:98440e32007250dd25f81074bf3bb36ba79e5560ddbedc668aae67ab5105d6c7
+        tag: master@sha256:e152db09a4bab345e5bd938b744cbcc2145105e374ebec26f8d7464da64657e0
       resources:
         requests:
           cpu: 25m
@@ -300,7 +300,7 @@ spec:
     featureFlags:
       image:
         repository: ghcr.io/posthog/posthog/feature-flags
-        tag: master@sha256:74e808832a2702a3c36fb511a3217b978940b6c9fe854ae36b7c0067b13a4fb3
+        tag: master@sha256:3d9671d9856b7316b2d73ccc3dc3188266c54b79209f27f7453918ac42d74a37
       resources:
         requests:
           cpu: 50m
@@ -310,7 +310,7 @@ spec:
     hypercacheServer:
       image:
         repository: ghcr.io/posthog/posthog/hypercache-server
-        tag: master@sha256:833db9fb0ab7948bf76546171d412b9a93215b925ad73526767e9ef0a69f1bce
+        tag: master@sha256:e9009448fb256c2ea37d0df3bced559656330c6c0bc9678e9b4ec1d5facfb1ac
       resources:
         requests:
           cpu: 50m
@@ -320,7 +320,7 @@ spec:
     propertyDefsRs:
       image:
         repository: ghcr.io/posthog/posthog/property-defs-rs
-        tag: master@sha256:b90d7b17c5340fa329fb78b3a46464b85ce31de8254c457b311b4051d238bbf6
+        tag: master@sha256:6a3e9808b333fd6885665ee7677ade961cefba792254be276571128724890234
       resources:
         requests:
           cpu: 50m
@@ -331,7 +331,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/posthog/posthog/livestream
-        tag: master@sha256:380beeb2220ecb07c38d9215db54c1ced3191787c81164a99766d01720e2c40c
+        tag: master@sha256:6926f340b72d609e43cee5aa8b75a85cfdc77d182e610dafafdd81d3b2ab53f5
       resources:
         requests:
           cpu: 25m
@@ -341,7 +341,7 @@ spec:
     cymbal:
       image:
         repository: ghcr.io/posthog/posthog/cymbal
-        tag: master@sha256:824d53a12a1c7075e47b6a7af3159cd909edf0febe0030410d7278ca061ad76c
+        tag: master@sha256:7a7ddc13690f87777b2dc7e3f66c4677a14f060470268d2f33141a1fb7edf2cc
       resources:
         requests:
           cpu: 50m
@@ -351,7 +351,7 @@ spec:
     cyclotronJanitor:
       image:
         repository: ghcr.io/posthog/posthog/cyclotron-janitor
-        tag: master@sha256:313016aa35e11a4646ac036b7d3305de325760b3303f8ee4ef29b0f8aa96bc58
+        tag: master@sha256:664e6f6dd6247aa94bc9d7f554d81b714fc8406a455bc0a35165a2e56b35ea91
     ## Keep this manifest schedulable on a single-node kind cluster while
     ## still deploying the full happy-path service graph.
     ingestionGeneral:
@@ -404,7 +404,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/posthog/posthog/personhog-replica
-        tag: master@sha256:d807eceee91ec7ebfc3b09e3a16890d5c3c86d484f4ba936c43e44379420ae6e
+        tag: master@sha256:e9a73dfacd5e0fb84919dc2aa58b2010e586a9e17b28a37620d6bdf65cc43776
       resources:
         requests:
           cpu: 50m
@@ -415,7 +415,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/posthog/posthog/personhog-router
-        tag: master@sha256:15558bd459caa9fa6d6d1fcffab8ce5bcfe4ef3579c4872cb3fec0bf0896ad8b
+        tag: master@sha256:cb5a8f0652a3b4860f9ec73080b75d1bdcd4014e1417dccad19b79a13578931a
       resources:
         requests:
           cpu: 25m
