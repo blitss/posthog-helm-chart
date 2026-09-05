@@ -424,80 +424,59 @@ kafka:
     ##   https://github.com/PostHog/posthog/blob/master/nodejs/src/config/kafka-topics.ts
     topics:
       - name: cdp_backfill_events
-      - name: cdp_batch_hogflow_requests
       - name: cdp_data_warehouse_source_table
-      - name: cdp_function_overflow
       - name: cdp_internal_events
       - name: clickhouse_ai_events_json
       - name: clickhouse_app_metrics
       - name: clickhouse_app_metrics2
-      - name: clickhouse_behavioral_cohorts_matches
+      - name: clickhouse_billing_usage_records
       - name: clickhouse_document_embeddings
       - name: clickhouse_error_tracking_fingerprint_issue_state
       - name: clickhouse_error_tracking_issue_fingerprint
       - name: clickhouse_error_tracking_issue_fingerprint_embeddings
-      - name: clickhouse_error_tracking_issue_fingerprint_overrides
       - name: clickhouse_events_json
+      - name: clickhouse_flag_evaluations
       - name: clickhouse_groups
       - name: clickhouse_heatmap_events
       - name: clickhouse_hog_invocation_results
       - name: clickhouse_ingestion_warnings
-      - name: clickhouse_logs
-      - name: clickhouse_metrics
+      - name: clickhouse_message_assets
       - name: clickhouse_metrics_time_to_see_data
       - name: clickhouse_performance_events
       - name: clickhouse_person
       - name: clickhouse_person_distinct_id
-      - name: clickhouse_person_distinct_id2
-      - name: clickhouse_person_distinct_id_overrides
       - name: clickhouse_person_override
-      - name: clickhouse_person_overrides
       - name: clickhouse_person_unique_id
-      - name: clickhouse_precalculated_person_properties
-      - name: clickhouse_prefiltered_events
       - name: clickhouse_property_values
       - name: clickhouse_session_recording_events
       - name: clickhouse_session_replay_events
       - name: clickhouse_session_replay_features
       - name: clickhouse_tophog
-      - name: clickhouse_traces
       - name: cohort_membership_changed
-      - name: conversion_events_buffer
       - name: data_warehouse_source_webhooks
       - name: data_warehouse_source_webhooks_dlq
-      - name: data_warehouse_sources_jobs
-      - name: data_warehouse_sources_jobs_dlq
       - name: distinct_id_usage_events_json
+      - name: document_embedding_results
       - name: document_embeddings_input
       - name: events_dead_letter_queue
       - name: events_plugin_ingestion
-      - name: events_plugin_ingestion_async
-      - name: events_plugin_ingestion_dlq
       - name: events_plugin_ingestion_historical
       - name: events_plugin_ingestion_overflow
       - name: exceptions_ingestion
-      - name: ingestion-errortracking-main
-      - name: ingestion-errortracking-main-dlq
-      - name: ingestion-errortracking-overflow
+      - name: flags_cache_invalidation
+      - name: flags_cache_invalidation_dlq
       - name: ingestion-traces
       - name: ingestion-traces-dlq
-      - name: ingestion-traces-overflow
-      - name: kafka_events_recent_json
       - name: log_entries
       - name: log_entries_v2_test
       - name: logs_ingestion
       - name: logs_ingestion_dlq
-      - name: logs_ingestion_overflow
-      - name: metrics_ingestion
-      - name: metrics_ingestion_dlq
-      - name: metrics_ingestion_overflow
       - name: notification_events
       - name: plugin_log_entries
       - name: session_recording_events
-      - name: session_recording_snapshot_item_dlq
-      - name: session_recording_snapshot_item_events
-      - name: session_recording_snapshot_item_overflow
       - name: signals_report_completed
+      - name: warehouse_person_property_updates
+      - name: warehouse_person_property_updates_dlq
   extraConfig: |
     transaction.state.log.replication.factor=1
     transaction.state.log.min.isr=1
@@ -782,7 +761,6 @@ mcp:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-
 worker:
   enabled: true
   image: {}
@@ -1223,7 +1201,6 @@ cymbal:
     port: 50061
     dnsRefreshSecs: 30
     subscribeTickHintMs: 100
-
 ## Cymbal Resolution — gRPC service split out from cymbal that resolves
 ## exception stack frames remotely (upstream `bin/start-rust-service
 ## cymbal-resolution`). Reuses the cymbal image (no separate published image),
@@ -1426,80 +1403,59 @@ kafkaInit:
     pullPolicy: IfNotPresent
   topics:
     - cdp_backfill_events
-    - cdp_batch_hogflow_requests
     - cdp_data_warehouse_source_table
-    - cdp_function_overflow
     - cdp_internal_events
     - clickhouse_ai_events_json
     - clickhouse_app_metrics
     - clickhouse_app_metrics2
-    - clickhouse_behavioral_cohorts_matches
+    - clickhouse_billing_usage_records
     - clickhouse_document_embeddings
     - clickhouse_error_tracking_fingerprint_issue_state
     - clickhouse_error_tracking_issue_fingerprint
     - clickhouse_error_tracking_issue_fingerprint_embeddings
-    - clickhouse_error_tracking_issue_fingerprint_overrides
     - clickhouse_events_json
+    - clickhouse_flag_evaluations
     - clickhouse_groups
     - clickhouse_heatmap_events
     - clickhouse_hog_invocation_results
     - clickhouse_ingestion_warnings
-    - clickhouse_logs
-    - clickhouse_metrics
+    - clickhouse_message_assets
     - clickhouse_metrics_time_to_see_data
     - clickhouse_performance_events
     - clickhouse_person
     - clickhouse_person_distinct_id
-    - clickhouse_person_distinct_id2
-    - clickhouse_person_distinct_id_overrides
     - clickhouse_person_override
-    - clickhouse_person_overrides
     - clickhouse_person_unique_id
-    - clickhouse_precalculated_person_properties
-    - clickhouse_prefiltered_events
     - clickhouse_property_values
     - clickhouse_session_recording_events
     - clickhouse_session_replay_events
     - clickhouse_session_replay_features
     - clickhouse_tophog
-    - clickhouse_traces
     - cohort_membership_changed
-    - conversion_events_buffer
     - data_warehouse_source_webhooks
     - data_warehouse_source_webhooks_dlq
-    - data_warehouse_sources_jobs
-    - data_warehouse_sources_jobs_dlq
     - distinct_id_usage_events_json
+    - document_embedding_results
     - document_embeddings_input
     - events_dead_letter_queue
     - events_plugin_ingestion
-    - events_plugin_ingestion_async
-    - events_plugin_ingestion_dlq
     - events_plugin_ingestion_historical
     - events_plugin_ingestion_overflow
     - exceptions_ingestion
-    - ingestion-errortracking-main
-    - ingestion-errortracking-main-dlq
-    - ingestion-errortracking-overflow
+    - flags_cache_invalidation
+    - flags_cache_invalidation_dlq
     - ingestion-traces
     - ingestion-traces-dlq
-    - ingestion-traces-overflow
-    - kafka_events_recent_json
     - log_entries
     - log_entries_v2_test
     - logs_ingestion
     - logs_ingestion_dlq
-    - logs_ingestion_overflow
-    - metrics_ingestion
-    - metrics_ingestion_dlq
-    - metrics_ingestion_overflow
     - notification_events
     - plugin_log_entries
     - session_recording_events
-    - session_recording_snapshot_item_dlq
-    - session_recording_snapshot_item_events
-    - session_recording_snapshot_item_overflow
     - signals_report_completed
+    - warehouse_person_property_updates
+    - warehouse_person_property_updates_dlq
 asyncMigrationsCheck:
   enabled: true
   image: {}
