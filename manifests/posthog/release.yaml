@@ -40,7 +40,7 @@ spec:
       optOutCapture: true
       image:
         repository: ghcr.io/blitss/posthog-web
-        tag: latest@sha256:f53afd0fbb4227c49f790db7ad88f3644aaf6ca9fc36c02150ed39de3f9c164c
+        tag: latest@sha256:eef663d21a9aaa8499218128c12bcb52fa8352658f3da7cda2b408105f7b89fe
         pullPolicy: Always
       env:
         MULTI_ORG_ENABLED: "0"
@@ -52,7 +52,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-web
-        tag: latest@sha256:f53afd0fbb4227c49f790db7ad88f3644aaf6ca9fc36c02150ed39de3f9c164c
+        tag: latest@sha256:eef663d21a9aaa8499218128c12bcb52fa8352658f3da7cda2b408105f7b89fe
         pullPolicy: Always
       replicas: 1
       resources:
@@ -141,19 +141,19 @@ spec:
       server:
         image:
           repository: docker.io/temporalio/auto-setup
-          tag: 1.29.6@sha256:1263120feed69d82e4ca23b8ca6f1d702c3029fe70714e382966d0192318eab6
+          tag: 1.29.7@sha256:f14912b699cf73015ad5c4fc18d522d4b014db90e794039214dfb7c022c2644f
       adminTools:
         image:
           repository: docker.io/temporalio/admin-tools
-          tag: 1.31.0@sha256:3e68adcd54195a7c1222e99f2dbc32a4fdbf44ad69e3bb48e21e85c4bf417c2e
+          tag: 1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
       ui:
         image:
           repository: docker.io/temporalio/ui
-          tag: 2.50.0@sha256:49a61456f6b770af926d6d7d74f63ebb4b9a3c5abc4fb68ddb146321d49391e4
+          tag: 2.54.1@sha256:ff0943fe532b8e33c46cd28b29e81e0ce0b6f55b9ee50a38ef1b437cc4de3fa5
     worker:
       image:
         repository: ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        tag: latest@sha256:6db8e52e4876ca57af235ec502118bd525175e6263ae36fb5537dde592548cdb
         pullPolicy: Always
       replicas: 1
       concurrency: 2
@@ -173,7 +173,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        tag: latest@sha256:6db8e52e4876ca57af235ec502118bd525175e6263ae36fb5537dde592548cdb
         pullPolicy: Always
       replicas: 1
       resources:
@@ -186,7 +186,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-worker-exports
-        tag: latest@sha256:4170448235d851652ec6a933b18a293b42170beabbc9569486d7efd4e43c72ec
+        tag: latest@sha256:6ccf47d6912e3438708dfac5a21f281ea8b793ee53549e39d0cd301e5705833c
         pullPolicy: Always
       replicas: 1
       queue: exports
@@ -206,7 +206,7 @@ spec:
     temporalDjangoWorker:
       image:
         repository: ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        tag: latest@sha256:6db8e52e4876ca57af235ec502118bd525175e6263ae36fb5537dde592548cdb
         pullPolicy: Always
       replicas: 1
       autoscaling:
@@ -224,17 +224,17 @@ spec:
     migrate:
       image:
         repository: ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+        tag: latest@sha256:8dc9448458117f09e4bb9264a32f6101141a5f8a1f9f5ec3dad2314cefc46eb5
         pullPolicy: Always
     asyncMigrationsCheck:
       image:
         repository: ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+        tag: latest@sha256:8dc9448458117f09e4bb9264a32f6101141a5f8a1f9f5ec3dad2314cefc46eb5
         pullPolicy: Always
     plugins:
       image:
         repository: ghcr.io/posthog/posthog-node
-        tag: master@sha256:a2e93efadd13b8e0b551ea6e23364ebae3caf6888109debb239caa1945a49e16
+        tag: master@sha256:13855f9d39c4e236a82e28227a076d7ad73badfc320bbb2d79d52ff1aabbf333
       resources:
         requests:
           cpu: 100m
@@ -244,7 +244,7 @@ spec:
     capture:
       image:
         repository: ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: master@sha256:6e0e3fa9621bb590fa456d6a887e973790edfbd986d6f5e895f302211645ea66
       resources:
         requests:
           cpu: 50m
@@ -254,7 +254,7 @@ spec:
     replayCapture:
       image:
         repository: ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: master@sha256:6e0e3fa9621bb590fa456d6a887e973790edfbd986d6f5e895f302211645ea66
       resources:
         requests:
           cpu: 50m
@@ -264,7 +264,7 @@ spec:
     captureAi:
       image:
         repository: ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: master@sha256:6e0e3fa9621bb590fa456d6a887e973790edfbd986d6f5e895f302211645ea66
       resources:
         requests:
           cpu: 50m
@@ -274,7 +274,7 @@ spec:
     captureLogs:
       image:
         repository: ghcr.io/posthog/posthog/capture-logs
-        tag: master@sha256:e8ebc718503c27230403601b1036a7db106d347eccf0ee2714b4c0e245e033fa
+        tag: master@sha256:afab2b50b72e7bd0bb8018eb328266b470a28b4b13bbd06a07a305c1ac32f7e2
       resources:
         requests:
           cpu: 25m
@@ -284,7 +284,7 @@ spec:
     featureFlags:
       image:
         repository: ghcr.io/posthog/posthog/feature-flags
-        tag: master@sha256:65030502939f230ff7ba820e6a145a8598019c846383fb10fd9ec2ecba5c9048
+        tag: master@sha256:494c3eec82d0c372de5dd8a10dd363f15e86399514de2fe8b7c88297c65c2b9b
       resources:
         requests:
           cpu: 50m
@@ -294,7 +294,7 @@ spec:
     hypercacheServer:
       image:
         repository: ghcr.io/posthog/posthog/hypercache-server
-        tag: master@sha256:2acd76fc8219a9156f6036251cdeb63746cca0cf20fbe62c4563e8654e25f889
+        tag: master@sha256:d975bd1098ac61668706ec9b4c4867011875577625bf35f31ef50ab722ab7934
       resources:
         requests:
           cpu: 50m
@@ -304,7 +304,7 @@ spec:
     propertyDefsRs:
       image:
         repository: ghcr.io/posthog/posthog/property-defs-rs
-        tag: master@sha256:66ccc059c4b7464ac19bf4ea6a4a0db9712c423779529baeb5e64afea4909f10
+        tag: master@sha256:04db4a1b20afebcfd9418f7b2feb64e61f7654cb4cf4a4e80f3dcd947b27a785
       resources:
         requests:
           cpu: 50m
@@ -325,7 +325,7 @@ spec:
     cymbal:
       image:
         repository: ghcr.io/posthog/posthog/cymbal
-        tag: master@sha256:939d140ae9632eabce36286edacab9aa38bba34ce9e8818856b876f08e3671a9
+        tag: master@sha256:09fd6a05b7db9a693ede44570d3b2f638bb691614c2e3f0cb0219301fbc72a0b
       resources:
         requests:
           cpu: 50m
@@ -381,7 +381,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/posthog/posthog/personhog-replica
-        tag: master@sha256:9fb5f8238df3b5c5d11d2f3ed1f4bc3d13f0ec3b9453737b6df661aa786ecbf3
+        tag: master@sha256:84f4b877b537cc115de8073035cff96dc83203b652b84e709530ef361c7df5b5
       resources:
         requests:
           cpu: 50m
@@ -392,7 +392,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/posthog/posthog/personhog-router
-        tag: master@sha256:da51c627e026f75b1da1eac9befaf618890070038c33bcfc971ba0e8113f7168
+        tag: master@sha256:e3f456ec2d545ea4a66acb78d367ec09dba40d6062b6f72fd21116f10874010c
       resources:
         requests:
           cpu: 25m
@@ -414,5 +414,5 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-cyclotron-migrate
-        tag: latest@sha256:ac726ab397f131d530cd22c8d8addc5854e6942f780d6479f89ea9c3797193c5
+        tag: latest@sha256:71388739d25e9b0e56efc65e260ba471e3276488e103a7ec03ba4be3d6693184
         pullPolicy: IfNotPresent
