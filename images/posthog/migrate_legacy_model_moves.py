@@ -13,7 +13,6 @@ from django.db.migrations.recorder import MigrationRecorder
 
 SQUASH_NAME = "0001_squash_2026_09_07_initial"
 
-
 MODEL_MOVES = (
     ("cohorts", "0001_migrate_cohorts_models"),
     ("error_tracking", "0017_migrate_cohorts_models"),
@@ -62,7 +61,7 @@ class Command(BaseCommand):
 
         loader = MigrationLoader(connection)
         for key, migration in loader.replacements.items():
-            if key[1] != SQUASH_NAME or key not in applied or key not in loader.graph.nodes:
+            if "_squash_2026_09_07_" not in key[1] or key not in applied or key not in loader.graph.nodes:
                 continue
             if not all(original in applied for original in migration.replaces):
                 continue
@@ -111,7 +110,7 @@ class Command(BaseCommand):
             executor.loader.replacements = {
                 key: migration
                 for key, migration in executor.loader.replacements.items()
-                if key[1] != SQUASH_NAME
+                if "_squash_2026_09_07_" not in key[1]
             }
             self.stdout.write(f"Preparing legacy model move: {target[0]}.{target[1]}")
             # Ordinary execution performs every prerequisite and records only
