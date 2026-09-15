@@ -103,6 +103,7 @@ spec:
           - personhog-router
           - cymbal
           - cymbal-resolution
+          - usage-ingestion
   policyTypes:
     - Ingress
   ingress:

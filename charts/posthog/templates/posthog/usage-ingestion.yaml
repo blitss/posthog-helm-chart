@@ -1,0 +1,90 @@
+{{- if .Values.usageIngestion.enabled }}
+## Internal-only gRPC gateway: upstream does not authenticate billing producers.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-usage-ingestion
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "usage-ingestion") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.usageIngestion.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    - port: {{ .Values.usageIngestion.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "usage-ingestion") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-usage-ingestion
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "usage-ingestion") | nindent 4 }}
+spec:
+  replicas: {{ .Values.usageIngestion.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "usage-ingestion") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "usage-ingestion") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "usageIngestion") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "usageIngestion") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "usageIngestion") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "usageIngestion") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "usageIngestion") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "usage-ingestion") | nindent 6 }}
+      containers:
+        - name: usage-ingestion
+          image: "{{ .Values.usageIngestion.image.repository }}:{{ .Values.usageIngestion.image.tag }}"
+          imagePullPolicy: {{ .Values.usageIngestion.image.pullPolicy | default "Always" }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "usageIngestion") | nindent 10 }}
+          ports:
+            - containerPort: {{ .Values.usageIngestion.grpcPort }}
+              name: grpc
+            - containerPort: {{ .Values.usageIngestion.metricsPort }}
+              name: metrics
+          env:
+            {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- if not (include "posthog.hasEnvOverride" (dict "root" . "name" "USAGE_INGESTION_DATABASE_URL")) }}
+            - name: USAGE_INGESTION_DATABASE_URL
+              value: "$(DATABASE_URL)"
+            {{- end }}
+            - name: USAGE_INGESTION_GRPC_ADDRESS
+              value: {{ printf "0.0.0.0:%v" .Values.usageIngestion.grpcPort | quote }}
+            - name: USAGE_INGESTION_METRICS_ADDRESS
+              value: {{ printf "0.0.0.0:%v" .Values.usageIngestion.metricsPort | quote }}
+            - name: KAFKA_TLS
+              value: {{ .Values.usageIngestion.kafkaTls | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.usageIngestion.rustLog | quote }}
+            {{- with .Values.usageIngestion.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.usageIngestion.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /_readiness
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_liveness
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 15
+{{- end }}

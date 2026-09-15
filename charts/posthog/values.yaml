@@ -488,6 +488,7 @@ kafka:
       - name: clickhouse_app_metrics
       - name: clickhouse_app_metrics2
       - name: clickhouse_behavioral_cohorts_matches
+      - name: clickhouse_billing_usage_records
       - name: clickhouse_document_embeddings
       - name: clickhouse_error_tracking_fingerprint_issue_state
       - name: clickhouse_error_tracking_issue_fingerprint
@@ -1234,6 +1235,36 @@ propertyDefsRs:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
+## Internal billing usage gateway. Reporting remains off until reportTeams is set.
+## Apply upstream ClickHouse migration 0303_billing_usage_records before reporting.
+usageIngestion:
+  enabled: false
+  image:
+    repository: ghcr.io/posthog/posthog/usage-ingestion
+    tag: master
+    pullPolicy: Always
+  replicas: 1
+  grpcPort: 7143
+  metricsPort: 7144
+  rustLog: info
+  kafkaTls: false
+  ## Empty reports nothing; "*" reports all teams, "1,2" selects complete teams.
+  reportTeams: ''
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  ## Optional lossy counters require USAGE_INGESTION_REDIS_URL pointing at a
+  ## dedicated Valkey Cluster. Leave unset for the durable Kafka-only path.
+  extraEnv: []
 livestream:
   enabled: true
   image:
@@ -1466,6 +1497,7 @@ kafkaInit:
     - clickhouse_app_metrics
     - clickhouse_app_metrics2
     - clickhouse_behavioral_cohorts_matches
+    - clickhouse_billing_usage_records
     - clickhouse_document_embeddings
     - clickhouse_error_tracking_fingerprint_issue_state
     - clickhouse_error_tracking_issue_fingerprint

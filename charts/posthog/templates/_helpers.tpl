@@ -446,6 +446,9 @@ Common environment variables shared across PostHog application services
 */}}
 {{- define "posthog.commonEnv" -}}
 {{- $overridableEnvNames := list "SECRET_KEY" "ENCRYPTION_SALT_KEYS" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" "FEATURE_FLAGS_SERVICE_URL" "CLICKHOUSE_LOGS_HOST" "CLICKHOUSE_LOGS_CLUSTER_HOST" "CLICKHOUSE_LOGS_CLUSTER_PORT" "CLICKHOUSE_LOGS_CLUSTER_SECURE" "CLICKHOUSE_LOGS_CLUSTER_USER" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD" "CDP_REDIS_HOST" "LOGS_REDIS_HOST" "TRACES_REDIS_HOST" "ERROR_TRACKING_CYMBAL_BASE_URL" -}}
+{{- if .Values.usageIngestion.enabled -}}
+{{- $overridableEnvNames = concat $overridableEnvNames (list "USAGE_INGESTION_ADDR" "USAGE_INGESTION_TLS" "USAGE_INGESTION_REPORT_TEAMS") -}}
+{{- end -}}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{- else }}
@@ -884,6 +887,17 @@ Common environment variables shared across PostHog application services
       key: internal-api-secret
 {{- end }}
 {{- include "posthog.valkeyEnv" . }}
+{{- if .Values.usageIngestion.enabled }}
+{{- $usageEnv := dict "USAGE_INGESTION_ADDR" (printf "%s-usage-ingestion:%v" (include "posthog.fullname" .) .Values.usageIngestion.grpcPort) "USAGE_INGESTION_TLS" "false" "USAGE_INGESTION_REPORT_TEAMS" .Values.usageIngestion.reportTeams }}
+{{- range $name, $value := $usageEnv }}
+{{- if include "posthog.hasEnvOverride" (dict "root" $ "name" $name) }}
+{{ include "posthog.renderEnvOverride" (dict "root" $ "name" $name) }}
+{{- else }}
+- name: {{ $name }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{ include "posthog.renderRemainingCustomEnv" (dict "root" . "excluded" $overridableEnvNames) }}
 {{- with .Values.global.extraEnv }}
 {{ toYaml . }}
