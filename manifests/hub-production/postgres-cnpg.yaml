@@ -4,7 +4,7 @@
   "spec": {
     "instances": 1,
     "enableSuperuserAccess": true,
-    "imageName": "registry.streamloop.app/ghcr.io/cloudnative-pg/postgresql:16",
+    "imageName": "registry.streamloop.app/ghcr.io/cloudnative-pg/postgresql:16@sha256:a93b1974ead1779795ea6a17dccd4acbffed1464172f84d79c2010d3e80722d3",
     "bootstrap": {
       "initdb": {
         "database": "posthog",
