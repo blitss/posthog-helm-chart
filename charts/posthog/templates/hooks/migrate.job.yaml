@@ -31,7 +31,8 @@ spec:
             - |
               set -e
               # Postgres + product DBs
-              python manage.py migrate --noinput
+              python manage.py migrate_legacy_model_moves
+              python manage.py migrate --noinput --production
               python manage.py migrate_product_databases
               {{- if .Values.migrate.persons.enabled }}
               # Persons schema follows Django; --hobby preserves nonpartitioned tables.
