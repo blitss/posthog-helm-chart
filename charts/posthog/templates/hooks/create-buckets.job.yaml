@@ -35,6 +35,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "posthog.secretName" . }}
                   key: object-storage-secret-key
+            - name: AI_BLOB_S3_BUCKET
+              value: {{ .Values.objectStorage.aiBlobs.bucket | quote }}
           command:
             - sh
             - -ec
@@ -45,9 +47,11 @@ spec:
               done
 
               mc mb --ignore-existing rustfs/posthog
-              mc mb --ignore-existing rustfs/ai-blobs
+              if [ -n "$AI_BLOB_S3_BUCKET" ]; then
+                mc mb --ignore-existing "rustfs/$AI_BLOB_S3_BUCKET"
+                mc ls "rustfs/$AI_BLOB_S3_BUCKET" >/dev/null
+              fi
               mc ls rustfs/posthog >/dev/null
-              mc ls rustfs/ai-blobs >/dev/null
               mc ls rustfs/
               echo "Buckets ready."
 {{- end }}

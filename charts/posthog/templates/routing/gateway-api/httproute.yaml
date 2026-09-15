@@ -29,6 +29,7 @@ spec:
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
     - matches:
 {{ include "posthog.gatewayPathMatches" "/i/v0/ai" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/i/v1/ai/events" | indent 8 }}
       backendRefs:
         - name: {{ include "posthog.fullname" . }}-capture-ai
           port: 3000

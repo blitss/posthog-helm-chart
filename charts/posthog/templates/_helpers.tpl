@@ -733,6 +733,10 @@ Common environment variables shared across PostHog application services
   value: "auto"
 - name: OBJECT_STORAGE_BUCKET
   value: "posthog"
+- name: AI_BLOB_S3_BUCKET
+  value: {{ .Values.objectStorage.aiBlobs.bucket | quote }}
+- name: AI_BLOB_S3_PREFIX
+  value: {{ .Values.objectStorage.aiBlobs.prefix | quote }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "OBJECT_STORAGE_PUBLIC_ENDPOINT") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "OBJECT_STORAGE_PUBLIC_ENDPOINT") }}
 {{- else }}

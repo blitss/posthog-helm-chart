@@ -234,28 +234,11 @@ spec:
             - name: ADDRESS
               value: "0.0.0.0:3000"
             - name: CAPTURE_MODE
-              value: events
+              value: ai
             - name: KAFKA_TOPIC
-              value: "events_plugin_ingestion"
-            - name: AI_S3_BUCKET
-              value: "ai-blobs"
-            - name: AI_S3_PREFIX
-              value: "llma/"
-            - name: AI_S3_ENDPOINT
-              value: {{ .Values.externalObjectStorage.endpoint | default (printf "http://%s-minio:9000" (include "posthog.fullname" .)) | quote }}
-            - name: AI_S3_REGION
-              value: "auto"
-            - name: AI_S3_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.secretName" . }}
-                  key: object-storage-access-key
-            - name: AI_S3_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.secretName" . }}
-                  key: object-storage-secret-key
+              value: "events_plugin_ingestion_ai"
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.captureV1Env" (dict "root" . "mainTopic" "events_plugin_ingestion_ai") | nindent 12 }}
             {{- with .Values.captureAi.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

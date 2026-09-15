@@ -33,6 +33,7 @@ spec:
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
     - match:
 {{ include "posthog.istioPathMatches" "/i/v0/ai" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/i/v1/ai/events" | indent 8 }}
       route:
         - destination:
             host: {{ include "posthog.fullname" . }}-capture-ai

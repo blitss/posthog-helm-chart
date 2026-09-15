@@ -50,11 +50,12 @@ spec:
 {{- end }}
 
 {{- if .Values.captureAi.enabled }}
+{{- range $route := list (dict "name" "capture-ai" "path" "/i/v0/ai") (dict "name" "capture-ai-v1" "path" "/i/v1/ai/events") }}
 ---
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: {{ $fullname }}-capture-ai
+  name: {{ $fullname }}-{{ $route.name }}
   labels:
     {{- $labels | nindent 4 }}
   {{- with $annotations }}
@@ -63,7 +64,7 @@ metadata:
   {{- end }}
 spec:
   host: {{ $hostname | quote }}
-  path: /i/v0/ai
+  path: {{ $route.path }}
   to:
     kind: Service
     name: {{ $fullname }}-capture-ai
@@ -83,6 +84,7 @@ spec:
     caCertificate: {{ .caCertificate | quote }}
     {{- end }}
   {{- end }}
+{{- end }}
 {{- end }}
 
 {{- if .Values.captureLogs.enabled }}

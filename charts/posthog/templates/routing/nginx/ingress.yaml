@@ -55,6 +55,13 @@ spec:
                 name: {{ include "posthog.fullname" . }}-capture-ai
                 port:
                   number: 3000
+          - path: /i/v1/ai/events(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "posthog.fullname" . }}-capture-ai
+                port:
+                  number: 3000
           {{- end }}
           {{- if .Values.captureLogs.enabled }}
           ## OTel logs/traces -> capture-logs service

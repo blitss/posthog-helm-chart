@@ -38,6 +38,16 @@ spec:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
               value: "ingestion-v2-combined"
+            - name: AI_BLOB_S3_ENDPOINT
+              value: "$(OBJECT_STORAGE_ENDPOINT)"
+            - name: AI_BLOB_S3_REGION
+              value: "$(OBJECT_STORAGE_REGION)"
+            - name: AI_BLOB_S3_ACCESS_KEY_ID
+              value: "$(OBJECT_STORAGE_ACCESS_KEY_ID)"
+            - name: AI_BLOB_S3_SECRET_ACCESS_KEY
+              value: "$(OBJECT_STORAGE_SECRET_ACCESS_KEY)"
+            - name: AI_BLOB_OFFLOAD_TEAMS
+              value: {{ .Values.objectStorage.aiBlobs.offloadTeams | quote }}
             - name: COOKIELESS_REDIS_HOST
               value: {{ $redisHost | quote }}
             - name: COOKIELESS_REDIS_PORT

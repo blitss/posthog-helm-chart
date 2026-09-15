@@ -25,7 +25,7 @@ spec:
     {{- end }}
     {{- if .Values.captureAi.enabled }}
     ## AI capture endpoint -> capture-ai service (must be before /i/v0)
-    - match: Host(`{{ .Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" "/i/v0/ai" }}
+    - match: Host(`{{ .Values.ingress.hostname }}`) && ({{ include "posthog.traefikPathRule" "/i/v0/ai" }} || {{ include "posthog.traefikPathRule" "/i/v1/ai/events" }})
       kind: Rule
       services:
         - name: {{ include "posthog.fullname" . }}-capture-ai

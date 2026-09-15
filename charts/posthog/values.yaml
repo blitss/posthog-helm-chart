@@ -605,6 +605,13 @@ externalObjectStorage:
 ## General object storage toggle
 objectStorage:
   enabled: true
+  ## AI payload offload uses the same endpoint and Secret as general object storage.
+  ## Keep bucket/prefix identical for ingestion writes and Django reads.
+  aiBlobs:
+    bucket: ai-blobs
+    prefix: aio/
+    ## "*" enables every team; empty disables new blob offloads.
+    offloadTeams: '*'
   ## External SeaweedFS / session recording S3 (used when rustfs.enabled=false)
   ## When rustfs.enabled=true, session recordings also go to RustFS.
   containerSecurityContext: {}
