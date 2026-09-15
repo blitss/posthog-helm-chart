@@ -504,7 +504,7 @@ stringData:
           <quota>default</quota>
         </app>
         <dict_reader>
-          <password>{{ .Values.clickhouse.appPassword | htmlEscape }}</password>
+          <password>{{ .Values.clickhouse.appPassword | html }}</password>
           <networks><ip>127.0.0.1</ip><ip>::1</ip></networks>
           <profile>readonly</profile>
           <quota>default</quota>
@@ -513,7 +513,7 @@ stringData:
             <query>GRANT SELECT ON posthog.*</query>
             <query>GRANT SELECT ON posthog_test.*</query>
             {{- if not (has .Values.clickhouse.database (list "default" "posthog" "posthog_test")) }}
-            <query>GRANT SELECT ON {{ printf "`%s`" (.Values.clickhouse.database | replace "\\" "\\\\" | replace "`" "\\`") | htmlEscape }}.*</query>
+            <query>GRANT SELECT ON {{ printf "`%s`" (.Values.clickhouse.database | replace "\\" "\\\\" | replace "`" "\\`") | html }}.*</query>
             {{- end }}
           </grants>
         </dict_reader>

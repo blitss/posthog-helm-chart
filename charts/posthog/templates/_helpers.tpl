@@ -865,7 +865,7 @@ Common environment variables shared across PostHog application services
       name: {{ include "posthog.secretName" . }}
       key: internal-api-secret
 {{- end }}
-{{- include "posthog.valkeyEnv" . }}
+{{ include "posthog.valkeyEnv" . }}
 {{- if .Values.usageIngestion.enabled }}
 {{- $usageEnv := dict "USAGE_INGESTION_ADDR" (printf "%s-usage-ingestion:%v" (include "posthog.fullname" .) .Values.usageIngestion.grpcPort) "USAGE_INGESTION_TLS" "false" "USAGE_INGESTION_REPORT_TEAMS" .Values.usageIngestion.reportTeams }}
 {{- range $name, $value := $usageEnv }}

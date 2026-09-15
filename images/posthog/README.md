@@ -10,10 +10,11 @@ That distinction matters:
 
 Images in this directory:
 
-- `Dockerfile.web`: Django + Granian + staticfiles. No Chromium, Playwright, or ffmpeg.
+- `Dockerfile.web`: Django + Granian + staticfiles and Playwright client; no local Chromium or ffmpeg.
 - `Dockerfile.worker`: Celery core worker. Excludes the `exports` queue by default.
-- `Dockerfile.worker-exports`: Celery worker for the `exports` queue. Keeps browser/media tooling.
-- `Dockerfile.migrate`: Python-only image for Django and ClickHouse schema migrations.
+- `Dockerfile.worker-exports`: Celery `exports` worker using remote Browserless; no local browser/media tooling.
+- `Dockerfile.migrate`: Django, persons SQL and ClickHouse schema migrations.
+- `Dockerfile.cyclotron-migrate`: SQLx migrations for the retained Node Cyclotron database only.
 - `Dockerfile.bootstrap-clickhouse`: tiny helper image for the ClickHouse bootstrap hook.
 
 Example builds:
@@ -26,8 +27,8 @@ docker build -f images/posthog/Dockerfile.migrate -t posthog-migrate .
 docker build -f images/posthog/Dockerfile.bootstrap-clickhouse -t posthog-bootstrap-clickhouse .
 ```
 
-All Dockerfiles accept `POSTHOG_IMAGE` as a build arg if you want to pin an
-upstream tag or digest:
+The split Python images require the September 2026 upstream Python 3.13.13
+runtime layout. Build all roles from the same immutable `POSTHOG_IMAGE` digest:
 
 ```bash
 docker build \

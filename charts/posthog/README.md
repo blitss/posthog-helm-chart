@@ -42,17 +42,31 @@ Defaults deploy:
 
 ## Install hooks
 
-The chart ships with five install hooks that run as Helm Jobs, ordered by weight:
+The chart runs ordered Helm hook Jobs:
 
 | Weight | Hook | Runs at | Purpose |
 |---:|---|---|---|
 | `-1` | `db-check` | `post-install,post-upgrade` | `nc -z` probe against Redis, Kafka, Postgres, ClickHouse, ZooKeeper — waits until everything is reachable before the other hooks run |
 | `0` | `kafka-init` | `pre-install,pre-upgrade` | Only when using **external** Kafka (`kafka.enabled=false`). Creates topics via `kafka-topics.sh` against `externalKafka.brokers`. Skipped for bundled Kafka because the subchart has its own `provisioning.topics`. |
-| `1` | `create-buckets` | `post-install` | Only when `rustfs.enabled=true`. Uses `minio/mc` to create the `posthog` bucket on the bundled RustFS instance. |
-| `7` | `migrate` | `post-install,post-upgrade` | Runs `python manage.py migrate` and `migrate_clickhouse`. |
+| `1` | `create-buckets` | `post-install,post-upgrade` | When `rustfs.enabled=true`, provisions application and AI blob buckets. External buckets must already exist. |
+| `7` | `migrate` | `post-install,post-upgrade` | Runs Django/product, persons SQL, ClickHouse and async migrations. |
 | `10` | `async-migrations-check` | `post-install,post-upgrade` | Runs `python manage.py run_async_migrations`. |
 
 The hook container for `migrate`/`async-migrations-check` is the `posthog-migrate` slim image (`ghcr.io/blitss/posthog-migrate` by default) — no Node, no Chromium, no Playwright.
+
+## Upgrading to 0.22
+
+This release targets September 2026 PostHog. Back up PostgreSQL and ClickHouse before upgrading; use matching immutable application images. ClickHouse must be **26.6.2 or newer**. Complete the new migration job before admitting new application traffic: post-upgrade hooks alone are not a pre-rollout barrier.
+
+- **PersonHog** router/replica and clients are enabled by default. Keep the existing persons database; do not redirect existing persons to a new empty database. `migrate.persons.skipPartitioning=true` runs the supported nonpartitioned `--hobby` migration. Identity/leader mode is not required.
+- **Cymbal resolution** is mandatory and enabled by default, inheriting the Cymbal image. It uses a headless gRPC Service on 50061 and HTTP health endpoints on 9106. Replace any existing non-headless resolver Service before upgrading. For an external resolver, disable `cymbalResolution` and set `cymbal.remoteResolution.host`.
+- **Valkey** is an independent, disposable CDP shadow store; Redis remains the primary cache. Bundled Valkey is authenticated. An `existingSecret` must gain `valkey-password`; external settings are under `externalValkey`.
+- **Browserless** replaces local Chromium. An `existingSecret` must gain `browserless-token`. External CDP/heatmap endpoints use `externalBrowserless` and separate `browserless-token` / `heatmap-browserless-token` keys. Browserless must reach `SITE_URL` and screenshot targets. Disable cloud-only consent-modal blocking on saved heatmaps when using Browserless OSS.
+- **AI ingestion** uses `events_plugin_ingestion_ai` and the combined worker. External storage must provision `objectStorage.aiBlobs.bucket` (default `ai-blobs`), with HEAD/GET/PUT/self-copy permissions. Keep bucket/prefix stable and retention at least 31 days.
+- **Granian** is the only web server; it runs as the configured UID and exposes Prometheus on 8001. Remove `web.granian.enabled`, `USE_GRANIAN`, Unit-specific overrides, `personhog.rolloutPercentage`, `cyclotronJanitor`, and legacy `externalPostgresql.cyclotron*` keys except the retained `cyclotronNode*` settings.
+- **Usage ingestion** is optional (`usageIngestion.enabled=false`). Before enabling reporting, migrate ClickHouse, provision `clickhouse_billing_usage_records`, pin its image and set `reportTeams` deliberately. Keep its unauthenticated gRPC service internal. Flags-consumer remains upstream opt-in and is not required.
+
+External ClickHouse operators may set `externalClickhouse.dictReaderUser=dict_reader` after provisioning that local-only SELECT user with the existing ClickHouse password. Endpoint overrides remain under `posthog.env` / `posthog.secretEnv`; empty dedicated Node Redis hosts intentionally reuse `REDIS_URL`, including authentication and TLS.
 
 ## Two ClickHouse modes
 
@@ -100,7 +114,6 @@ externalPostgresql:
   port: 5432
   database: posthog
   personsDatabase: posthog_persons
-  cyclotronDatabase: cyclotron
   secretName: posthog-pg-app
   usernameKey: username
   passwordKey: password
@@ -141,7 +154,8 @@ All five produce path-based routing that mirrors PostHog's upstream Caddy config
 
 | Path | Backend |
 |---|---|
-| `/e/*`, `/i/v0/*`, `/batch/*`, `/capture/*` | capture |
+| `/e/*`, `/i/v0/*`, `/batch/*`, `/capture/*`, `/i/v1/analytics/events` | capture |
+| `/i/v0/ai/*`, `/i/v1/ai/events` | capture-ai |
 | `/s/*` | replay-capture |
 | `/flags/*` | feature-flags |
 | `/livestream/*` | livestream (WebSocket) |
@@ -194,7 +208,11 @@ All configuration is in [`values.yaml`](values.yaml), organized by top-level sec
 | `mcp` | Model Context Protocol server for agent access |
 | `plugins` | Node.js CDP / ingestion service |
 | `capture` / `replayCapture` / `captureAi` / `captureLogs` | Rust capture services |
-| `featureFlags` / `propertyDefsRs` / `livestream` / `cymbal` / `cyclotronJanitor` | Auxiliary Rust services |
+| `featureFlags` / `propertyDefsRs` / `livestream` / `cymbal` / `cymbalResolution` | Auxiliary Rust services |
+| `personhog` / `personhogRouter` / `personhogReplica` | Required persons read services |
+| `valkey` / `externalValkey` | CDP shadow cache |
+| `browserless` / `externalBrowserless` | Remote export and heatmap rendering |
+| `usageIngestion` | Optional internal usage-reporting gateway |
 | `temporalDjangoWorker` | Django worker processing Temporal workflows |
 | `migrate` / `asyncMigrationsCheck` / `kafkaInit` | Install hook settings |
 | `networkPolicies` | Default-deny ingress + explicit allow rules |
