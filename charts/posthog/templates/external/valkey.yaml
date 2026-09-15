@@ -58,9 +58,9 @@ spec:
             - --appendonly
             - "no"
             - --requirepass
-            - $(VALKEYCLI_AUTH)
+            - $(REDISCLI_AUTH)
           env:
-            - name: VALKEYCLI_AUTH
+            - name: REDISCLI_AUTH
               valueFrom:
                 secretKeyRef:
                   name: {{ include "posthog.secretName" . }}
@@ -77,6 +77,7 @@ spec:
             exec:
               command:
                 - valkey-cli
+                - -e
                 - ping
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -84,6 +85,7 @@ spec:
             exec:
               command:
                 - valkey-cli
+                - -e
                 - ping
             initialDelaySeconds: 15
             periodSeconds: 10
