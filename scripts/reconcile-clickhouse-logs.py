@@ -172,7 +172,9 @@ def operations():
             require("infi_clickhouse_orm" not in sql, "Migration-history operation refused")
             if re.match(r"\s*CREATE\s+OR\s+REPLACE", sql, re.I):
                 require("ENGINE = Distributed(" in sql, "Replacement of storage is forbidden")
-            deferred = ((name == "0280_logs34" and index >= 10)
+            # Build logs34 metrics/billing views (12/13) before starting Kafka:
+            # otherwise consumers can ingest backlog without accounting for it.
+            deferred = ((name == "0280_logs34" and index in (10, 11))
                         or (name == "0290_trace_spans_and_attributes" and index in (12, 13))
                         or name == "0298_logs34_mv_explicit_columns")
             (consumers if deferred else structural).append((name, index, operation))
