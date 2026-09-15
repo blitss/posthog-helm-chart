@@ -22,13 +22,29 @@ MODEL_MOVES = (
 
 
 class LegacyModelMoveLoader(MigrationLoader):
-    def load_disk(self):
-        super().load_disk()
-        # These squashes build fresh tables and depend on posthog 1340. The
-        # original moves reuse legacy tables and can run before 1216/1239/1281.
-        # Keep all original operations and all other replacement handling.
-        for app_label, _ in MODEL_MOVES:
-            del self.disk_migrations[app_label, "0001_squash_2026_09_07_initial"]
+    def build_graph(self):
+        # Build the complete graph first: schema_addons/finalize_fks migrations
+        # depend on squash nodes, so deleting those files leaves dangling edges.
+        self.replace_migrations = False
+        super().build_graph()
+        self.replace_migrations = True
+        model_move_apps = {app_label for app_label, _ in MODEL_MOVES}
+        for key, migration in self.replacements.items():
+            applied = [target in self.applied_migrations for target in migration.replaces]
+            # Match Django 5.2's replacement-history bookkeeping.
+            if all(applied):
+                self.applied_migrations[key] = migration
+            else:
+                self.applied_migrations.pop(key, None)
+            legacy_move = key[0] in model_move_apps and key[1] == "0001_squash_2026_09_07_initial"
+            if not legacy_move and (all(applied) or not any(applied)):
+                self.graph.remove_replaced_nodes(key, migration.replaces)
+            else:
+                # Django reconnects every dependent to the terminal original
+                # migrations, including cross-app schema-addon dependencies.
+                self.graph.remove_replacement_node(key, migration.replaces)
+        self.graph.validate_consistency()
+        self.graph.ensure_not_cyclic()
 
 
 class Command(BaseCommand):
