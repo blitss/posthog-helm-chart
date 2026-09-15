@@ -79,7 +79,6 @@ spec:
       user: default
       apiUser: api
       appUser: app
-      logsDatabase: default
       cluster: posthog
       secretName: posthog-clickhouse-password
       secretPasswordKey: password
@@ -225,12 +224,12 @@ spec:
     migrate:
       image:
         repository: ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:4534eb10718b6dd3bc7db70a827cfcbc9893c13f441d6ab05b7d11aeede8db2c
+        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
         pullPolicy: Always
     asyncMigrationsCheck:
       image:
         repository: ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:4534eb10718b6dd3bc7db70a827cfcbc9893c13f441d6ab05b7d11aeede8db2c
+        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
         pullPolicy: Always
     plugins:
       image:
@@ -415,5 +414,5 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-cyclotron-migrate
-        tag: latest@sha256:7a618add12c32360e5c0c36c1d3269b02e1c8d1017c2b217b16b710a5fc9b085
+        tag: latest@sha256:ac726ab397f131d530cd22c8d8addc5854e6942f780d6479f89ea9c3797193c5
         pullPolicy: IfNotPresent
