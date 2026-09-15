@@ -194,7 +194,7 @@ jobs:
 
           RELEVANT PIECES OF THIS REPO:
           - \`charts/posthog/\` — the Helm chart (Deployments, Services, ConfigMaps, Secrets, ClickHouse + ClickHouse-Keeper config XML embedded in templates).
-          - \`charts/posthog/values.yaml\` — defaults for every component (web, worker, workerBeat, workerExports, temporalDjangoWorker, plugins, capture, replayCapture, captureAi, captureLogs, featureFlags, propertyDefsRs, livestream, cymbal, cyclotronJanitor, migrate, asyncMigrationsCheck) and Kafka topic provisioning.
+          - \`charts/posthog/values.yaml\` — defaults for every component (web, worker, workerBeat, workerExports, temporalDjangoWorker, plugins, capture, replayCapture, captureAi, captureLogs, featureFlags, propertyDefsRs, livestream, cymbal, migrate, asyncMigrationsCheck) and Kafka topic provisioning.
           - \`charts/posthog/templates/external/clickhouse.yaml\` — ClickHouse config.xml + users.xml profiles, system-table TTLs, profile settings copied from upstream \`docker/clickhouse/config.xml\` and \`docker/clickhouse/users.xml\`.
           - \`images/posthog/Dockerfile.{web,worker,worker-exports,migrate,bootstrap-clickhouse}\` — custom Dockerfiles built from upstream \`production.Dockerfile\` style images.
           - \`vendor/posthog/docker/clickhouse/user_defined_function.xml\` and \`vendor/posthog/user_scripts/\` — files copied verbatim from upstream (auto-synced by \`sync-posthog-user-scripts\` workflow).

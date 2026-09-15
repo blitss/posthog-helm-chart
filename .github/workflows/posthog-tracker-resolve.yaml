@@ -105,7 +105,7 @@ jobs:
             - `charts/posthog/values.yaml` — defaults for every component (web, worker,
               workerBeat, workerExports, temporalDjangoWorker, plugins, capture,
               replayCapture, captureAi, captureLogs, featureFlags, propertyDefsRs,
-              livestream, cymbal, cyclotronJanitor, migrate, asyncMigrationsCheck) and
+              livestream, cymbal, migrate, asyncMigrationsCheck) and
               Kafka topic provisioning. New rust services follow the `featureFlags` /
               `propertyDefsRs` / `cymbal` block shape.
             - `charts/posthog/templates/posthog/` — Deployments, Services, ConfigMaps

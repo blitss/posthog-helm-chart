@@ -259,11 +259,7 @@ externalPostgresql:
   url: ''
   ## Optional override for the Persons DB URL. Defaults to `url` when empty.
   personsUrl: ''
-  ## Optional override for the Cyclotron DB URL.
-  cyclotronUrl: ''
-  ## Optional override for the Node/v2 Cyclotron DB URL. The Node v2 cyclotron
-  ## (cdp-cyclotron-v2 worker/janitor) MUST use a database separate from the
-  ## Rust cyclotron, otherwise both janitors clean the same jobs table.
+  ## Optional override for the Node/v2 Cyclotron DB URL.
   cyclotronNodeUrl: ''
   ## Secret-backed alternative to inline URLs for external Postgres.
   ## When `host` is set, the chart will build connection URLs from this
@@ -273,12 +269,10 @@ externalPostgresql:
   port: 5432
   database: posthog
   personsDatabase: ''
-  cyclotronDatabase: cyclotron
   ## Separate database for the Node/v2 cyclotron (cdp-cyclotron-v2).
   cyclotronNodeDatabase: cyclotron_node
   uriKey: uri
   personsUriKey: persons-uri
-  cyclotronUriKey: cyclotron-uri
   usernameKey: username
   passwordKey: password
   ## Password for external PostgreSQL (used by Temporal and other consumers
@@ -1270,25 +1264,6 @@ cymbalResolution:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
-cyclotronJanitor:
-  enabled: true
-  image:
-    repository: ghcr.io/posthog/posthog/cyclotron-janitor
-    tag: master
-    pullPolicy: Always
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      memory: 128Mi
-  podSecurityContext: {}
-  containerSecurityContext: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  podAnnotations: {}
-  extraEnv: []
 ## Personhog — gRPC backend that serves persons reads from a replicated
 ## Postgres. Web/worker call into it at a progressive rollout percentage.
 ## Disabled by default; enable once you've decided on a posthog_persons DB
@@ -1402,12 +1377,10 @@ migrate:
   image: {}
   ## Resource requests/limits for the migrate hook Job (default: none).
   resources: {}
-## Create + migrate the cyclotron / cyclotron_node databases via sqlx (the
-## canonical cyclotron migration engine). Disabled by default for
-## backwards-compat: it needs the dedicated posthog-cyclotron-migrate image
-## (built from images/posthog/Dockerfile.cyclotron-migrate) since the runtime
-## PostHog images don't ship sqlx or the cyclotron migrations. Enable wherever
-## the plugin-server cyclotron / cdp-cyclotron-v2 components run.
+## Create + migrate the cyclotron_node database via sqlx. Disabled by default:
+## requires the dedicated posthog-cyclotron-migrate image since runtime
+## PostHog images don't ship sqlx or the Node migrations. Enable wherever
+## the plugin-server's cdp-cyclotron-v2 components run.
 cyclotronMigrate:
   enabled: false
   image:

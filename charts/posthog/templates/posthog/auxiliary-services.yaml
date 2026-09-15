@@ -664,58 +664,6 @@ spec:
             periodSeconds: 30
 {{- end }}
 
-{{- if .Values.cyclotronJanitor.enabled }}
-## ------------------------------------------------------------------
-## Cyclotron Janitor (cleanup for Cyclotron job queue)
-## ------------------------------------------------------------------
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ include "posthog.fullname" . }}-cyclotron-janitor
-  labels:
-    {{- include "posthog.componentLabels" (dict "root" . "component" "cyclotron-janitor") | nindent 4 }}
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cyclotron-janitor") | nindent 6 }}
-  template:
-    metadata:
-      labels:
-        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cyclotron-janitor") | nindent 8 }}
-      annotations:
-        {{- include "posthog.podAnnotations" (dict "root" . "component" "cyclotronJanitor") | nindent 8 }}
-    spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "cyclotronJanitor") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "cyclotronJanitor") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "cyclotronJanitor") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "cyclotronJanitor") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "cyclotron-janitor") | nindent 6 }}
-      containers:
-        - name: cyclotron-janitor
-          image: "{{ .Values.cyclotronJanitor.image.repository }}:{{ .Values.cyclotronJanitor.image.tag }}"
-          imagePullPolicy: {{ .Values.cyclotronJanitor.image.pullPolicy | default "Always" }}
-          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cyclotronJanitor") | nindent 10 }}
-          env:
-            {{- include "posthog.commonEnv" . | nindent 12 }}
-            {{- with .Values.cyclotronJanitor.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-          resources:
-            {{- toYaml .Values.cyclotronJanitor.resources | nindent 12 }}
-          livenessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - "test -d /proc/1"
-            initialDelaySeconds: 30
-            periodSeconds: 30
-{{- end }}
-
 {{- if .Values.personhogReplica.enabled }}
 ## ------------------------------------------------------------------
 ## Personhog Replica (Rust gRPC, reads from posthog_persons Postgres)
