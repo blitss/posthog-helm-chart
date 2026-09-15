@@ -9,7 +9,7 @@ on:
       - .github/workflows/publish-posthog-artifacts.yaml
       - vendor/posthog/**
       - charts/posthog/**
-      - images/clickhouse/Dockerfile
+      - images/clickhouse/**
       - manifests/kubeblocks/posthog-clickhouse-component-version.yaml
 
 permissions:

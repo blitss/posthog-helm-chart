@@ -1,9 +1,9 @@
 <!--
-  PostHog ClickHouse profiles, users, and quotas overlay.
+  PostHog ClickHouse profiles and quotas overlay.
   Baked into the image so every node gets the required query settings.
 
-  Passwords for api/app/dict_reader users are placeholders here — override
-  them via users.d/ mount from a Kubernetes Secret (the Helm chart does this).
+  Users and credentials are owned by the chart or ClickHouse operator. Baking
+  them here would override Secret-backed users.d files during XML merging.
 
   Source: https://github.com/PostHog/posthog/blob/master/docker/clickhouse/users.xml
 -->
@@ -37,43 +37,6 @@
       <profile>default</profile>
     </app>
   </profiles>
-
-  <users>
-    <default>
-      <password></password>
-      <networks><ip>::/0</ip></networks>
-      <profile>default</profile>
-      <quota>default</quota>
-      <access_management>1</access_management>
-      <named_collection_control>1</named_collection_control>
-      <show_named_collections>1</show_named_collections>
-      <show_named_collections_secrets>1</show_named_collections_secrets>
-    </default>
-    <api>
-      <password>apipass</password>
-      <networks><ip>::/0</ip></networks>
-      <profile>api</profile>
-      <quota>default</quota>
-    </api>
-    <app>
-      <password>apppass</password>
-      <networks><ip>::/0</ip></networks>
-      <profile>app</profile>
-      <quota>default</quota>
-    </app>
-    <!-- Dictionary SOURCE(CLICKHOUSE(...)) connects locally, never over the network. -->
-    <dict_reader>
-      <password>dictreaderpass</password>
-      <networks><ip>127.0.0.1</ip><ip>::1</ip></networks>
-      <profile>readonly</profile>
-      <quota>default</quota>
-      <grants>
-        <query>GRANT SELECT ON default.*</query>
-        <query>GRANT SELECT ON posthog.*</query>
-        <query>GRANT SELECT ON posthog_test.*</query>
-      </grants>
-    </dict_reader>
-  </users>
 
   <quotas>
     <default>
