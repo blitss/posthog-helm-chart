@@ -4,7 +4,7 @@ There are two independent profiles. **Use `manifests/hub-production` to reproduc
 
 ## hub-production
 
-The profile records the working PostHog release and namespace configuration, without credentials, status, controller bookkeeping or cluster-wide operator installations. JSON-formatted `.yaml` resources are valid YAML and preserve the sanitized source values exactly.
+The YAML profile records the working PostHog release and namespace configuration without credentials, status, controller bookkeeping or cluster-wide operator installations. Explicit digest pins strengthen the observed configuration without changing the selected application code.
 
 - PostHog chart 0.22.4, OCI digest `sha256:d65943cdce3d349375dab1f485ac1f563bc1ed108f33f4ffe63301f926bdd434`, app source `8471862b083b25d3a11b97eb7730f21aa0cb4c7f`; images use individual observed digests, not an assumption that every component runs that source commit.
 - Web, workers, exports and migration roles use verified `blitss` split images. Worker/beat/Temporal use `registry.streamloop.app/ghcr.io/blitss/posthog-worker` with digest `sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316`; exports uses `posthog-worker-exports` with digest `sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00`. The earlier `docker.io/posthog/posthog` locators were incorrect and depended on node caches. Their repository names were corrected with approval, without changing image digests or application code. [`image-provenance.json`](hub-production/image-provenance.json) records the verified GHCR origins and build revision `32253c7e9d511fb214ef2f8da83b29de7dde6f30`.

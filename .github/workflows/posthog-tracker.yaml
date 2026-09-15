@@ -60,7 +60,7 @@ jobs:
             SINCE_SHA="$SINCE_SHA_INPUT"
             echo "Using explicit since_sha: $SINCE_SHA"
           elif [ -f "$STATE_FILE" ]; then
-            SINCE_SHA=$(cat "$STATE_FILE" | tr -d '[:space:]')
+            SINCE_SHA=$(tr -d '[:space:]' < "$STATE_FILE")
             echo "Using state file SHA: $SINCE_SHA"
           fi
 

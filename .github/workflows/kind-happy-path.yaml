@@ -67,9 +67,7 @@ jobs:
           set -euo pipefail
           if [[ -n "$EXPECTED_HEAD" ]]; then test "$EXPECTED_HEAD" = "$GITHUB_SHA"; fi
           if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
-            echo "runtime=true" >> "$GITHUB_OUTPUT"
-            echo "publish-images=true" >> "$GITHUB_OUTPUT"
-            echo "publish-chart=true" >> "$GITHUB_OUTPUT"
+            printf 'runtime=true\npublish-images=true\npublish-chart=true\n' >> "$GITHUB_OUTPUT"
           else
             git diff --name-only "$BASE" "$GITHUB_SHA" > /tmp/changed-paths
             python3 - <<'PY'

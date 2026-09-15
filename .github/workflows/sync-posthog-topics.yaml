@@ -29,7 +29,8 @@ jobs:
       - name: Update Kafka topics from upstream
         run: |
           set -euo pipefail
-          export POSTHOG_REF="$(yq -r '.appVersion' charts/posthog/Chart.yaml)"
+          POSTHOG_REF="$(yq -r '.appVersion' charts/posthog/Chart.yaml)"
+          export POSTHOG_REF
           [[ "$POSTHOG_REF" =~ ^[0-9a-f]{40}$ ]]
           bash scripts/update-topics.sh
 
