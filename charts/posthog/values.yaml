@@ -183,6 +183,8 @@ posthog:
 ##   redis-url, clickhouse-api-password, clickhouse-app-password,
 ##   object-storage-access-key, object-storage-secret-key,
 ##   seaweedfs-access-key, seaweedfs-secret-key, postgresql-password
+## Bundled Valkey also requires valkey-password; external Valkey uses the same
+## key when authentication is enabled (it may be omitted for unauthenticated servers).
 ## ------------------------------------------------------------------
 existingSecret: ''
 ## ------------------------------------------------------------------
@@ -391,6 +393,49 @@ externalRedis:
   ## Full URL: redis://[:password@]host:port/db (rediss:// enables TLS).
   ## CDP, logs and traces reuse this URL via the shared redis-url Secret key.
   url: ''
+## ------------------------------------------------------------------
+## Valkey shadow store for CDP (separate from the existing Redis cache)
+## ------------------------------------------------------------------
+valkey:
+  enabled: true
+  image:
+    repository: valkey/valkey
+    tag: 8.1-alpine
+    pullPolicy: IfNotPresent
+  ## Auto-generated and preserved in the shared Secret when empty.
+  ## With existingSecret, provide its valkey-password key instead.
+  password: ''
+  ## Disposable shadow data, matching upstream hobby; reads stay on Redis.
+  maxmemory: 200mb
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+## Required when valkey.enabled=false. TLS uses the runtime's trusted CA roots.
+externalValkey:
+  host: ''
+  port: 6379
+  tls: true
+  ## Default-user password, stored in the shared Secret's valkey-password key.
+  ## With existingSecret, put the password there rather than in this value.
+  password: ''
+  ## Optional replica endpoint; unset reuses the writer pool.
+  readerHost: ''
+  readerPort: 6379
 ## ------------------------------------------------------------------
 ## Kafka (Redpanda)
 ## ------------------------------------------------------------------

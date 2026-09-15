@@ -883,6 +883,7 @@ Common environment variables shared across PostHog application services
       name: {{ include "posthog.secretName" . }}
       key: internal-api-secret
 {{- end }}
+{{- include "posthog.valkeyEnv" . }}
 {{ include "posthog.renderRemainingCustomEnv" (dict "root" . "excluded" $overridableEnvNames) }}
 {{- with .Values.global.extraEnv }}
 {{ toYaml . }}
@@ -1051,4 +1052,34 @@ topologySpreadConstraints:
     labelSelector:
       matchLabels:
         {{- include "posthog.componentSelectorLabels" (dict "root" .root "component" .component) | nindent 8 }}
+{{- end }}
+
+{{/*
+Every CDP process requires a Valkey shadow pool, independent of Redis.
+*/}}
+{{- define "posthog.valkeyEnv" -}}
+- name: CDP_VALKEY_HOST
+  {{- if .Values.valkey.enabled }}
+  value: {{ printf "%s-valkey" (include "posthog.fullname" .) | quote }}
+  {{- else }}
+  value: {{ required "externalValkey.host is required when valkey.enabled=false" .Values.externalValkey.host | quote }}
+  {{- end }}
+- name: CDP_VALKEY_PORT
+  value: {{ ternary 6379 .Values.externalValkey.port .Values.valkey.enabled | quote }}
+- name: CDP_VALKEY_TLS
+  value: {{ ternary false .Values.externalValkey.tls .Values.valkey.enabled | quote }}
+- name: CDP_VALKEY_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: valkey-password
+      {{- if not .Values.valkey.enabled }}
+      optional: true
+      {{- end }}
+{{- if not .Values.valkey.enabled }}
+- name: CDP_VALKEY_READER_HOST
+  value: {{ .Values.externalValkey.readerHost | quote }}
+- name: CDP_VALKEY_READER_PORT
+  value: {{ .Values.externalValkey.readerPort | quote }}
+{{- end }}
 {{- end }}

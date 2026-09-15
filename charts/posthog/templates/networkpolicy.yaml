@@ -64,6 +64,7 @@ spec:
           - postgresql
           - clickhouse
           - redis
+          - valkey
           - kafka
           - zookeeper
           - rustfs

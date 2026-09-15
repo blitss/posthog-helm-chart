@@ -1,0 +1,93 @@
+{{- if .Values.valkey.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-valkey
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "valkey") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: valkey
+      protocol: TCP
+      name: valkey
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "valkey") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-valkey
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "valkey") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "valkey") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "valkey") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "valkey") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "valkey") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "valkey") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "valkey") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "valkey") | nindent 6 }}
+      containers:
+        - name: valkey
+          image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
+          imagePullPolicy: {{ .Values.valkey.image.pullPolicy }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "valkey") | nindent 10 }}
+          command:
+            - valkey-server
+          args:
+            - --maxmemory
+            - {{ .Values.valkey.maxmemory | quote }}
+            - --maxmemory-policy
+            - allkeys-lru
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+            - --requirepass
+            - $(VALKEYCLI_AUTH)
+          env:
+            - name: VALKEYCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: valkey-password
+          ports:
+            - containerPort: 6379
+              name: valkey
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.valkey.resources | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: data
+          emptyDir: {}
+{{- end }}
