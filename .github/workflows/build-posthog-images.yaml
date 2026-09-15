@@ -3,8 +3,12 @@ name: build-posthog-images
 on:
   workflow_dispatch:
     inputs:
-      posthog_tag:
-        description: "Upstream posthog/posthog tag to build from"
+      posthog_image:
+        description: "Immutable upstream PostHog image reference"
+        required: false
+        default: "posthog/posthog@sha256:6ae0aa70bbd1ca299b472332e540eab2c829148a8c89b87b58221da260f580e4"
+      image_tag:
+        description: "Tag to publish for the split images"
         required: false
         default: "latest"
   push:
@@ -23,7 +27,8 @@ permissions:
 env:
   REGISTRY: ghcr.io
   OWNER: ${{ github.repository_owner }}
-  POSTHOG_TAG: ${{ inputs.posthog_tag || 'latest' }}
+  POSTHOG_TAG: ${{ inputs.image_tag || 'latest' }}
+  POSTHOG_IMAGE: ${{ inputs.posthog_image || 'posthog/posthog@sha256:6ae0aa70bbd1ca299b472332e540eab2c829148a8c89b87b58221da260f580e4' }}
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -77,7 +82,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           build-args: |
-            POSTHOG_IMAGE=posthog/posthog:${{ env.POSTHOG_TAG }}
+            POSTHOG_IMAGE=${{ env.POSTHOG_IMAGE }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
