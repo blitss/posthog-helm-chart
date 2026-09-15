@@ -20,6 +20,7 @@ ENV PYTHONUNBUFFERED=1 \
     NODE_ENV=production \
     CELERY_WORKER_QUEUES=ai_research_privacy,celery,stats,email,analytics_queries,analytics_limited,long_running,subscription_delivery,usage_reports,integrations,feature_flags,feature_flags_long_running
 
+COPY images/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update && \
     apt-get install -y --no-install-recommends --allow-downgrades \
     ca-certificates \

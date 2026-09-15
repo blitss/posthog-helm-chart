@@ -5,6 +5,7 @@ import base64
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 from decimal import Decimal
 import subprocess
@@ -49,11 +50,21 @@ def redaction_paths(value, path=""):
 
 
 def runtime_spec(value, path=()):
-    """Normalize API quantities and volatile chart/restart metadata, not behavior."""
+    """Normalize API defaults/quantities and volatile metadata, not behavior."""
     if isinstance(value, dict):
-        return {key: runtime_spec(child, path + (key,)) for key, child in value.items()
-                if not (key == "helm.sh/chart" and path[-1:] == ("labels",))
-                and not (key == "kubectl.kubernetes.io/restartedAt" and path[-1:] == ("annotations",))}
+        if path[-2:-1] == ("env",) and "name" in value and "value" not in value and "valueFrom" not in value:
+            value = {**value, "value": ""}
+        result = {}
+        for key, child in value.items():
+            if key == "helm.sh/chart" and path[-1:] == ("labels",):
+                continue
+            if key == "kubectl.kubernetes.io/restartedAt" and path[-1:] == ("annotations",):
+                continue
+            normalized = runtime_spec(child, path + (key,))
+            if key == "annotations" and path[-1:] == ("metadata",) and not normalized:
+                continue
+            result[key] = normalized
+        return result
     if isinstance(value, list):
         return [runtime_spec(child, path + (str(index),)) for index, child in enumerate(value)]
     if len(path) >= 2 and path[-2] in ("requests", "limits") and path[-1] in ("cpu", "memory", "storage", "ephemeral-storage"):
@@ -88,9 +99,14 @@ def redact(value):
 
 
 def run(command, payload=None):
-    result = subprocess.run(command, input=payload, text=True, capture_output=True)
+    environment = {**os.environ, "GODEBUG": os.environ.get("GODEBUG", "") + ",http2client=0",
+                   "KUBECTL_REMOTE_COMMAND_WEBSOCKETS": "false"}
+    try:
+        result = subprocess.run(command, input=payload, text=True, capture_output=True,
+                                env=environment, timeout=60)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"{command[0]} operation timed out; command details withheld") from None
     if result.returncode:
-        # Helm and kubectl may include secret material in errors.
         raise RuntimeError(f"{command[0]} operation failed (exit {result.returncode}); output withheld for secret safety")
     return result.stdout
 

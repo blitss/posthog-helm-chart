@@ -43,6 +43,22 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+      - name: Validate reproducibility tooling
+        run: |
+          set -euo pipefail
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          python3 -m venv /tmp/posthog-ops-venv
+          /tmp/posthog-ops-venv/bin/pip install -r requirements-ops.txt
+          /tmp/posthog-ops-venv/bin/python scripts/test-reconcile-clickhouse-logs.py
+          /tmp/posthog-ops-venv/bin/python scripts/test-check-hub-production.py
+          bash scripts/test-update-topics.sh
+          for mode in fresh upgrade; do
+            for phase in prepare backup infrastructure logs migrate rollout verify; do
+              /tmp/posthog-ops-venv/bin/python scripts/deploy-hub-production.py "$phase" \
+                --context nonexistent-plan-only-context --mode "$mode" --state-dir /tmp/posthog-offline-plan
+            done
+          done
+          test ! -e /tmp/posthog-offline-plan
       - id: changes
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || inputs.base_sha }}
@@ -60,7 +76,7 @@ jobs:
           import os, pathlib, re, subprocess
           paths = pathlib.Path("/tmp/changed-paths").read_text().splitlines()
           prefixes = (".github/workflows/", "charts/", "images/", "vendor/", "manifests/", "scripts/", "kind-config")
-          files = {".github/renovate.json5", ".dockerignore", "mise.toml"}
+          files = {".github/renovate.json5", ".dockerignore", "mise.toml", "requirements-ops.txt"}
           runtime = any(not p.endswith(".md") and (p.startswith(prefixes) or p in files) for p in paths)
           # A deployment-pin PR must be tested, but rebuilding/promoting it would
           # produce another digest-only Renovate PR forever (labels include SHA).

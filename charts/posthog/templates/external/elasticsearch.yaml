@@ -45,7 +45,7 @@ spec:
         fsGroup: 1000
       initContainers:
         - name: sysctl
-          image: busybox:1.37
+          image: busybox:1.37@sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
           command: ["sysctl", "-w", "vm.max_map_count=262144"]
           securityContext:
             privileged: true

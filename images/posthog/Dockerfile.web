@@ -19,6 +19,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/python-runtime \
     NODE_ENV=production
 
+COPY images/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update && \
     apt-get install -y --no-install-recommends --allow-downgrades \
     ca-certificates \

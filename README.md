@@ -54,7 +54,16 @@ For production use external ClickHouse and Kafka — the bundled ClickHouse is s
 
 See [charts/posthog/README.md](charts/posthog/README.md) for the chart path, and [manifests/README.md](manifests/README.md) for the GitOps path.
 
-`manifests/hub-production` preserves the working worker overrides, including their observed mirror locators and verified custom-image digests. Start with the [production prerequisites, secret bootstrap and read-only alignment check](manifests/README.md#hub-production). The deployment runner defaults to a plan; nothing in the reproducibility workflow should implicitly redeploy production.
+`manifests/hub-production` records the working production configuration and verified image digests. The worker repository-name correction preserves those exact digests while making fresh pulls possible. Start with the [production prerequisites, secret bootstrap and read-only alignment check](manifests/README.md#hub-production). The deployment runner defaults to a plan; reproducibility checks do not implicitly redeploy production.
+
+Install the pinned CLI tools with `mise install`, then create an operations environment:
+
+```sh
+python3 -m venv .venv-ops
+.venv-ops/bin/pip install -r requirements-ops.txt
+```
+
+Use `.venv-ops/bin/python` for the deployment and alignment scripts.
 
 ## Local testing with kind
 
@@ -76,10 +85,10 @@ After that, follow either install path below.
 
 The chart and manifests reference pre-built images on `ghcr.io/blitss/`:
 
-- `posthog-web`, `posthog-worker`, `posthog-worker-exports`, `posthog-migrate` — split Python-slim images; production worker mirror locators differ from their verified GHCR origins (recorded in `manifests/hub-production/image-provenance.json`)
+- `posthog-web`, `posthog-worker`, `posthog-worker-exports`, `posthog-migrate` — split Python-slim images, with source evidence in `manifests/hub-production/image-provenance.json`
 - `posthog-clickhouse` — stock ClickHouse plus PostHog UDF scripts baked in
 
-These are published by `.github/workflows/build-posthog-images.yaml`. To build locally:
+`.github/workflows/kind-happy-path.yaml` builds and tests exact artifacts before allowing publication. Builds pin their upstream/base images, Debian package snapshot, and SQLx Cargo dependencies. To build locally:
 
 ```bash
 docker build -f images/posthog/Dockerfile.web -t local/posthog-web:test .

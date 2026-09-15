@@ -1,0 +1,7 @@
+.venv-ops/
+__pycache__/
+*.py[cod]
+dist/
+.env
+.env.*
+!.env.example

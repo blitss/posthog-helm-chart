@@ -62,7 +62,7 @@ spec:
       {{- end }}
       containers:
         - name: geoip-server
-          image: busybox:1.37
+          image: busybox:1.37@sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
           imagePullPolicy: IfNotPresent
           command: ["httpd", "-f", "-p", "8080", "-h", "/data"]
           ports:
