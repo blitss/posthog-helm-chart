@@ -30,7 +30,7 @@ env:
   KIND_CLUSTER_NAME: posthog-ci
   LOCAL_REGISTRY_NAME: kind-registry
   LOCAL_REGISTRY_PORT: "5001"
-  CLICKHOUSE_TAG: "26.4"
+  CLICKHOUSE_TAG: "26.6.2.158"
 
 jobs:
   happy-path:

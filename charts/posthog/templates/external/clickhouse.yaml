@@ -128,8 +128,8 @@ data:
         <level>warning</level>
         <log>/var/log/clickhouse-server/clickhouse-server.log</log>
         <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
-        <size>1000M</size>
-        <count>10</count>
+        <size>100M</size>
+        <count>3</count>
       </logger>
 
       <max_connections>4096</max_connections>
@@ -140,7 +140,9 @@ data:
 
       <max_thread_pool_size>10000</max_thread_pool_size>
       <background_pool_size>4</background_pool_size>
-      <background_message_broker_schedule_pool_size>10</background_message_broker_schedule_pool_size>
+      <background_message_broker_schedule_pool_size>128</background_message_broker_schedule_pool_size>
+      <!-- 26.6 projection checks require 4 merge threads * 8 slots >= 25. -->
+      <background_merges_mutations_concurrency_ratio>8</background_merges_mutations_concurrency_ratio>
 
       <total_memory_profiler_step>4194304</total_memory_profiler_step>
       <total_memory_tracker_sample_probability>0</total_memory_tracker_sample_probability>
@@ -327,6 +329,18 @@ data:
         <warpstream_shared>
           <kafka_broker_list>{{ $kafkaBrokers }}</kafka_broker_list>
         </warpstream_shared>
+        <warpstream_cyclotron>
+          <kafka_broker_list>{{ $kafkaBrokers }}</kafka_broker_list>
+        </warpstream_cyclotron>
+        <warpstream_logs>
+          <kafka_broker_list>{{ $kafkaBrokers }}</kafka_broker_list>
+        </warpstream_logs>
+        <warpstream_traces>
+          <kafka_broker_list>{{ $kafkaBrokers }}</kafka_broker_list>
+        </warpstream_traces>
+        <warpstream_metrics>
+          <kafka_broker_list>{{ $kafkaBrokers }}</kafka_broker_list>
+        </warpstream_metrics>
       </named_collections>
 
       <remote_servers>
@@ -402,6 +416,14 @@ data:
             </replica>
           </shard>
         </sessions>
+        <logs>
+          <shard>
+            <replica>
+              <host>{{ $fullname }}-clickhouse</host>
+              <port>9000</port>
+            </replica>
+          </shard>
+        </logs>
       </remote_servers>
 
       <macros>
@@ -430,8 +452,11 @@ stringData:
           <max_memory_usage>10000000000</max_memory_usage>
           <load_balancing>random</load_balancing>
           <allow_nondeterministic_mutations>1</allow_nondeterministic_mutations>
-          <enable_analyzer>0</enable_analyzer>
-          <compatibility>25.10</compatibility>
+          <compatibility>26.6</compatibility>
+          <optimize_rewrite_has_to_in>0</optimize_rewrite_has_to_in>
+          <enable_materialized_cte>1</enable_materialized_cte>
+          <async_insert>0</async_insert>
+          <optimize_empty_string_comparisons>0</optimize_empty_string_comparisons>
           <distributed_product_mode>global</distributed_product_mode>
           <enable_parallel_replicas>0</enable_parallel_replicas>
           <max_parallel_replicas>1</max_parallel_replicas>
@@ -478,6 +503,20 @@ stringData:
           <profile>app</profile>
           <quota>default</quota>
         </app>
+        <dict_reader>
+          <password>{{ .Values.clickhouse.appPassword | htmlEscape }}</password>
+          <networks><ip>127.0.0.1</ip><ip>::1</ip></networks>
+          <profile>readonly</profile>
+          <quota>default</quota>
+          <grants>
+            <query>GRANT SELECT ON default.*</query>
+            <query>GRANT SELECT ON posthog.*</query>
+            <query>GRANT SELECT ON posthog_test.*</query>
+            {{- if not (has .Values.clickhouse.database (list "default" "posthog" "posthog_test")) }}
+            <query>GRANT SELECT ON {{ printf "`%s`" (.Values.clickhouse.database | replace "\\" "\\\\" | replace "`" "\\`") | htmlEscape }}.*</query>
+            {{- end }}
+          </grants>
+        </dict_reader>
       </users>
 
       <quotas>

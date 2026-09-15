@@ -572,6 +572,13 @@ Common environment variables shared across PostHog application services
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: clickhouse-app-password
+- name: CLICKHOUSE_DICT_READER_USER
+  value: "dict_reader"
+- name: CLICKHOUSE_DICT_READER_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: clickhouse-app-password
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_USER") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_USER") }}
 {{- else }}
@@ -602,6 +609,15 @@ Common environment variables shared across PostHog application services
     secretKeyRef:
       name: {{ .Values.externalClickhouse.secretName | quote }}
       key: {{ .Values.externalClickhouse.secretPasswordKey | default "password" | quote }}
+{{- if .Values.externalClickhouse.dictReaderUser }}
+- name: CLICKHOUSE_DICT_READER_USER
+  value: {{ .Values.externalClickhouse.dictReaderUser | quote }}
+- name: CLICKHOUSE_DICT_READER_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalClickhouse.secretName | quote }}
+      key: {{ .Values.externalClickhouse.secretPasswordKey | default "password" | quote }}
+{{- end }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_USER") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_USER") }}
 {{- else }}
