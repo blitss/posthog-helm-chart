@@ -122,9 +122,12 @@ python3 scripts/deploy-hub-production.py verify \
   --url https://YOUR-POSTHOG-HOST --apply
 ```
 
-For fresh installation use the same stages with `--mode fresh`. `prepare`
-suspends the parent Flux Kustomization and HelmRelease when present, locks the
-namespace, removes HPAs, scales application writers to zero, applies dependency
+For fresh installation use the same stages with `--mode fresh`. Before any
+cluster mutation, `prepare` pulls the profile's exact `OCIRepository.ref.digest`
+and verifies its recorded `posthog.streamloop.app/chart-version` and supported
+application revision. It then suspends the parent Flux Kustomization and
+HelmRelease when present, locks the namespace, removes HPAs, scales application
+writers to zero, applies dependency
 CRs, waits for databases, bootstraps Secrets and creates a pinned migration pod.
 The initial Helm installation holds application Deployments at zero.
 `backup` runs `pg_dumpall` into a private server-side file and freezes every

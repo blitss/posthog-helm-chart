@@ -163,8 +163,6 @@ def main():
             complete("logs:finalize")
     if args.phase == "verify":
         complete("rollout")
-    state["steps"][stage] = "started"
-    checkpoint()
     if args.phase == "prepare":
         docs = [d for d in yaml.safe_load_all(k("kustomize", str(args.profile))) if d]
         releases = [d for d in docs if d["kind"] == "HelmRelease"]
@@ -173,6 +171,28 @@ def main():
         initdb = [d for d in docs if d["kind"] == "ConfigMap" and d["metadata"]["name"] == "posthog-clickhouse-initdb"]
         require(len(initdb) == 1, "Profile must include the committed ClickHouse initdb script")
         state["clickhouse_init"] = initdb[0]["data"]["01_init_posthog.sh"]
+        repos = [d for d in docs if d["kind"] == "OCIRepository"
+                 and d["metadata"]["name"] == state["release"]["spec"]["chartRef"]["name"]]
+        require(len(repos) == 1, "Expected one matching OCIRepository")
+        source = repos[0]
+        digest = source["spec"].get("ref", {}).get("digest", "")
+        require(re.fullmatch(r"sha256:[a-f0-9]{64}", digest),
+                "Profile must pin an exact OCI chart digest")
+        version = source["metadata"].get("annotations", {}).get("posthog.streamloop.app/chart-version")
+        require(isinstance(version, str) and version, "OCIRepository must record posthog.streamloop.app/chart-version")
+        reference = source["spec"]["url"] + "@" + digest
+        # Resolve and inspect the immutable artifact before suspending Flux or touching workloads.
+        helm("pull", reference, "--untar", "--untardir", str(args.state_dir))
+        state["chart"] = str(args.state_dir.resolve() / "posthog")
+        chart = yaml.safe_load((Path(state["chart"]) / "Chart.yaml").read_text())
+        require(chart.get("name") == RELEASE and str(chart.get("version")) == version,
+                "Pulled chart name/version differs from the recorded profile")
+        require(chart.get("appVersion") == "8471862b083b25d3a11b97eb7730f21aa0cb4c7f",
+                "Unsupported application revision")
+        state["chart_source"] = reference
+    state["steps"][stage] = "started"
+    checkpoint()
+    if args.phase == "prepare":
         state["owners"] = []
         existing = obj("get", "helmreleases", "-A")["items"]
         live = next((d for d in existing if d["metadata"]["name"] == RELEASE and d["metadata"]["namespace"] == NAMESPACE), None)
@@ -215,13 +235,6 @@ def main():
             wait_resource(resource)
         k("-n", NAMESPACE, "wait", "clickhouseinstallation/posthog", "--for=jsonpath={.status.status}=Completed",
           "--timeout=" + str(args.timeout) + "s")
-        repos = [d for d in docs if d["kind"] == "OCIRepository" and d["metadata"]["name"] == state["release"]["spec"]["chartRef"]["name"]]
-        require(len(repos) == 1 and repos[0]["spec"].get("ref", {}).get("tag"), "An exact OCI chart tag is required")
-        helm("pull", repos[0]["spec"]["url"], "--version", repos[0]["spec"]["ref"]["tag"], "--untar", "--untardir", str(args.state_dir))
-        state["chart"] = str(args.state_dir.resolve() / "posthog")
-        chart = yaml.safe_load((Path(state["chart"]) / "Chart.yaml").read_text())
-        require(chart["appVersion"] == "8471862b083b25d3a11b97eb7730f21aa0cb4c7f", "Unsupported application revision")
-        checkpoint()
         rendered = [d for d in yaml.safe_load_all(helm("template", RELEASE, state["chart"], "-n", NAMESPACE, "-f", "-", data=helm_values())) if d]
         jobs = {d["metadata"]["name"]: d for d in rendered if d["kind"] == "Job"}
         require(RELEASE + "-migrate" in jobs and RELEASE + "-cyclotron-migrate" in jobs, "Both migration roles must be enabled")
