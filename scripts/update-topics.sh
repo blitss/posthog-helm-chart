@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALUES="${SCRIPT_DIR}/../charts/posthog/values.yaml"
 
 PY_URL="https://raw.githubusercontent.com/PostHog/posthog/master/posthog/kafka_client/topics.py"
-TS_URL="https://raw.githubusercontent.com/PostHog/posthog/master/nodejs/src/config/kafka-topics.ts"
+TS_URL="https://raw.githubusercontent.com/PostHog/posthog/master/nodejs/src/common/config/kafka-topics.ts"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -26,10 +26,26 @@ require_cmd yq
 
 echo "Fetching topics from PostHog repo..."
 
-py_topics=$(curl -sfL "$PY_URL" | grep -oP 'f"{KAFKA_PREFIX}\K[^{]+(?=\{SUFFIX\}")' || true)
-ts_topics=$(curl -sfL "$TS_URL" | grep -oP 'prefix\}[a-z_0-9-]+' | sed 's/prefix}//' || true)
+# Fetch separately so an HTTP failure cannot become a partial topic list.
+if ! py_source=$(curl -sfL "$PY_URL"); then
+  echo "Failed to fetch Python topics from ${PY_URL}" >&2
+  exit 1
+fi
+if ! ts_source=$(curl -sfL "$TS_URL"); then
+  echo "Failed to fetch Node topics from ${TS_URL}" >&2
+  exit 1
+fi
 
-topics=$(printf '%s\n%s\n' "$py_topics" "$ts_topics" | sort -u | grep -v '^$')
+# Match complete topic literals using portable sed (including macOS).
+py_topics=$(printf '%s\n' "$py_source" | sed -nE 's/.*f"\{KAFKA_PREFIX\}([a-z_0-9-]+)\{SUFFIX\}".*/\1/p')
+ts_topics=$(printf '%s\n' "$ts_source" | sed -nE 's/.*`\$\{prefix\}([a-z_0-9-]+)\$\{suffix\}`.*/\1/p')
+
+if [[ -z "$py_topics" || -z "$ts_topics" ]]; then
+  echo "Both Python and Node sources must contain parseable topics; values left unchanged" >&2
+  exit 1
+fi
+
+topics=$(printf '%s\n%s\n' "$py_topics" "$ts_topics" | LC_ALL=C sort -u)
 count=$(echo "$topics" | wc -l)
 echo "Found ${count} unique topics"
 
@@ -42,8 +58,7 @@ while IFS= read -r topic; do
   kafkainit_expr="${kafkainit_expr} | .kafkaInit.topics += [\"${topic}\"]"
 done <<< "$topics"
 
-yq -i "${provisioning_expr}" "$VALUES"
-yq -i "${kafkainit_expr}" "$VALUES"
+yq -i "${provisioning_expr} | ${kafkainit_expr}" "$VALUES"
 
 echo "Updated ${VALUES}"
 echo "  kafka.provisioning.topics: ${count} entries"
