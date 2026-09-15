@@ -338,7 +338,12 @@ Canonical ClickHouse database names.
 {{- end }}
 
 {{- define "posthog.clickhouseLogsDatabase" -}}
-{{- .Values.externalClickhouse.logsDatabase | default "default" -}}
+{{- $database := include "posthog.clickhouseDatabase" . -}}
+{{- $logsDatabase := .Values.externalClickhouse.logsDatabase | default $database -}}
+{{- if ne $logsDatabase $database -}}
+{{- fail "externalClickhouse.logsDatabase must match clickhouse.database: upstream logs migrations and Distributed tables use the main database. Reconcile existing logs tables before changing an established deployment." -}}
+{{- end -}}
+{{- $database -}}
 {{- end }}
 
 {{- define "posthog.clickhouseHost" -}}

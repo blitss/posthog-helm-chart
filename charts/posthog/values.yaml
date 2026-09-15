@@ -403,7 +403,9 @@ externalClickhouse:
   writableCluster: '' # defaults to cluster
   primaryReplicaCluster: '' # defaults to cluster
   logsCluster: '' # defaults to singleShardCluster → cluster
-  logsDatabase: default
+  ## Defaults to clickhouse.database. Upstream logs migrations and Distributed
+  ## tables require the same database name, even on a separate logs cluster.
+  logsDatabase: ''
   logsPort: 9000
   satelliteClusters: ''
   secretName: ''
