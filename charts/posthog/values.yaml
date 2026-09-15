@@ -487,6 +487,8 @@ kafka:
       - name: events_plugin_ingestion_historical
       - name: events_plugin_ingestion_overflow
       - name: exceptions_ingestion
+      - name: heatmaps_ingestion
+      - name: ingestion-clientwarnings-main-1
       - name: ingestion-errortracking-main
       - name: ingestion-errortracking-main-dlq
       - name: ingestion-errortracking-overflow
@@ -1468,6 +1470,8 @@ kafkaInit:
     - events_plugin_ingestion_historical
     - events_plugin_ingestion_overflow
     - exceptions_ingestion
+    - heatmaps_ingestion
+    - ingestion-clientwarnings-main-1
     - ingestion-errortracking-main
     - ingestion-errortracking-main-dlq
     - ingestion-errortracking-overflow

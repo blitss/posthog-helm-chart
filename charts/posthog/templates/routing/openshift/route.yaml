@@ -155,7 +155,7 @@ spec:
 {{- end }}
 
 {{- if .Values.capture.enabled }}
-{{- range $path := list "/e" "/i/v0" "/batch" "/capture" }}
+{{- range $path := list "/e" "/i/v0" "/i/v1/analytics/events" "/batch" "/capture" }}
 ---
 apiVersion: route.openshift.io/v1
 kind: Route

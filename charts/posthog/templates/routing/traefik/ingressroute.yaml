@@ -41,11 +41,13 @@ spec:
     {{- end }}
     {{- if .Values.capture.enabled }}
     ## Event capture endpoints -> capture service
-    - match: Host(`{{ .Values.ingress.hostname }}`) && ({{ include "posthog.traefikPathRule" "/e" }} || {{ include "posthog.traefikPathRule" "/i/v0" }} || {{ include "posthog.traefikPathRule" "/batch" }} || {{ include "posthog.traefikPathRule" "/capture" }})
+    {{- range $path := list "/e" "/i/v0" "/i/v1/analytics/events" "/batch" "/capture" }}
+    - match: Host(`{{ $.Values.ingress.hostname }}`) && {{ include "posthog.traefikPathRule" $path }}
       kind: Rule
       services:
-        - name: {{ include "posthog.fullname" . }}-capture
+        - name: {{ include "posthog.fullname" $ }}-capture
           port: 3000
+    {{- end }}
     {{- end }}
     {{- if .Values.replayCapture.enabled }}
     ## Session recording -> replay-capture service

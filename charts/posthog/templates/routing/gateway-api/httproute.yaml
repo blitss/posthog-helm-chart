@@ -47,6 +47,7 @@ spec:
     - matches:
 {{ include "posthog.gatewayPathMatches" "/e" | indent 8 }}
 {{ include "posthog.gatewayPathMatches" "/i/v0" | indent 8 }}
+{{ include "posthog.gatewayPathMatches" "/i/v1/analytics/events" | indent 8 }}
 {{ include "posthog.gatewayPathMatches" "/batch" | indent 8 }}
 {{ include "posthog.gatewayPathMatches" "/capture" | indent 8 }}
       backendRefs:

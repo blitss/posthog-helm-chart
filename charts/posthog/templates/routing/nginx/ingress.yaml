@@ -89,6 +89,13 @@ spec:
                 name: {{ include "posthog.fullname" . }}-capture
                 port:
                   number: 3000
+          - path: /i/v1/analytics/events(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "posthog.fullname" . }}-capture
+                port:
+                  number: 3000
           - path: /batch(/|$)(.*)
             pathType: ImplementationSpecific
             backend:

@@ -55,6 +55,7 @@ spec:
     - match:
 {{ include "posthog.istioPathMatches" "/e" | indent 8 }}
 {{ include "posthog.istioPathMatches" "/i/v0" | indent 8 }}
+{{ include "posthog.istioPathMatches" "/i/v1/analytics/events" | indent 8 }}
 {{ include "posthog.istioPathMatches" "/batch" | indent 8 }}
 {{ include "posthog.istioPathMatches" "/capture" | indent 8 }}
       route:

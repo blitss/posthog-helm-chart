@@ -66,6 +66,7 @@ spec:
             - name: KAFKA_TOPIC
               value: "events_plugin_ingestion"
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.captureV1Env" (dict "root" .) | nindent 12 }}
             {{- with .Values.capture.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
