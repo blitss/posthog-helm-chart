@@ -1356,18 +1356,16 @@ cymbalResolution:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
-## Personhog — gRPC backend that serves persons reads from a replicated
-## Postgres. Web/worker call into it at a progressive rollout percentage.
-## Disabled by default; enable once you've decided on a posthog_persons DB
-## story and brought the replica + router up.
+## PersonHog is required by CDP, recording API, error tracking and AI ingestion.
+## Reuses the existing persons database; keep the PostgreSQL persons store.
+## Identity/leader mode is opt-in upstream and is not needed for this topology.
 personhog:
-  enabled: false
+  enabled: true
   ## Host and port without a URL scheme. When unset, defaults to the
   ## personhog-router Service inside the cluster.
   addr: ''
-  rolloutPercentage: 0
 personhogReplica:
-  enabled: false
+  enabled: true
   image:
     repository: ghcr.io/posthog/posthog/personhog-replica
     tag: master
@@ -1377,6 +1375,9 @@ personhogReplica:
   grpcPort: 50051
   metricsPort: 9100
   rustLog: info
+  ## PRIMARY_DATABASE_URL uses the same PERSONS_DATABASE_URL as application
+  ## consumers, including externalPostgresql.personsUrl / personsDatabase.
+  ## An optional read replica can be set with REPLICA_DATABASE_URL in extraEnv.
   ## gRPC connections benefit from drain time on rolling updates / node drains.
   terminationGracePeriodSeconds: 30
   resources:
@@ -1402,7 +1403,7 @@ personhogReplica:
     enabled: false
     minAvailable: 1
 personhogRouter:
-  enabled: false
+  enabled: true
   image:
     repository: ghcr.io/posthog/posthog/personhog-router
     tag: master
@@ -1412,7 +1413,7 @@ personhogRouter:
   metricsPort: 9101
   backendTimeoutMs: 5000
   rustLog: info
-  terminationGracePeriodSeconds: 30
+  terminationGracePeriodSeconds: 40
   resources:
     requests:
       cpu: 50m
@@ -1467,6 +1468,13 @@ migrate:
   ## Run Django migrations on install/upgrade
   enabled: true
   image: {}
+  persons:
+    ## Run upstream SQL migrations after Django/product migrations. Disable only
+    ## when another migration runner manages the existing persons database.
+    enabled: true
+    ## Keep the existing nonpartitioned persons table (upstream --hobby mode).
+    ## Set false only for a separately managed partitioned persons database.
+    skipPartitioning: true
   ## Resource requests/limits for the migrate hook Job (default: none).
   resources: {}
 ## Create + migrate the cyclotron_node database via sqlx. Disabled by default:

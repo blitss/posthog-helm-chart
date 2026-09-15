@@ -182,7 +182,6 @@ spec:
               name: http
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
-            {{- include "posthog.personhogEnv" . | nindent 12 }}
             - name: USE_GRANIAN
               value: {{ .Values.web.granian.enabled | quote }}
             - name: GRANIAN_WORKERS
@@ -313,7 +312,6 @@ spec:
               exec ./bin/docker-worker-celery{{- if not .Values.workerBeat.enabled }} --with-scheduler{{- end }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
-            {{- include "posthog.personhogEnv" . | nindent 12 }}
             {{- if .Values.worker.queues }}
             - name: CELERY_WORKER_QUEUES
               value: {{ .Values.worker.queues | quote }}
@@ -598,7 +596,6 @@ spec:
               name: http
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
-            {{- include "posthog.personhogEnv" . | nindent 12 }}
             {{- $redisHost := .Values.externalRedis.url | default (printf "%s-redis" (include "posthog.fullname" .)) }}
             - name: SESSION_RECORDING_API_REDIS_HOST
               value: {{ $redisHost | quote }}

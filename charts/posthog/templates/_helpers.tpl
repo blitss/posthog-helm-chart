@@ -449,6 +449,7 @@ Common environment variables shared across PostHog application services
 {{- if .Values.usageIngestion.enabled -}}
 {{- $overridableEnvNames = concat $overridableEnvNames (list "USAGE_INGESTION_ADDR" "USAGE_INGESTION_TLS" "USAGE_INGESTION_REPORT_TEAMS") -}}
 {{- end -}}
+{{- $overridableEnvNames = concat $overridableEnvNames (list "PERSONS_DB_WRITER_URL" "PERSONS_DB_READER_URL") -}}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{- else }}
@@ -819,57 +820,18 @@ Common environment variables shared across PostHog application services
 - name: CYCLOTRON_NODE_DATABASE_URL
   value: {{ printf "postgres://$(_CNPG_USER):$(_CNPG_PASS)@%s-rw:5432/%s" (include "posthog.fullname" .) (.Values.externalPostgresql.cyclotronNodeDatabase | default "cyclotron_node") | quote }}
 {{- end }}
-{{- if .Values.postgresql.enabled }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- include "posthog.personsDatabaseEnv" . }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DB_WRITER_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DB_WRITER_URL") }}
 {{- else }}
-- name: PERSONS_DATABASE_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "posthog.secretName" . }}
-      key: database-url
+- name: PERSONS_DB_WRITER_URL
+  value: "$(PERSONS_DATABASE_URL)"
 {{- end }}
-{{- else if .Values.externalPostgresql.personsUrl }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DB_READER_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DB_READER_URL") }}
 {{- else }}
-- name: PERSONS_DATABASE_URL
-  value: {{ .Values.externalPostgresql.personsUrl | quote }}
-{{- end }}
-{{- else if .Values.externalPostgresql.url }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
-- name: PERSONS_DATABASE_URL
-  value: {{ .Values.externalPostgresql.url | quote }}
-{{- end }}
-{{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
-- name: PERSONS_DATABASE_URL
-  value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
-{{- end }}
-{{- else if .Values.externalPostgresql.secretName }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
-- name: PERSONS_DATABASE_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.externalPostgresql.secretName | quote }}
-      key: {{ .Values.externalPostgresql.personsUriKey | default "persons-uri" | quote }}
-{{- end }}
-{{- else }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
-- name: PERSONS_DATABASE_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "posthog.fullname" . }}-app
-      key: uri
-{{- end }}
+- name: PERSONS_DB_READER_URL
+  value: "$(PERSONS_DB_WRITER_URL)"
 {{- end }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "ERROR_TRACKING_CYMBAL_BASE_URL") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "ERROR_TRACKING_CYMBAL_BASE_URL") }}
@@ -877,6 +839,7 @@ Common environment variables shared across PostHog application services
 - name: ERROR_TRACKING_CYMBAL_BASE_URL
   value: {{ printf "http://%s-cymbal:3302" (include "posthog.fullname" .) | quote }}
 {{- end }}
+{{- include "posthog.personhogEnv" . }}
 - name: CDP_API_URL
   value: {{ printf "http://%s-plugins:6738" (include "posthog.fullname" .) | quote }}
 - name: RECORDING_API_URL
@@ -1043,12 +1006,8 @@ Call with dict "root" .
 
 
 {{/*
-Personhog client env vars for web/worker containers.
-Renders nothing unless personhog.enabled is true. Address auto-derives from
-the in-cluster personhog-router Service when personhog.addr is unset.
-Fails template render if personhog.enabled is true but neither
-personhog.addr nor personhogRouter.enabled provides a target — prevents
-silently pointing web/worker at a non-existent Service.
+Personhog client env vars shared by all application consumers.
+Address auto-derives from the in-cluster router unless an external target is set.
 */}}
 {{- define "posthog.personhogEnv" -}}
 {{- if .Values.personhog.enabled }}
@@ -1059,8 +1018,65 @@ silently pointing web/worker at a non-existent Service.
   value: "true"
 - name: PERSONHOG_ADDR
   value: {{ .Values.personhog.addr | default (printf "%s-personhog-router:%v" (include "posthog.fullname" .) (.Values.personhogRouter.grpcPort | default 50052)) | quote }}
-- name: PERSONHOG_ROLLOUT_PERCENTAGE
-  value: {{ .Values.personhog.rolloutPercentage | default 0 | quote }}
+{{- end }}
+{{- end }}
+
+{{/*
+Persons database configuration shared by application services and PersonHog.
+Credential-secret users must include externalPostgresqlCredentialEnv first.
+*/}}
+{{- define "posthog.personsDatabaseEnv" -}}
+{{- if .Values.postgresql.enabled }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
+- name: PERSONS_DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: database-url
+{{- end }}
+{{- else if .Values.externalPostgresql.personsUrl }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
+- name: PERSONS_DATABASE_URL
+  value: {{ .Values.externalPostgresql.personsUrl | quote }}
+{{- end }}
+{{- else if .Values.externalPostgresql.url }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
+- name: PERSONS_DATABASE_URL
+  value: {{ .Values.externalPostgresql.url | quote }}
+{{- end }}
+{{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
+- name: PERSONS_DATABASE_URL
+  value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
+{{- end }}
+{{- else if .Values.externalPostgresql.secretName }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
+- name: PERSONS_DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalPostgresql.secretName | quote }}
+      key: {{ .Values.externalPostgresql.personsUriKey | default "persons-uri" | quote }}
+{{- end }}
+{{- else }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
+{{- else }}
+- name: PERSONS_DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.fullname" . }}-app
+      key: uri
+{{- end }}
 {{- end }}
 {{- end }}
 

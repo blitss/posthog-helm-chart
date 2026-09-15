@@ -33,6 +33,10 @@ spec:
               # Postgres + product DBs
               python manage.py migrate --noinput
               python manage.py migrate_product_databases
+              {{- if .Values.migrate.persons.enabled }}
+              # Persons schema follows Django; --hobby preserves nonpartitioned tables.
+              python manage.py apply_persons_migrations{{ if .Values.migrate.persons.skipPartitioning }} --hobby{{ end }}
+              {{- end }}
               # Wait for ClickHouse system log tables before running CH migrations,
               # since some PostHog migrations reference system.{crash_log,error_log,metric_log}.
               python -c "
