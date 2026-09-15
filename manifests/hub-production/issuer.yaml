@@ -1,0 +1,11 @@
+{
+  "apiVersion": "cert-manager.io/v1",
+  "kind": "Issuer",
+  "spec": {
+    "selfSigned": {}
+  },
+  "metadata": {
+    "name": "selfsigned",
+    "namespace": "posthog"
+  }
+}

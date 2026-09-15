@@ -1,0 +1,33 @@
+{
+  "apiVersion": "postgresql.cnpg.io/v1",
+  "kind": "Cluster",
+  "spec": {
+    "instances": 1,
+    "enableSuperuserAccess": true,
+    "imageName": "registry.streamloop.app/ghcr.io/cloudnative-pg/postgresql:16",
+    "bootstrap": {
+      "initdb": {
+        "database": "posthog",
+        "owner": "posthog",
+        "postInitApplicationSQL": [
+          "ALTER ROLE posthog CREATEDB;",
+          "CREATE DATABASE cyclotron OWNER posthog;",
+          "CREATE DATABASE cyclotron_node OWNER posthog;",
+          "CREATE DATABASE posthog_persons OWNER posthog;",
+          "CREATE DATABASE behavioral_cohorts OWNER posthog;",
+          "CREATE DATABASE ducklake OWNER posthog;",
+          "CREATE DATABASE temporal OWNER posthog;",
+          "CREATE DATABASE temporal_visibility OWNER posthog;"
+        ]
+      }
+    },
+    "storage": {
+      "size": "20Gi"
+    },
+    "resources": {}
+  },
+  "metadata": {
+    "name": "posthog-pg",
+    "namespace": "posthog"
+  }
+}

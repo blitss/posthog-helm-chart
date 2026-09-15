@@ -1,0 +1,20 @@
+{
+  "apiVersion": "kustomize.config.k8s.io/v1beta1",
+  "kind": "Kustomization",
+  "resources": [
+    "namespace.yaml",
+    "issuer.yaml",
+    "oidc-certificate.yaml",
+    "tls-certificate.yaml",
+    "postgres-cnpg.yaml",
+    "clickhouse-keeper.yaml",
+    "clickhouse-initdb.yaml",
+    "clickhouse.yaml",
+    "elasticsearch.yaml",
+    "redpanda.yaml",
+    "posthog-static-cache.yaml",
+    "posthog-static-compress.yaml",
+    "ocirepository.yaml",
+    "release.yaml"
+  ]
+}

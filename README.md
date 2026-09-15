@@ -3,9 +3,9 @@
 Kubernetes deployment of [PostHog](https://posthog.com) with two install paths:
 
 1. **Chart** (`helm install`) — self-contained, bundled infrastructure, one command to get running.
-2. **Manifests** (GitOps / Flux + operators) — hardened production setup where every stateful dependency is managed by a dedicated operator.
+2. **Manifests** (GitOps / Flux + operators) — operator-managed databases, with an explicit `hub-production` profile matching the observed live configuration.
 
-Both paths deploy the same PostHog app; they differ only in how infrastructure (ClickHouse, Kafka, Postgres, object storage) is provisioned.
+The generic chart/manifests examples and production profile have different images, resources, ingress and storage settings. Use the production profile, not the generic example, to reproduce hub-production.
 
 ## What's in the repo
 
@@ -19,7 +19,8 @@ charts/posthog/              # Helm chart (both paths use this)
 
 manifests/                   # GitOps path — Flux-managed operators and CRs
   infra/                     # cert-manager, CNPG, CRDs — cluster-wide prerequisites
-  posthog/                   # PostHog namespace: operators, CRs, Flux HelmRelease
+  posthog/                   # Generic namespace example: operator CRs + Flux HelmRelease
+  hub-production/            # Explicit live production profile; existing cluster operators required
 
 images/
   clickhouse/                # Custom ClickHouse image with PostHog UDF scripts
@@ -43,15 +44,17 @@ For production use external ClickHouse and Kafka — the bundled ClickHouse is s
 
 | | Chart | Manifests |
 |---|---|---|
-| **Use when** | Local dev, quick demo, POC | Production, HA, proper operator story |
+| **Use when** | Local dev, quick demo, POC | Operator-managed stateful dependencies; explicit production profile |
 | **ClickHouse** | Single-node StatefulSet | Altinity Clickhouse Operator + CHI + CHK (keeper) |
 | **Kafka** | bitnami/kafka subchart | Redpanda Operator + `Redpanda` CR |
 | **Postgres** | StatefulSet in chart | CloudNativePG (`Cluster` CR) |
-| **Object storage** | rustfs subchart | rustfs subchart (still in chart) |
+| **Object storage** | rustfs subchart | Generic: RustFS; hub-production: external Cloudflare R2 |
 | **Deployment tooling** | `helm install` | Flux HelmRelease + Kustomize |
-| **Hook order resolution** | Helm `--wait` | Flux `disableWait: true` + pod crash-loop backoff |
+| **Hook order resolution** | Chart hooks; normal Helm wait policy | Staged dependencies/migrations, Flux `disableWait: true`; hooks still wait |
 
 See [charts/posthog/README.md](charts/posthog/README.md) for the chart path, and [manifests/README.md](manifests/README.md) for the GitOps path.
+
+`manifests/hub-production` preserves the working worker overrides, including their observed mirror locators and verified custom-image digests. Start with the [production prerequisites, secret bootstrap and read-only alignment check](manifests/README.md#hub-production). The deployment runner defaults to a plan; nothing in the reproducibility workflow should implicitly redeploy production.
 
 ## Local testing with kind
 
@@ -73,7 +76,7 @@ After that, follow either install path below.
 
 The chart and manifests reference pre-built images on `ghcr.io/blitss/`:
 
-- `posthog-web`, `posthog-worker`, `posthog-worker-exports`, `posthog-migrate` — split Python-slim images (2–4 GB each instead of the 9.8 GB upstream monolith)
+- `posthog-web`, `posthog-worker`, `posthog-worker-exports`, `posthog-migrate` — split Python-slim images; production worker mirror locators differ from their verified GHCR origins (recorded in `manifests/hub-production/image-provenance.json`)
 - `posthog-clickhouse` — stock ClickHouse plus PostHog UDF scripts baked in
 
 These are published by `.github/workflows/build-posthog-images.yaml`. To build locally:

@@ -1,0 +1,69 @@
+{
+  "apiVersion": "elasticsearch.k8s.elastic.co/v1",
+  "kind": "Elasticsearch",
+  "spec": {
+    "version": "8.17.3",
+    "nodeSets": [
+      {
+        "config": {
+          "node.store.allow_mmap": false
+        },
+        "count": 1,
+        "name": "default",
+        "podTemplate": {
+          "spec": {
+            "containers": [
+              {
+                "env": [
+                  {
+                    "name": "ES_JAVA_OPTS",
+                    "value": "-Xms1g -Xmx1g"
+                  }
+                ],
+                "name": "elasticsearch",
+                "resources": {
+                  "limits": {
+                    "cpu": 1,
+                    "memory": "2Gi"
+                  },
+                  "requests": {
+                    "cpu": "250m",
+                    "memory": "2Gi"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "volumeClaimTemplates": [
+          {
+            "metadata": {
+              "name": "elasticsearch-data"
+            },
+            "spec": {
+              "accessModes": [
+                "ReadWriteOnce"
+              ],
+              "resources": {
+                "requests": {
+                  "storage": "10Gi"
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "http": {
+      "tls": {
+        "selfSignedCertificate": {
+          "disabled": true
+        }
+      }
+    }
+  },
+  "metadata": {
+    "name": "posthog-elastic",
+    "namespace": "posthog"
+  }
+}

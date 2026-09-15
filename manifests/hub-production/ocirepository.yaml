@@ -1,0 +1,18 @@
+{
+  "apiVersion": "source.toolkit.fluxcd.io/v1",
+  "kind": "OCIRepository",
+  "spec": {
+    "interval": "30m",
+    "ref": {
+      "digest": "sha256:d65943cdce3d349375dab1f485ac1f563bc1ed108f33f4ffe63301f926bdd434"
+    },
+    "url": "oci://registry.streamloop.app/ghcr.io/blitss/charts/posthog"
+  },
+  "metadata": {
+    "name": "posthog-chart",
+    "namespace": "posthog",
+    "annotations": {
+      "posthog.streamloop.app/chart-version": "0.22.4"
+    }
+  }
+}
