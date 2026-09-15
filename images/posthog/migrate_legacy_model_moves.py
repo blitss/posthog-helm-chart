@@ -1,4 +1,4 @@
-"""Run original model moves before a legacy database reaches their app-label removals.
+"""Resume real product model moves across legacy and partially completed upgrades.
 
 Compatibility for PostHog 8471862b083b25d3a11b97eb7730f21aa0cb4c7f:
 https://github.com/blitss/posthog-helm-chart/issues/65
@@ -19,7 +19,29 @@ MODEL_MOVES = (
     ("experiments", "0018_migrate_cohorts_models"),
     ("approvals", "0001_migrate_approvals_models"),
     ("managed_warehouse", "0001_migrate_managed_warehouse_models"),
+    ("managed_migrations", "0001_migrate_managed_migrations_models"),
+    ("replay", "0001_migrate_replay_models"),
+    ("skills", "0001_adopt_skills_models"),
 )
+
+# Original state-only operations require these retained physical tables. After
+# posthog's squash cutoff, its recorded history alone cannot distinguish a
+# legacy upgrade from a partially installed fresh database.
+RETAINED_TABLES = {
+    "cohorts": {"posthog_cohort", "posthog_cohortcalculationhistory", "posthog_cohortpeople"},
+    "error_tracking": {"posthog_errortrackingissuecohort"},
+    "experiments": {"posthog_experiment"},
+    "approvals": {"posthog_changerequest", "posthog_approval", "posthog_approvalpolicy"},
+    "managed_warehouse": {"posthog_duckgresserver", "posthog_duckgressinkschemastate"},
+    "managed_migrations": {"posthog_batchimport"},
+    "replay": {
+        "ee_teamsessionsummariesconfig",
+        "posthog_exportedrecording",
+        "ee_group_session_summary",
+        "ee_single_session_summary",
+    },
+    "skills": {"llm_analytics_llmskill", "llm_analytics_llmskillfile"},
+}
 
 
 class LegacyModelMoveLoader(MigrationLoader):
@@ -86,15 +108,23 @@ class Command(BaseCommand):
                 recorder.record_unapplied(*key)
                 applied.pop(key)
 
-        if ("posthog", "1340_drop_userproductlist_reason_columns") in applied:
-            self.stdout.write("Legacy model-move preparation is not required.")
-            return
-
         for target in MODEL_MOVES:
             # Targeting an applied migration can roll newer migrations back.
             # Re-read real records after each step so interrupted runs resume.
             if target in applied:
                 continue
+            if ("posthog", "1340_drop_userproductlist_reason_columns") in applied:
+                existing_tables = set(connection.introspection.table_names())
+                required_tables = RETAINED_TABLES[target[0]]
+                present_tables = required_tables & existing_tables
+                if not present_tables:
+                    self.stdout.write(f"No retained tables for {target[0]}; leaving its fresh migration path intact.")
+                    continue
+                if present_tables != required_tables:
+                    raise CommandError(
+                        f"Partial retained schema for {target}: missing {sorted(required_tables - existing_tables)}"
+                    )
+                self.stdout.write(f"Retained tables for {target[0]}: {sorted(present_tables)}")
             executor = MigrationExecutor(connection)
             executor.loader = LegacyModelMoveLoader(connection)
             executor.loader.check_consistent_history(connection)
