@@ -15,10 +15,10 @@ spec:
     matchLabels:
       {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
   endpoints:
-    - port: http
+    - port: metrics
       interval: {{ .Values.metrics.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
-      path: /preflight
+      path: /metrics
 ## Plugins ServiceMonitor
 ---
 apiVersion: monitoring.coreos.com/v1

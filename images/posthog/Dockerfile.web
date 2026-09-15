@@ -63,9 +63,12 @@ COPY --from=upstream --chown=posthog:posthog /code/common/plugin_transpiler /cod
 COPY --from=upstream /usr/local/bin/node /usr/local/bin/node
 RUN ln -s /usr/local/bin/node /usr/local/bin/nodejs
 
+# Share the chart's migration gate and non-root Granian/metrics lifecycle.
+COPY --chown=posthog:posthog charts/posthog/files/web-startup.sh /code/bin/docker-server
+
 USER posthog
 
 EXPOSE 8000
 EXPOSE 8001
 
-CMD ["sh", "-c", "exec granian --interface asgi --host 0.0.0.0 --port 8000 --workers ${GRANIAN_WORKERS:-2} posthog.asgi:application"]
+CMD ["bash", "./bin/docker-server"]

@@ -16,6 +16,10 @@ spec:
       targetPort: 8000
       protocol: TCP
       name: http
+    - port: 8001
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
   selector:
     {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "web") | nindent 4 }}
 ---
@@ -52,139 +56,28 @@ spec:
       {{- include "posthog.affinity" (dict "root" . "component" "web") | nindent 6 }}
       {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "web") | nindent 6 }}
       terminationGracePeriodSeconds: 120
+      {{- if .Values.geoip.enabled }}
       initContainers:
-        {{- if .Values.geoip.enabled }}
         {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
-        {{- end }}
-        ## Seed /docker-entrypoint.d into a writable emptyDir so the image's
-        ## bin/docker-server-unit can read unit.json.tpl and write unit.json
-        ## there as the non-root container user. Some split production web
-        ## images include bin/docker-server-unit but not the Dockerfile's
-        ## /docker-entrypoint.d/unit.json.tpl, so the chart supplies the same
-        ## Unit template instead of copying from the image filesystem.
-        ##
-        ## The "user": "nobody" entries are intentionally omitted so Unit
-        ## doesn't try to setuid, which fails without SETUID/SETGID caps in
-        ## the chart's default non-root containerSecurityContext.
-        - name: seed-entrypoint-d
-          image: busybox:1.37
-          imagePullPolicy: IfNotPresent
-          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "web") | nindent 10 }}
-          command:
-            - sh
-            - -ec
-            - |
-              cat > /seed/unit.json.tpl <<'EOF'
-              {
-                  "settings": {
-                      "http": {
-                          "max_body_size": 22020096
-                      }
-                  },
-                  "listeners": {
-                      "*:8000": {
-                          "pass": "applications/posthog"
-                      },
-                      "*:8001": {
-                          "pass": "routes/metrics"
-                      },
-                      "*:8181": {
-                          "pass": "routes/status"
-                      }
-                  },
-                  "routes": {
-                      "metrics": [
-                          {
-                              "match": {
-                                  "uri": ["/metrics"]
-                              },
-                              "action": {
-                                  "pass": "applications/metrics"
-                              }
-                          }
-                      ],
-                      "status": [
-                          {
-                              "match": {
-                                  "uri": ["/status"]
-                              },
-                              "action": {
-                                  "proxy": "http://unix:/var/run/control.unit.sock"
-                              }
-                          }
-                      ]
-                  },
-                  "applications": {
-                      "posthog": {
-                          "type": "python 3.12",
-                          "processes": $NGINX_UNIT_APP_PROCESSES,
-                          "working_directory": "/code",
-                          "path": ".",
-                          "module": "posthog.$NGINX_UNIT_PYTHON_PROTOCOL",
-                          "protocol": "$NGINX_UNIT_PYTHON_PROTOCOL",
-                          "limits": {
-                              "requests": $NGINX_UNIT_REQUEST_LIMIT
-                          }
-                      },
-                      "metrics": {
-                          "type": "python 3.12",
-                          "processes": 1,
-                          "working_directory": "/code/bin",
-                          "path": ".",
-                          "module": "unit_metrics"
-                      }
-                  }
-              }
-              EOF
-          volumeMounts:
-            - name: entrypoint-d
-              mountPath: /seed
+      {{- end }}
       containers:
         - name: web
           image: "{{ include "posthog.imageRef" (dict "root" . "component" "web" "fallbackComponent" "posthog") }}"
           imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "web" "fallbackComponent" "posthog") }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "web") | nindent 10 }}
-          {{- if .Values.web.granian.enabled }}
           command:
-            - granian
-            - --interface
-            - asgi
-            - --host
-            - "0.0.0.0"
-            - --port
-            - "8000"
-            - --workers
-            - {{ .Values.web.granian.workers | default 2 | quote }}
-            - posthog.asgi:application
-          {{- else }}
-          ## Web pod runs only the server. Migrations are handled by the
-          ## migrate Helm hook; workers are separate Deployments. Skipping
-          ## the image's bin/docker orchestrator avoids duplicating that
-          ## work (which adds ~5min to every web pod startup) and stops
-          ## bin/docker-worker from spawning broken nodejs sidecars in the
-          ## web pod.
-          command:
-            - sh
+            - bash
             - -ec
             - |
-              until ./bin/migrate-check; do
-                echo "Waiting for migrations to complete before starting web..."
-                sleep 10
-              done
-              if command -v unitd >/dev/null 2>&1; then
-                exec ./bin/docker-server
-              fi
-              echo "Nginx Unit is not available in this image; starting PostHog with uvicorn..."
-              exec python -m uvicorn posthog.asgi:application --host 0.0.0.0 --port 8000 --workers "${GRANIAN_WORKERS:-2}"
-          {{- end }}
+              {{- .Files.Get "files/web-startup.sh" | nindent 14 }}
           ports:
             - containerPort: 8000
               name: http
+            - containerPort: 8001
+              name: metrics
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             {{- include "posthog.browserlessEnv" . | nindent 12 }}
-            - name: USE_GRANIAN
-              value: {{ .Values.web.granian.enabled | quote }}
             - name: GRANIAN_WORKERS
               value: {{ .Values.web.granian.workers | default 2 | quote }}
             - name: HOME
@@ -202,19 +95,10 @@ spec:
             {{- if .Values.geoip.enabled }}
             {{- include "posthog.geoipVolumeMount" (dict "root" . "mountPath" "/code/share") | nindent 12 }}
             {{- end }}
-            ## Writable /var/run for Nginx Unit's control socket (non-root
-            ## container can't write to the image's root-owned /var/run).
-            - name: var-run
-              mountPath: /var/run
-            ## Writable /docker-entrypoint.d (seeded by init container above)
-            ## so bin/docker-server-unit can write unit.json there.
-            - name: entrypoint-d
-              mountPath: /docker-entrypoint.d
-            ## Empty /var/lib/unit. Unit's /usr/local/bin/docker-entrypoint.sh
-            ## skips applying /docker-entrypoint.d/*.json on startup if this
-            ## directory has ANY content, and the image baked some files in.
-            - name: unit-lib
-              mountPath: /var/lib/unit
+            ## Runtime caches and multiprocess metrics remain writable with a
+            ## read-only root filesystem and the configured non-root UID.
+            - name: tmp
+              mountPath: /tmp
             {{- with .Values.web.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -249,11 +133,7 @@ spec:
         {{- if .Values.geoip.enabled }}
         {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
         {{- end }}
-        - name: var-run
-          emptyDir: {}
-        - name: entrypoint-d
-          emptyDir: {}
-        - name: unit-lib
+        - name: tmp
           emptyDir: {}
         {{- with .Values.web.extraVolumes }}
         {{- toYaml . | nindent 8 }}

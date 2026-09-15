@@ -834,12 +834,9 @@ web:
       memory: 1Gi
     limits:
       memory: 2Gi
-  ## Granian was removed from the production posthog/posthog image in
-  ## PostHog#54394 (2026-04). When enabled, the chart sets `command:
-  ## granian ...` directly, which fails on current images. Default off
-  ## so the image's built-in Nginx Unit entrypoint runs instead.
+  ## Granian is the supported web server. Other GRANIAN_* settings (including
+  ## GRANIAN_INTERFACE=asgi or wsgi) can be supplied through web.extraEnv.
   granian:
-    enabled: false
     workers: 2
   startupProbe:
     initialDelaySeconds: 10
