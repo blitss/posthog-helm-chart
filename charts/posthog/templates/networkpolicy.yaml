@@ -70,6 +70,7 @@ spec:
           - rustfs
           - elasticsearch
           - temporal
+          - browserless
   policyTypes:
     - Ingress
   ingress:

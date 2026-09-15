@@ -1,0 +1,91 @@
+{{- if .Values.browserless.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-browserless
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "browserless") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "browserless") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posthog.fullname" . }}-browserless
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "browserless") | nindent 4 }}
+spec:
+  replicas: {{ .Values.browserless.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "browserless") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "browserless") | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (dict "root" . "component" "browserless") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      {{- include "posthog.podSecurityContext" (dict "root" . "component" "browserless") | nindent 6 }}
+      {{- include "posthog.nodeSelector" (dict "root" . "component" "browserless") | nindent 6 }}
+      {{- include "posthog.tolerations" (dict "root" . "component" "browserless") | nindent 6 }}
+      {{- include "posthog.affinity" (dict "root" . "component" "browserless") | nindent 6 }}
+      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "browserless") | nindent 6 }}
+      containers:
+        - name: browserless
+          image: "{{ .Values.browserless.image.repository }}:{{ .Values.browserless.image.tag }}"
+          imagePullPolicy: {{ .Values.browserless.image.pullPolicy }}
+          {{- include "posthog.containerSecurityContext" (dict "root" . "component" "browserless") | nindent 10 }}
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "posthog.secretName" . }}
+                  key: browserless-token
+            {{- with .Values.browserless.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.browserless.resources | nindent 12 }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          # Authenticated JSON /pressure checks the server, not spare session capacity.
+          # A full browser queue must not restart the pod or remove its queued work.
+          readinessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - 'fetch("http://127.0.0.1:3000/pressure?token=" + encodeURIComponent(process.env.TOKEN)).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))'
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.browserless.shmSizeLimit }}
+{{- end }}

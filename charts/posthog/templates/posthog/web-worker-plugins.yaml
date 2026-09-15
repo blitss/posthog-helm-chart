@@ -182,6 +182,7 @@ spec:
               name: http
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.browserlessEnv" . | nindent 12 }}
             - name: USE_GRANIAN
               value: {{ .Values.web.granian.enabled | quote }}
             - name: GRANIAN_WORKERS
@@ -312,6 +313,7 @@ spec:
               exec ./bin/docker-worker-celery{{- if not .Values.workerBeat.enabled }} --with-scheduler{{- end }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.browserlessEnv" . | nindent 12 }}
             {{- if .Values.worker.queues }}
             - name: CELERY_WORKER_QUEUES
               value: {{ .Values.worker.queues | quote }}
@@ -418,6 +420,7 @@ spec:
             - ./bin/docker-worker-beat
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.browserlessEnv" . | nindent 12 }}
             {{- with .Values.workerBeat.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -489,6 +492,7 @@ spec:
               exec ./bin/docker-worker-celery
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.browserlessEnv" . | nindent 12 }}
             - name: CELERY_WORKER_QUEUES
               value: {{ .Values.workerExports.queue | default "exports" | quote }}
             {{- $hasExportsWebConcurrency := false }}

@@ -222,6 +222,7 @@ spec:
             - ./bin/temporal-django-worker
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.browserlessEnv" . | nindent 12 }}
             {{- with .Values.temporalDjangoWorker.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

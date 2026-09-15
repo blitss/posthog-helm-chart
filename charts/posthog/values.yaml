@@ -185,8 +185,59 @@ posthog:
 ##   seaweedfs-access-key, seaweedfs-secret-key, postgresql-password
 ## Bundled Valkey also requires valkey-password; external Valkey uses the same
 ## key when authentication is enabled (it may be omitted for unauthenticated servers).
+## When browserless.enabled: browserless-token.
+## For externalBrowserless endpoints: browserless-token and/or
+## heatmap-browserless-token for the configured CDP and heatmap endpoints.
 ## ------------------------------------------------------------------
 existingSecret: ''
+## ------------------------------------------------------------------
+## Browserless - remote Chromium for image exports and heatmap screenshots
+## No browser binary is required in Python application images.
+## The managed OSS image does not support cloud-only ad/consent blocking:
+## keep HEATMAP_BROWSERLESS_BLOCK_ADS=false and disable "block consent modals"
+## on saved heatmaps (current PostHog controls this per heatmap, not via env).
+## ------------------------------------------------------------------
+browserless:
+  enabled: true
+  image:
+    repository: ghcr.io/browserless/chromium
+    tag: v2.51.2
+    pullPolicy: IfNotPresent
+  replicas: 1
+  ## Dedicated token, generated and preserved across upgrades when empty.
+  ## With existingSecret, provision browserless-token there instead.
+  token: ''
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: '2'
+      memory: 2Gi
+  ## Chromium shared memory (counts toward the pod's memory limit).
+  shmSizeLimit: 512Mi
+  ## The upstream image owns its runtime and browser profile files as UID 999.
+  podSecurityContext:
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+  containerSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraEnv: []
+## Used only when browserless.enabled=false. Endpoints may use different tokens.
+## Omit either endpoint to leave that feature unconfigured; include no token in URLs.
+externalBrowserless:
+  ## WebSocket CDP base URL (ws:// or wss://).
+  cdpUrl: ''
+  ## Required with cdpUrl unless existingSecret supplies browserless-token.
+  token: ''
+  ## HTTP(S) base URL; PostHog appends /screenshot.
+  heatmapUrl: ''
+  ## Required with heatmapUrl unless existingSecret supplies heatmap-browserless-token.
+  heatmapToken: ''
 ## ------------------------------------------------------------------
 ## Ingress configuration
 ## ------------------------------------------------------------------

@@ -900,6 +900,36 @@ configuration instead of constructing a second, potentially different endpoint.
 {{- end }}
 
 {{/*
+Browserless endpoint/token pairs for Python renderers. Custom env overrides
+are emitted by commonEnv, so omit them here rather than creating duplicates.
+*/}}
+{{- define "posthog.browserlessEnv" -}}
+{{- $cdpUrl := .Values.externalBrowserless.cdpUrl -}}
+{{- $heatmapUrl := .Values.externalBrowserless.heatmapUrl -}}
+{{- $heatmapTokenKey := "heatmap-browserless-token" -}}
+{{- if .Values.browserless.enabled -}}
+{{- $cdpUrl = printf "ws://%s-browserless:3000" (include "posthog.fullname" .) -}}
+{{- $heatmapUrl = printf "http://%s-browserless:3000" (include "posthog.fullname" .) -}}
+{{- $heatmapTokenKey = "browserless-token" -}}
+{{- end -}}
+{{- range $pair := list (dict "urlName" "BROWSERLESS_CDP_URL" "url" $cdpUrl "tokenName" "BROWSERLESS_TOKEN" "tokenKey" "browserless-token") (dict "urlName" "HEATMAP_BROWSERLESS_URL" "url" $heatmapUrl "tokenName" "HEATMAP_BROWSERLESS_TOKEN" "tokenKey" $heatmapTokenKey) }}
+{{- if $pair.url }}
+{{- if not (include "posthog.hasEnvOverride" (dict "root" $ "name" $pair.urlName)) }}
+- name: {{ $pair.urlName }}
+  value: {{ $pair.url | quote }}
+{{- end }}
+{{- if not (include "posthog.hasEnvOverride" (dict "root" $ "name" $pair.tokenName)) }}
+- name: {{ $pair.tokenName }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" $ }}
+      key: {{ $pair.tokenKey }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 PostgreSQL connection URL builder
 */}}
 {{- define "posthog.databaseUrl" -}}
