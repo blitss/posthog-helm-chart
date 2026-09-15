@@ -16,7 +16,7 @@ spec:
             name: posthog-clickhouse-password
             key: password
       default/default_database: default
-      default/networks/ip: "::/0"
+      default/networks/ip: ::/0
       default/profile: default
       default/quota: default
       default/access_management: "1"
@@ -29,7 +29,7 @@ spec:
             name: posthog-clickhouse-password
             key: password
       api/default_database: default
-      api/networks/ip: "::/0"
+      api/networks/ip: ::/0
       api/profile: api
       api/quota: default
       app/password:
@@ -38,7 +38,7 @@ spec:
             name: posthog-clickhouse-password
             key: password
       app/default_database: default
-      app/networks/ip: "::/0"
+      app/networks/ip: ::/0
       app/profile: app
       app/quota: default
       dict_reader/password:
@@ -47,8 +47,8 @@ spec:
             name: posthog-clickhouse-password
             key: password
       dict_reader/networks/ip:
-        - "127.0.0.1"
-        - "::1"
+        - 127.0.0.1
+        - ::1
       dict_reader/profile: readonly
       dict_reader/quota: default
       dict_reader/grants/query:
@@ -133,6 +133,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </posthog_single_shard>
@@ -141,6 +143,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </posthog_migrations>
@@ -149,6 +153,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </posthog_writable>
@@ -157,6 +163,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </posthog_primary_replica>
@@ -165,6 +173,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </ai_events>
@@ -173,6 +183,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </aux>
@@ -181,6 +193,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </ops>
@@ -189,6 +203,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </sessions>
@@ -197,6 +213,8 @@ spec:
                 <replica>
                   <host>chi-posthog-posthog-0-0</host>
                   <port>9000</port>
+                  <user>default</user>
+                  <password from_env="CLICKHOUSE_PASSWORD"/>
                 </replica>
               </shard>
             </logs>

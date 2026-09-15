@@ -23,4 +23,397 @@ spec:
     disableWait: true
     remediation:
       retries: 5
-  values: {"ingress": {"enabled": true, "hostname": "posthog.example.com", "nginx": {"enabled": false}, "traefik": {"enabled": false}, "gateway": {"enabled": true, "gatewayName": "posthog-gateway", "gatewayNamespace": "traefik", "listenerName": "posthog-https"}}, "posthog": {"optOutCapture": true, "image": {"repository": "ghcr.io/blitss/posthog-web", "tag": "latest@sha256:f53afd0fbb4227c49f790db7ad88f3644aaf6ca9fc36c02150ed39de3f9c164c", "pullPolicy": "Always"}, "env": {"MULTI_ORG_ENABLED": "0"}, "secretEnv": {"OIDC_RSA_PRIVATE_KEY": {"name": "posthog-oidc-generated", "key": "tls.key"}}}, "web": {"enabled": true, "image": {"repository": "ghcr.io/blitss/posthog-web", "tag": "latest@sha256:f53afd0fbb4227c49f790db7ad88f3644aaf6ca9fc36c02150ed39de3f9c164c", "pullPolicy": "Always"}, "replicas": 1, "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"memory": "2Gi"}}}, "postgresql": {"enabled": false}, "externalPostgresql": {"host": "posthog-pg-rw", "port": 5432, "database": "posthog", "personsDatabase": "posthog_persons", "secretName": "posthog-pg-app", "usernameKey": "username", "passwordKey": "password"}, "clickhouse": {"enabled": false, "database": "posthog"}, "externalClickhouse": {"host": "clickhouse-posthog.posthog.svc.cluster.local", "user": "default", "apiUser": "api", "appUser": "app", "logsDatabase": "default", "cluster": "posthog", "secretName": "posthog-clickhouse-password", "secretPasswordKey": "password", "dictReaderUser": "dict_reader"}, "kafka": {"enabled": false}, "kafkaInit": {"image": {"repository": "bitnamilegacy/kafka", "tag": "4.0@sha256:f45d5b813412e1ef7ce67b467309a84e4c6dc03d7626a0b6da867db9b69bd107", "pullPolicy": "IfNotPresent"}}, "externalKafka": {"brokers": "posthog-redpanda.posthog.svc.cluster.local:9093"}, "redis": {"enabled": true, "persistence": {"enabled": false}, "maxmemory": "96mb", "resources": {"requests": {"cpu": "25m", "memory": "64Mi"}, "limits": {"memory": "128Mi"}}}, "elasticsearch": {"enabled": false}, "externalElasticsearch": {"host": "posthog-elastic-es-http.posthog.svc.cluster.local", "scheme": "http", "user": "elastic", "secretName": "posthog-elastic-es-elastic-user", "passwordKey": "elastic", "version": "v8"}, "zookeeper": {"enabled": false}, "minio": {"enabled": false}, "rustfs": {"enabled": true, "resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "seaweedfs": {"enabled": false}, "objectStorage": {"enabled": true}, "externalObjectStorage": {"endpoint": "https://example.r2.cloudflarestorage.com", "accessKey": "", "secretKey": ""}, "externalSeaweedfs": {"endpoint": "https://example.r2.cloudflarestorage.com", "accessKey": "", "secretKey": ""}, "temporal": {"enabled": true, "server": {"image": {"repository": "docker.io/temporalio/auto-setup", "tag": "1.29.6@sha256:1263120feed69d82e4ca23b8ca6f1d702c3029fe70714e382966d0192318eab6"}}, "adminTools": {"image": {"repository": "docker.io/temporalio/admin-tools", "tag": "1.31.0@sha256:3e68adcd54195a7c1222e99f2dbc32a4fdbf44ad69e3bb48e21e85c4bf417c2e"}}, "ui": {"image": {"repository": "docker.io/temporalio/ui", "tag": "2.50.0@sha256:49a61456f6b770af926d6d7d74f63ebb4b9a3c5abc4fb68ddb146321d49391e4"}}}, "worker": {"image": {"repository": "ghcr.io/blitss/posthog-worker", "tag": "latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7", "pullPolicy": "Always"}, "replicas": 1, "concurrency": 2, "autoscaling": {"enabled": false, "minReplicas": 1, "maxReplicas": 4, "targetCPUUtilizationPercentage": 70, "targetMemoryUtilizationPercentage": 80}, "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"memory": "2Gi"}}}, "workerBeat": {"enabled": true, "image": {"repository": "ghcr.io/blitss/posthog-worker", "tag": "latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7", "pullPolicy": "Always"}, "replicas": 1, "resources": {"requests": {"cpu": "25m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "workerExports": {"enabled": true, "image": {"repository": "ghcr.io/blitss/posthog-worker-exports", "tag": "latest@sha256:4170448235d851652ec6a933b18a293b42170beabbc9569486d7efd4e43c72ec", "pullPolicy": "Always"}, "replicas": 1, "queue": "exports", "concurrency": 1, "autoscaling": {"enabled": false, "minReplicas": 1, "maxReplicas": 3, "targetCPUUtilizationPercentage": 70, "targetMemoryUtilizationPercentage": 80}, "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"memory": "2Gi"}}}, "temporalDjangoWorker": {"image": {"repository": "ghcr.io/blitss/posthog-worker", "tag": "latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7", "pullPolicy": "Always"}, "replicas": 1, "autoscaling": {"enabled": false, "minReplicas": 1, "maxReplicas": 3, "targetCPUUtilizationPercentage": 70, "targetMemoryUtilizationPercentage": 80}, "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"memory": "2Gi"}}}, "migrate": {"image": {"repository": "ghcr.io/blitss/posthog-migrate", "tag": "latest@sha256:4534eb10718b6dd3bc7db70a827cfcbc9893c13f441d6ab05b7d11aeede8db2c", "pullPolicy": "Always"}}, "asyncMigrationsCheck": {"image": {"repository": "ghcr.io/blitss/posthog-migrate", "tag": "latest@sha256:4534eb10718b6dd3bc7db70a827cfcbc9893c13f441d6ab05b7d11aeede8db2c", "pullPolicy": "Always"}}, "plugins": {"image": {"repository": "ghcr.io/posthog/posthog-node", "tag": "master@sha256:a2e93efadd13b8e0b551ea6e23364ebae3caf6888109debb239caa1945a49e16"}, "resources": {"requests": {"cpu": "100m", "memory": "256Mi"}, "limits": {"memory": "1Gi"}}}, "capture": {"image": {"repository": "ghcr.io/posthog/posthog/capture", "tag": "master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4"}, "resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "replayCapture": {"image": {"repository": "ghcr.io/posthog/posthog/capture", "tag": "master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4"}, "resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "captureAi": {"image": {"repository": "ghcr.io/posthog/posthog/capture", "tag": "master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4"}, "resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "captureLogs": {"image": {"repository": "ghcr.io/posthog/posthog/capture-logs", "tag": "master@sha256:e8ebc718503c27230403601b1036a7db106d347eccf0ee2714b4c0e245e033fa"}, "resources": {"requests": {"cpu": "25m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}, "featureFlags": {"image": {"repository": "ghcr.io/posthog/posthog/feature-flags", "tag": "master@sha256:65030502939f230ff7ba820e6a145a8598019c846383fb10fd9ec2ecba5c9048"}, "resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}, "hypercacheServer": {"image": {"repository": "ghcr.io/posthog/posthog/hypercache-server", "tag": "master@sha256:2acd76fc8219a9156f6036251cdeb63746cca0cf20fbe62c4563e8654e25f889"}, "resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}, "propertyDefsRs": {"image": {"repository": "ghcr.io/posthog/posthog/property-defs-rs", "tag": "master@sha256:66ccc059c4b7464ac19bf4ea6a4a0db9712c423779529baeb5e64afea4909f10"}, "resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}, "livestream": {"enabled": true, "image": {"repository": "ghcr.io/posthog/posthog/livestream", "tag": "master@sha256:6926f340b72d609e43cee5aa8b75a85cfdc77d182e610dafafdd81d3b2ab53f5"}, "resources": {"requests": {"cpu": "25m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}, "cymbal": {"image": {"repository": "ghcr.io/posthog/posthog/cymbal", "tag": "master@sha256:939d140ae9632eabce36286edacab9aa38bba34ce9e8818856b876f08e3671a9"}, "resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "ingestionGeneral": {"resources": {"requests": {"cpu": "100m", "memory": "256Mi"}, "limits": {"memory": "1Gi"}}}, "ingestionSessionReplay": {"resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "recordingApi": {"resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "ingestionErrorTracking": {"resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "ingestionLogs": {"resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "ingestionTraces": {"resources": {"requests": {"cpu": "50m", "memory": "128Mi"}, "limits": {"memory": "512Mi"}}}, "personhog": {"enabled": true, "rolloutPercentage": 100}, "personhogReplica": {"enabled": true, "image": {"repository": "ghcr.io/posthog/posthog/personhog-replica", "tag": "master@sha256:9fb5f8238df3b5c5d11d2f3ed1f4bc3d13f0ec3b9453737b6df661aa786ecbf3"}, "resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}, "personhogRouter": {"enabled": true, "image": {"repository": "ghcr.io/posthog/posthog/personhog-router", "tag": "master@sha256:da51c627e026f75b1da1eac9befaf618890070038c33bcfc971ba0e8113f7168"}, "resources": {"requests": {"cpu": "25m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}, "global": {"containerSecurityContext": {}, "podSecurityContext": {}}, "networkPolicies": {"enabled": false}, "cymbalResolution": {"enabled": true}, "browserless": {"enabled": true}, "valkey": {"enabled": true}, "cyclotronMigrate": {"enabled": true, "image": {"repository": "ghcr.io/blitss/posthog-cyclotron-migrate", "tag": "latest@sha256:7a618add12c32360e5c0c36c1d3269b02e1c8d1017c2b217b16b710a5fc9b085", "pullPolicy": "IfNotPresent"}}}
+  values:
+    ingress:
+      enabled: true
+      hostname: posthog.example.com
+      nginx:
+        enabled: false
+      traefik:
+        enabled: false
+      gateway:
+        enabled: true
+        gatewayName: posthog-gateway
+        gatewayNamespace: traefik
+        listenerName: posthog-https
+    posthog:
+      optOutCapture: true
+      image:
+        repository: ghcr.io/blitss/posthog-web
+        tag: latest@sha256:f53afd0fbb4227c49f790db7ad88f3644aaf6ca9fc36c02150ed39de3f9c164c
+        pullPolicy: Always
+      env:
+        MULTI_ORG_ENABLED: "0"
+      secretEnv:
+        OIDC_RSA_PRIVATE_KEY:
+          name: posthog-oidc-generated
+          key: tls.key
+    web:
+      enabled: true
+      image:
+        repository: ghcr.io/blitss/posthog-web
+        tag: latest@sha256:f53afd0fbb4227c49f790db7ad88f3644aaf6ca9fc36c02150ed39de3f9c164c
+        pullPolicy: Always
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+    postgresql:
+      enabled: false
+    externalPostgresql:
+      host: posthog-pg-rw
+      port: 5432
+      database: posthog
+      personsDatabase: posthog_persons
+      secretName: posthog-pg-app
+      usernameKey: username
+      passwordKey: password
+    clickhouse:
+      enabled: false
+      database: posthog
+    externalClickhouse:
+      host: clickhouse-posthog.posthog.svc.cluster.local
+      user: default
+      apiUser: api
+      appUser: app
+      logsDatabase: default
+      cluster: posthog
+      secretName: posthog-clickhouse-password
+      secretPasswordKey: password
+      dictReaderUser: dict_reader
+    kafka:
+      enabled: false
+    kafkaInit:
+      image:
+        repository: bitnamilegacy/kafka
+        tag: 4.0@sha256:f45d5b813412e1ef7ce67b467309a84e4c6dc03d7626a0b6da867db9b69bd107
+        pullPolicy: IfNotPresent
+    externalKafka:
+      brokers: posthog-redpanda.posthog.svc.cluster.local:9093
+    redis:
+      enabled: true
+      persistence:
+        enabled: false
+      maxmemory: 96mb
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    elasticsearch:
+      enabled: false
+    externalElasticsearch:
+      host: posthog-elastic-es-http.posthog.svc.cluster.local
+      scheme: http
+      user: elastic
+      secretName: posthog-elastic-es-elastic-user
+      passwordKey: elastic
+      version: v8
+    zookeeper:
+      enabled: false
+    minio:
+      enabled: false
+    rustfs:
+      enabled: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    seaweedfs:
+      enabled: false
+    objectStorage:
+      enabled: true
+    externalObjectStorage:
+      endpoint: https://example.r2.cloudflarestorage.com
+      accessKey: ""
+      secretKey: ""
+    externalSeaweedfs:
+      endpoint: https://example.r2.cloudflarestorage.com
+      accessKey: ""
+      secretKey: ""
+    temporal:
+      enabled: true
+      server:
+        image:
+          repository: docker.io/temporalio/auto-setup
+          tag: 1.29.6@sha256:1263120feed69d82e4ca23b8ca6f1d702c3029fe70714e382966d0192318eab6
+      adminTools:
+        image:
+          repository: docker.io/temporalio/admin-tools
+          tag: 1.31.0@sha256:3e68adcd54195a7c1222e99f2dbc32a4fdbf44ad69e3bb48e21e85c4bf417c2e
+      ui:
+        image:
+          repository: docker.io/temporalio/ui
+          tag: 2.50.0@sha256:49a61456f6b770af926d6d7d74f63ebb4b9a3c5abc4fb68ddb146321d49391e4
+    worker:
+      image:
+        repository: ghcr.io/blitss/posthog-worker
+        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        pullPolicy: Always
+      replicas: 1
+      concurrency: 2
+      autoscaling:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 4
+        targetCPUUtilizationPercentage: 70
+        targetMemoryUtilizationPercentage: 80
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+    workerBeat:
+      enabled: true
+      image:
+        repository: ghcr.io/blitss/posthog-worker
+        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        pullPolicy: Always
+      replicas: 1
+      resources:
+        requests:
+          cpu: 25m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    workerExports:
+      enabled: true
+      image:
+        repository: ghcr.io/blitss/posthog-worker-exports
+        tag: latest@sha256:4170448235d851652ec6a933b18a293b42170beabbc9569486d7efd4e43c72ec
+        pullPolicy: Always
+      replicas: 1
+      queue: exports
+      concurrency: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 3
+        targetCPUUtilizationPercentage: 70
+        targetMemoryUtilizationPercentage: 80
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+    temporalDjangoWorker:
+      image:
+        repository: ghcr.io/blitss/posthog-worker
+        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        pullPolicy: Always
+      replicas: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 3
+        targetCPUUtilizationPercentage: 70
+        targetMemoryUtilizationPercentage: 80
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+    migrate:
+      image:
+        repository: ghcr.io/blitss/posthog-migrate
+        tag: latest@sha256:4534eb10718b6dd3bc7db70a827cfcbc9893c13f441d6ab05b7d11aeede8db2c
+        pullPolicy: Always
+    asyncMigrationsCheck:
+      image:
+        repository: ghcr.io/blitss/posthog-migrate
+        tag: latest@sha256:4534eb10718b6dd3bc7db70a827cfcbc9893c13f441d6ab05b7d11aeede8db2c
+        pullPolicy: Always
+    plugins:
+      image:
+        repository: ghcr.io/posthog/posthog-node
+        tag: master@sha256:a2e93efadd13b8e0b551ea6e23364ebae3caf6888109debb239caa1945a49e16
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    capture:
+      image:
+        repository: ghcr.io/posthog/posthog/capture
+        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    replayCapture:
+      image:
+        repository: ghcr.io/posthog/posthog/capture
+        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    captureAi:
+      image:
+        repository: ghcr.io/posthog/posthog/capture
+        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    captureLogs:
+      image:
+        repository: ghcr.io/posthog/posthog/capture-logs
+        tag: master@sha256:e8ebc718503c27230403601b1036a7db106d347eccf0ee2714b4c0e245e033fa
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    featureFlags:
+      image:
+        repository: ghcr.io/posthog/posthog/feature-flags
+        tag: master@sha256:65030502939f230ff7ba820e6a145a8598019c846383fb10fd9ec2ecba5c9048
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    hypercacheServer:
+      image:
+        repository: ghcr.io/posthog/posthog/hypercache-server
+        tag: master@sha256:2acd76fc8219a9156f6036251cdeb63746cca0cf20fbe62c4563e8654e25f889
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    propertyDefsRs:
+      image:
+        repository: ghcr.io/posthog/posthog/property-defs-rs
+        tag: master@sha256:66ccc059c4b7464ac19bf4ea6a4a0db9712c423779529baeb5e64afea4909f10
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    livestream:
+      enabled: true
+      image:
+        repository: ghcr.io/posthog/posthog/livestream
+        tag: master@sha256:6926f340b72d609e43cee5aa8b75a85cfdc77d182e610dafafdd81d3b2ab53f5
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    cymbal:
+      image:
+        repository: ghcr.io/posthog/posthog/cymbal
+        tag: master@sha256:939d140ae9632eabce36286edacab9aa38bba34ce9e8818856b876f08e3671a9
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    ingestionGeneral:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    ingestionSessionReplay:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    recordingApi:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    ingestionErrorTracking:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    ingestionLogs:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    ingestionTraces:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    personhog:
+      enabled: true
+      rolloutPercentage: 100
+    personhogReplica:
+      enabled: true
+      image:
+        repository: ghcr.io/posthog/posthog/personhog-replica
+        tag: master@sha256:9fb5f8238df3b5c5d11d2f3ed1f4bc3d13f0ec3b9453737b6df661aa786ecbf3
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    personhogRouter:
+      enabled: true
+      image:
+        repository: ghcr.io/posthog/posthog/personhog-router
+        tag: master@sha256:da51c627e026f75b1da1eac9befaf618890070038c33bcfc971ba0e8113f7168
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    global:
+      containerSecurityContext: {}
+      podSecurityContext: {}
+    networkPolicies:
+      enabled: false
+    cymbalResolution:
+      enabled: true
+    browserless:
+      enabled: true
+    valkey:
+      enabled: true
+    cyclotronMigrate:
+      enabled: true
+      image:
+        repository: ghcr.io/blitss/posthog-cyclotron-migrate
+        tag: latest@sha256:7a618add12c32360e5c0c36c1d3269b02e1c8d1017c2b217b16b710a5fc9b085
+        pullPolicy: IfNotPresent
