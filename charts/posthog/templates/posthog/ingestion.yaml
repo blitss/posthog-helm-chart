@@ -42,8 +42,6 @@ spec:
               value: {{ $redisHost | quote }}
             - name: COOKIELESS_REDIS_PORT
               value: "6379"
-            - name: CDP_REDIS_HOST
-              value: {{ $redisHost | quote }}
             {{- if .Values.geoip.enabled }}
             {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
             {{- end }}
@@ -226,8 +224,6 @@ spec:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
               value: "ingestion-errortracking"
-            - name: CDP_REDIS_HOST
-              value: {{ $redisHost | quote }}
             {{- if .Values.geoip.enabled }}
             {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
             {{- end }}
@@ -277,12 +273,6 @@ spec:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
               value: "ingestion-logs"
-            - name: LOGS_REDIS_HOST
-              value: {{ $redisHost | quote }}
-            - name: LOGS_REDIS_PORT
-              value: "6379"
-            - name: LOGS_REDIS_TLS
-              value: "false"
             {{- if .Values.geoip.enabled }}
             {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
             {{- end }}
@@ -332,18 +322,6 @@ spec:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
               value: "ingestion-traces"
-            - name: TRACES_REDIS_HOST
-              value: {{ $redisHost | quote }}
-            - name: TRACES_REDIS_PORT
-              value: "6379"
-            - name: TRACES_REDIS_TLS
-              value: "false"
-            - name: LOGS_REDIS_HOST
-              value: {{ $redisHost | quote }}
-            - name: LOGS_REDIS_PORT
-              value: "6379"
-            - name: LOGS_REDIS_TLS
-              value: "false"
             {{- if .Values.geoip.enabled }}
             {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
             {{- end }}
@@ -395,8 +373,6 @@ spec:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
               value: "cdp-hogflow-scheduler"
-            - name: CDP_REDIS_HOST
-              value: {{ $redisHost | quote }}
             {{- if .Values.geoip.enabled }}
             {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
             {{- end }}
@@ -448,8 +424,6 @@ spec:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
               value: "cdp-cyclotron-v2-janitor"
-            - name: CDP_REDIS_HOST
-              value: {{ $redisHost | quote }}
             {{- if .Values.geoip.enabled }}
             {{- include "posthog.geoipEnv" (dict "root" .) | nindent 12 }}
             {{- end }}

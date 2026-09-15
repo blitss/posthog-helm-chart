@@ -421,7 +421,7 @@ Renders all remaining custom env vars except the excluded names.
 Common environment variables shared across PostHog application services
 */}}
 {{- define "posthog.commonEnv" -}}
-{{- $overridableEnvNames := list "SECRET_KEY" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" -}}
+{{- $overridableEnvNames := list "SECRET_KEY" "ENCRYPTION_SALT_KEYS" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" "FEATURE_FLAGS_SERVICE_URL" "CLICKHOUSE_LOGS_HOST" "CLICKHOUSE_LOGS_CLUSTER_HOST" "CLICKHOUSE_LOGS_CLUSTER_PORT" "CLICKHOUSE_LOGS_CLUSTER_SECURE" "CLICKHOUSE_LOGS_CLUSTER_USER" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD" "CDP_REDIS_HOST" "LOGS_REDIS_HOST" "TRACES_REDIS_HOST" -}}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{- else }}
@@ -431,11 +431,15 @@ Common environment variables shared across PostHog application services
       name: {{ include "posthog.secretName" . }}
       key: posthog-secret
 {{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "ENCRYPTION_SALT_KEYS") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "ENCRYPTION_SALT_KEYS") }}
+{{- else }}
 - name: ENCRYPTION_SALT_KEYS
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: encryption-salt-keys
+{{- end }}
 {{- include "posthog.externalPostgresqlCredentialEnv" . }}
 {{- if .Values.postgresql.enabled }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
@@ -491,22 +495,39 @@ Common environment variables shared across PostHog application services
       name: {{ include "posthog.secretName" . }}
       key: redis-url
 {{- end }}
+{{ include "posthog.nodeRedisEnv" . }}
 - name: CLICKHOUSE_HOST
   value: {{ include "posthog.clickhouseHost" . | quote }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_HOST") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_HOST") }}
+{{- else }}
 - name: CLICKHOUSE_LOGS_HOST
   value: {{ include "posthog.clickhouseHost" . | quote }}
+{{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_HOST") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_HOST") }}
+{{- else }}
 - name: CLICKHOUSE_LOGS_CLUSTER_HOST
   value: {{ include "posthog.clickhouseHost" . | quote }}
+{{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_PORT") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_PORT") }}
+{{- else }}
 - name: CLICKHOUSE_LOGS_CLUSTER_PORT
   value: {{ .Values.externalClickhouse.logsPort | default "9000" | quote }}
+{{- end }}
 - name: CLICKHOUSE_DATABASE
   value: {{ include "posthog.clickhouseDatabase" . | quote }}
 - name: CLICKHOUSE_LOGS_DATABASE
   value: {{ include "posthog.clickhouseLogsDatabase" . | quote }}
 - name: CLICKHOUSE_SECURE
   value: {{ .Values.clickhouse.secure | default "false" | quote }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_SECURE") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_SECURE") }}
+{{- else }}
 - name: CLICKHOUSE_LOGS_CLUSTER_SECURE
   value: {{ .Values.clickhouse.secure | default "false" | quote }}
+{{- end }}
 - name: CLICKHOUSE_VERIFY
   value: {{ .Values.clickhouse.verify | default "false" | quote }}
 {{- if .Values.clickhouse.enabled }}
@@ -524,13 +545,21 @@ Common environment variables shared across PostHog application services
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: clickhouse-app-password
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_USER") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_USER") }}
+{{- else }}
 - name: CLICKHOUSE_LOGS_CLUSTER_USER
   value: {{ .Values.clickhouse.appUser | default "app" | quote }}
+{{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD") }}
+{{- else }}
 - name: CLICKHOUSE_LOGS_CLUSTER_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: clickhouse-app-password
+{{- end }}
 {{- else }}
 - name: CLICKHOUSE_API_USER
   value: {{ .Values.externalClickhouse.apiUser | default .Values.externalClickhouse.user | default "default" | quote }}
@@ -546,13 +575,21 @@ Common environment variables shared across PostHog application services
     secretKeyRef:
       name: {{ .Values.externalClickhouse.secretName | quote }}
       key: {{ .Values.externalClickhouse.secretPasswordKey | default "password" | quote }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_USER") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_USER") }}
+{{- else }}
 - name: CLICKHOUSE_LOGS_CLUSTER_USER
   value: {{ .Values.externalClickhouse.appUser | default .Values.externalClickhouse.user | default "default" | quote }}
+{{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD") }}
+{{- else }}
 - name: CLICKHOUSE_LOGS_CLUSTER_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ .Values.externalClickhouse.secretName | quote }}
       key: {{ .Values.externalClickhouse.secretPasswordKey | default "password" | quote }}
+{{- end }}
 {{- end }}
 - name: CLICKHOUSE_USER
   value: {{ include "posthog.clickhouseUser" . | quote }}
@@ -791,8 +828,12 @@ Common environment variables shared across PostHog application services
   value: {{ printf "http://%s-plugins:6738" (include "posthog.fullname" .) | quote }}
 - name: RECORDING_API_URL
   value: {{ printf "http://%s-recording-api:6738" (include "posthog.fullname" .) | quote }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "FEATURE_FLAGS_SERVICE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "FEATURE_FLAGS_SERVICE_URL") }}
+{{- else }}
 - name: FEATURE_FLAGS_SERVICE_URL
   value: {{ printf "http://%s-feature-flags:3001" (include "posthog.fullname" .) | quote }}
+{{- end }}
 - name: LIVESTREAM_HOST
   value: {{ printf "https://%s/livestream" .Values.ingress.hostname | quote }}
 - name: FLAGS_REDIS_ENABLED
@@ -811,6 +852,22 @@ Common environment variables shared across PostHog application services
 {{ include "posthog.renderRemainingCustomEnv" (dict "root" . "excluded" $overridableEnvNames) }}
 {{- with .Values.global.extraEnv }}
 {{ toYaml . }}
+{{- end }}
+{{- end }}
+
+{{/*
+Empty dedicated hosts select the Node clients' REDIS_URL fallback. This retains
+the shared Secret's authentication, database, port and redis:// or rediss:// TLS
+configuration instead of constructing a second, potentially different endpoint.
+*/}}
+{{- define "posthog.nodeRedisEnv" -}}
+{{- range $name := list "CDP_REDIS_HOST" "LOGS_REDIS_HOST" "TRACES_REDIS_HOST" }}
+{{- if include "posthog.hasEnvOverride" (dict "root" $ "name" $name) }}
+{{ include "posthog.renderEnvOverride" (dict "root" $ "name" $name) }}
+{{- else }}
+- name: {{ $name }}
+  value: ""
+{{- end }}
 {{- end }}
 {{- end }}
 

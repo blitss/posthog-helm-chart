@@ -140,6 +140,22 @@ posthog:
   ##   POSTHOG_POSTGRES_CLI_SSL_CA / POSTHOG_POSTGRES_CLI_SSL_CRT /
   ##   POSTHOG_POSTGRES_CLI_SSL_KEY / POSTHOG_POSTGRES_SSL_MODE: PostgreSQL SSL client settings.
   ##   REDIS_URL: Redis URL. Default: required outside DEBUG/TEST.
+  ##   CDP_REDIS_HOST / LOGS_REDIS_HOST / TRACES_REDIS_HOST: Empty by default
+  ##     to reuse REDIS_URL, including credentials, database, port and TLS.
+  ##     For dedicated Redis, set the host/URL and matching *_REDIS_PORT;
+  ##     logs/traces also require *_REDIS_TLS to match that endpoint.
+  ##     Logs/traces credentials must be in the host URL (via secretEnv):
+  ##     upstream does not pass LOGS_REDIS_PASSWORD/TRACES_REDIS_PASSWORD to Redis.
+  ##   FEATURE_FLAGS_SERVICE_URL: Defaults to the in-cluster feature-flags service;
+  ##     override here when featureFlags.enabled=false and using an external service.
+  ##   CLICKHOUSE_LOGS_HOST / CLICKHOUSE_LOGS_CLUSTER_HOST: Default to CLICKHOUSE_HOST.
+  ##   CLICKHOUSE_LOGS_CLUSTER_PORT: Native TCP port; defaults to externalClickhouse.logsPort.
+  ##   CLICKHOUSE_LOGS_CLUSTER_SECURE: Defaults to clickhouse.secure, including external
+  ##     ClickHouse. Override for a separate logs endpoint (use its TLS native port).
+  ##   CLICKHOUSE_LOGS_CLUSTER_USER / CLICKHOUSE_LOGS_CLUSTER_PASSWORD: Default to
+  ##     the shared ClickHouse app credentials; use secretEnv for a separate password.
+  ##   ENCRYPTION_SALT_KEYS: Defaults to the shared Secret's encryption-salt-keys.
+  ##     Any secretEnv override must contain the same keys across Python and Node.
   ##   SOCIAL_AUTH_GITHUB_KEY / SOCIAL_AUTH_GITHUB_SECRET: GitHub SSO. Default: empty.
   ##   SOCIAL_AUTH_GITLAB_API_URL: GitLab auth base URL. Default: https://gitlab.com.
   ##   SOCIAL_AUTH_GITLAB_KEY / SOCIAL_AUTH_GITLAB_SECRET: GitLab SSO. Default: empty.
@@ -372,7 +388,8 @@ redis:
   podAnnotations: {}
 ## External Redis (used when redis.enabled=false)
 externalRedis:
-  ## Full URL: redis://[:password@]host:port/
+  ## Full URL: redis://[:password@]host:port/db (rediss:// enables TLS).
+  ## CDP, logs and traces reuse this URL via the shared redis-url Secret key.
   url: ''
 ## ------------------------------------------------------------------
 ## Kafka (Redpanda)
