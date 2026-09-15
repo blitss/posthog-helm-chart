@@ -453,7 +453,7 @@ valkey:
   enabled: true
   image:
     repository: valkey/valkey
-    tag: 8.1-alpine
+    tag: 9.1-alpine
     pullPolicy: IfNotPresent
   ## Auto-generated and preserved in the shared Secret when empty.
   ## With existingSecret, provide its valkey-password key instead.
