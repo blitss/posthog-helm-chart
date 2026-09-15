@@ -445,7 +445,7 @@ Renders all remaining custom env vars except the excluded names.
 Common environment variables shared across PostHog application services
 */}}
 {{- define "posthog.commonEnv" -}}
-{{- $overridableEnvNames := list "SECRET_KEY" "ENCRYPTION_SALT_KEYS" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" "FEATURE_FLAGS_SERVICE_URL" "CLICKHOUSE_LOGS_HOST" "CLICKHOUSE_LOGS_CLUSTER_HOST" "CLICKHOUSE_LOGS_CLUSTER_PORT" "CLICKHOUSE_LOGS_CLUSTER_SECURE" "CLICKHOUSE_LOGS_CLUSTER_USER" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD" "CDP_REDIS_HOST" "LOGS_REDIS_HOST" "TRACES_REDIS_HOST" -}}
+{{- $overridableEnvNames := list "SECRET_KEY" "ENCRYPTION_SALT_KEYS" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" "FEATURE_FLAGS_SERVICE_URL" "CLICKHOUSE_LOGS_HOST" "CLICKHOUSE_LOGS_CLUSTER_HOST" "CLICKHOUSE_LOGS_CLUSTER_PORT" "CLICKHOUSE_LOGS_CLUSTER_SECURE" "CLICKHOUSE_LOGS_CLUSTER_USER" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD" "CDP_REDIS_HOST" "LOGS_REDIS_HOST" "TRACES_REDIS_HOST" "ERROR_TRACKING_CYMBAL_BASE_URL" -}}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "SECRET_KEY") }}
 {{- else }}
@@ -851,6 +851,12 @@ Common environment variables shared across PostHog application services
       name: {{ include "posthog.fullname" . }}-app
       key: uri
 {{- end }}
+{{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "ERROR_TRACKING_CYMBAL_BASE_URL") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "ERROR_TRACKING_CYMBAL_BASE_URL") }}
+{{- else if .Values.cymbal.enabled }}
+- name: ERROR_TRACKING_CYMBAL_BASE_URL
+  value: {{ printf "http://%s-cymbal:3302" (include "posthog.fullname" .) | quote }}
 {{- end }}
 - name: CDP_API_URL
   value: {{ printf "http://%s-plugins:6738" (include "posthog.fullname" .) | quote }}

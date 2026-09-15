@@ -100,6 +100,7 @@ spec:
           - hypercache-server
           - personhog-replica
           - personhog-router
+          - cymbal
           - cymbal-resolution
   policyTypes:
     - Ingress

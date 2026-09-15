@@ -1229,40 +1229,28 @@ cymbal:
   affinity: {}
   podAnnotations: {}
   extraEnv: []
-  ## Remote exception-frame resolution offloaded to the cymbalResolution gRPC
-  ## service below. The CYMBAL_REMOTE_RESOLUTION_* env vars are only rendered on
-  ## the cymbal pods when remoteResolution.enabled=true, so cymbal is unchanged
-  ## by default. Mirrors the upstream prod default: a 0.0 sample rate keeps it a
-  ## no-op even when enabled, until you deliberately ramp the rollout.
+  ## All exception-frame resolution requires the cymbalResolution gRPC service.
   remoteResolution:
-    enabled: false
-    ## 0.0 = no traffic routed to cymbal-resolution (prod-safe default).
-    sampleRate: "0.0"
-    ## When empty, defaults to the in-cluster cymbal-resolution Service.
+    ## Set an external hostname when cymbalResolution.enabled=false.
+    ## Otherwise defaults to the in-cluster headless Service.
     host: ''
-    port: 50061
+    ## When unset, follows cymbalResolution.grpcPort.
+    port: null
     dnsRefreshSecs: 30
-    subscribeTickHintMs: 100
+    subscribeTickHintMs: 1000
 
-## Cymbal Resolution — gRPC service split out from cymbal that resolves
-## exception stack frames remotely (upstream `bin/start-rust-service
-## cymbal-resolution`). Reuses the cymbal image (no separate published image),
-## just a different mode. Needs only Postgres + S3, both provided via the shared
-## posthog env. Disabled by default; it is dormant upstream (prod sample rate
-## 0.0) until the rollout ramps. Enable alongside cymbal.remoteResolution.
+## Cymbal Resolution — mandatory symbol-resolution backend for cymbal processing.
+## Reuses the standalone cymbal image with CYMBAL_MODE=resolution; requires
+## Postgres, shared object storage, and the existing internal-api-secret.
 cymbalResolution:
-  enabled: false
+  enabled: true
   image:
     ## Reuses the cymbal image — falls back to the cymbal image when unset.
-    repository: ghcr.io/posthog/posthog/cymbal
-    tag: master
-    pullPolicy: Always
-  ## Entry point selecting the cymbal-resolution mode of the shared rust binary.
-  command:
-    - ./bin/start-rust-service
-    - cymbal-resolution
+    repository: ''
+    tag: ''
+    pullPolicy: ''
   replicas: 1
-  ## gRPC and Prometheus metrics ports (upstream dev defaults 50061 / 9106).
+  ## gRPC port and HTTP health/Prometheus metrics port.
   grpcPort: 50061
   metricsPort: 9106
   rustLog: info

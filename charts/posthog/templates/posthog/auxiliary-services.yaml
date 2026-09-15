@@ -394,9 +394,28 @@ spec:
 {{- end }}
 
 {{- if .Values.cymbal.enabled }}
+{{- if and (not .Values.cymbalResolution.enabled) (empty .Values.cymbal.remoteResolution.host) }}
+{{- fail "cymbal requires cymbalResolution.enabled=true or cymbal.remoteResolution.host pointing to an external resolution service" }}
+{{- end }}
 ## ------------------------------------------------------------------
 ## Cymbal service (error/exception processing)
 ## ------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posthog.fullname" . }}-cymbal
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" . "component" "cymbal") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3302
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cymbal") | nindent 4 }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -423,8 +442,23 @@ spec:
       {{- include "posthog.tolerations" (dict "root" . "component" "cymbal") | nindent 6 }}
       {{- include "posthog.affinity" (dict "root" . "component" "cymbal") | nindent 6 }}
       {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- if or .Values.geoip.enabled .Values.rustfs.enabled }}
       initContainers:
+        - name: wait-for-cymbal-resolution
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z "$RESOLUTION_HOST" "$RESOLUTION_PORT"; do
+                echo "cymbal-resolution not ready, retrying in 5s..."
+                sleep 5
+              done
+          env:
+            - name: RESOLUTION_HOST
+              value: {{ .Values.cymbal.remoteResolution.host | default (printf "%s-cymbal-resolution" (include "posthog.fullname" .)) | quote }}
+            - name: RESOLUTION_PORT
+              value: {{ .Values.cymbal.remoteResolution.port | default .Values.cymbalResolution.grpcPort | quote }}
         {{- if .Values.geoip.enabled }}
         {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
         {{- end }}
@@ -454,13 +488,17 @@ spec:
                 sleep 5
               done
         {{- end }}
-      {{- end }}
       containers:
         - name: cymbal
           image: "{{ .Values.cymbal.image.repository }}:{{ .Values.cymbal.image.tag }}"
           imagePullPolicy: {{ .Values.cymbal.image.pullPolicy | default "Always" }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cymbal") | nindent 10 }}
+          ports:
+            - containerPort: 3302
+              name: http
           env:
+            - name: CYMBAL_MODE
+              value: processing
             - name: BIND_HOST
               value: "0.0.0.0"
             - name: BIND_PORT
@@ -491,23 +529,14 @@ spec:
                   key: redis-url
             - name: RUST_LOG
               value: "info"
-            {{- if .Values.cymbal.remoteResolution.enabled }}
-            ## Offload symbol/frame resolution to the cymbal-resolution gRPC
-            ## service. SAMPLE_RATE defaults to 0.0 so this stays a no-op until
-            ## the rollout is ramped, matching the upstream production default.
-            - name: CYMBAL_REMOTE_RESOLUTION_ENABLED
-              value: "true"
-            - name: CYMBAL_REMOTE_RESOLUTION_SAMPLE_RATE
-              value: {{ .Values.cymbal.remoteResolution.sampleRate | default "0.0" | quote }}
             - name: CYMBAL_REMOTE_RESOLUTION_HOST
               value: {{ .Values.cymbal.remoteResolution.host | default (printf "%s-cymbal-resolution" (include "posthog.fullname" .)) | quote }}
             - name: CYMBAL_REMOTE_RESOLUTION_PORT
-              value: {{ .Values.cymbal.remoteResolution.port | default 50061 | quote }}
+              value: {{ .Values.cymbal.remoteResolution.port | default .Values.cymbalResolution.grpcPort | quote }}
             - name: CYMBAL_REMOTE_RESOLUTION_DNS_REFRESH_SECS
               value: {{ .Values.cymbal.remoteResolution.dnsRefreshSecs | default 30 | quote }}
             - name: CYMBAL_REMOTE_RESOLUTION_SUBSCRIBE_TICK_HINT_MS
-              value: {{ .Values.cymbal.remoteResolution.subscribeTickHintMs | default 100 | quote }}
-            {{- end }}
+              value: {{ .Values.cymbal.remoteResolution.subscribeTickHintMs | quote }}
             {{- with .Values.cymbal.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -519,12 +548,16 @@ spec:
               mountPath: /share
               readOnly: true
           {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /_readiness
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
           livenessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - "test -d /proc/1"
+            httpGet:
+              path: /_liveness
+              port: http
             initialDelaySeconds: 30
             periodSeconds: 30
       {{- if .Values.geoip.enabled }}
@@ -537,7 +570,7 @@ spec:
 {{- if .Values.cymbalResolution.enabled }}
 ## ------------------------------------------------------------------
 ## Cymbal Resolution (Rust gRPC backend that resolves exception stack
-## frames). Reuses the cymbal image, run in `cymbal-resolution` mode.
+## frames). Reuses the cymbal image with CYMBAL_MODE=resolution.
 ## ------------------------------------------------------------------
 ---
 apiVersion: v1
@@ -548,6 +581,7 @@ metadata:
     {{- include "posthog.componentLabels" (dict "root" . "component" "cymbal-resolution") | nindent 4 }}
 spec:
   type: ClusterIP
+  clusterIP: None
   ports:
     - port: {{ .Values.cymbalResolution.grpcPort | default 50061 }}
       targetPort: grpc
@@ -620,16 +654,14 @@ spec:
           image: "{{ include "posthog.imageRef" (dict "root" . "component" "cymbalResolution" "fallbackComponent" "cymbal") }}"
           imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "cymbalResolution" "fallbackComponent" "cymbal") }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cymbalResolution") | nindent 10 }}
-          {{- with .Values.cymbalResolution.command }}
-          command:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
           ports:
             - containerPort: {{ .Values.cymbalResolution.grpcPort | default 50061 }}
               name: grpc
             - containerPort: {{ .Values.cymbalResolution.metricsPort | default 9106 }}
               name: metrics
           env:
+            - name: CYMBAL_MODE
+              value: resolution
             - name: GRPC_ADDRESS
               value: {{ printf "0.0.0.0:%v" (.Values.cymbalResolution.grpcPort | default 50061) | quote }}
             - name: METRICS_PORT
@@ -637,29 +669,21 @@ spec:
             - name: RUST_LOG
               value: {{ .Values.cymbalResolution.rustLog | default "info" | quote }}
             {{- include "posthog.commonEnv" . | nindent 12 }}
-            {{- if include "posthog.externalPostgresqlUseCredentialSecret" . }}
-            - name: PERSONS_URL
-              value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
-            {{- else }}
-            - name: PERSONS_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.databaseSecretName" . }}
-                  key: {{ include "posthog.databaseSecretKey" . }}
-            {{- end }}
             {{- with .Values.cymbalResolution.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           resources:
             {{- toYaml .Values.cymbalResolution.resources | nindent 12 }}
           readinessProbe:
-            tcpSocket:
-              port: grpc
+            httpGet:
+              path: /_readiness
+              port: metrics
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
-              port: grpc
+            httpGet:
+              path: /_liveness
+              port: metrics
             initialDelaySeconds: 30
             periodSeconds: 30
 {{- end }}
