@@ -37,6 +37,8 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       runtime: ${{ steps.changes.outputs.runtime }}
+      publish-images: ${{ steps.changes.outputs.publish-images }}
+      publish-chart: ${{ steps.changes.outputs.publish-chart }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -50,17 +52,36 @@ jobs:
           if [[ -n "$EXPECTED_HEAD" ]]; then test "$EXPECTED_HEAD" = "$GITHUB_SHA"; fi
           if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
             echo "runtime=true" >> "$GITHUB_OUTPUT"
+            echo "publish-images=true" >> "$GITHUB_OUTPUT"
+            echo "publish-chart=true" >> "$GITHUB_OUTPUT"
           else
             git diff --name-only "$BASE" "$GITHUB_SHA" > /tmp/changed-paths
             python3 - <<'PY'
-          import os, pathlib
+          import os, pathlib, re, subprocess
           paths = pathlib.Path("/tmp/changed-paths").read_text().splitlines()
           prefixes = (".github/workflows/", "charts/", "images/", "vendor/", "manifests/", "scripts/", "kind-config")
-          files = {".github/renovate.json5", "mise.toml"}
+          files = {".github/renovate.json5", ".dockerignore", "mise.toml"}
           runtime = any(not p.endswith(".md") and (p.startswith(prefixes) or p in files) for p in paths)
+          # A deployment-pin PR must be tested, but rebuilding/promoting it would
+          # produce another digest-only Renovate PR forever (labels include SHA).
+          image_files = {
+              ".dockerignore", ".github/workflows/build-posthog-images.yaml",
+              "charts/posthog/files/web-startup.sh",
+          }
+          publish_images = any(
+              not p.endswith(".md") and (p.startswith(("images/", "vendor/")) or p in image_files)
+              for p in paths
+          )
+          def chart_version(ref):
+              chart = subprocess.check_output(["git", "show", f"{ref}:charts/posthog/Chart.yaml"], text=True)
+              return re.search(r"^version:\s*(.+)$", chart, re.MULTILINE).group(1).strip()
+          publish_chart = chart_version(os.environ["BASE"]) != chart_version(os.environ["GITHUB_SHA"])
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write(f"runtime={str(runtime).lower()}\n")
+              output.write(f"publish-images={str(publish_images).lower()}\n")
+              output.write(f"publish-chart={str(publish_chart).lower()}\n")
           PY
+          fi
 
   build:
     needs: plan
@@ -347,6 +368,11 @@ jobs:
             yq -o=json 'select(.kind == "HelmRelease" and .metadata.name == "posthog")' /tmp/posthog-ci.yaml \
               | python3 scripts/verify-release-profile-images.py /tmp/profile.json > /tmp/profile-release.json
             yq -i '(select(.kind == "HelmRelease" and .metadata.name == "posthog")) = load("/tmp/profile-release.json")' /tmp/posthog-ci.yaml
+            # ClickHouse is an operator CR, not a HelmRelease image value.
+            CH_IMAGE="$(yq -er '.spec.templates.podTemplates[].spec.containers[] | select(.name == "clickhouse") | .image' manifests/hub-production/clickhouse.yaml)"
+            export CH_IMAGE="${CH_IMAGE#registry.streamloop.app/}"
+            [[ "$CH_IMAGE" =~ ^[^[:space:]]+@sha256:[0-9a-f]{64}$ ]]
+            yq -i '(select(.kind == "ClickHouseInstallation") | .spec.templates.podTemplates[].spec.containers[] | select(.name == "clickhouse") | .image) = strenv(CH_IMAGE)' /tmp/posthog-ci.yaml
           fi
           if [[ "${{ matrix.images }}" == candidate ]]; then
             for pair in posthog:web web:web worker:worker workerBeat:worker temporalDjangoWorker:worker workerExports:worker-exports migrate:migrate asyncMigrationsCheck:migrate cyclotronMigrate:cyclotron-migrate; do
@@ -510,8 +536,11 @@ jobs:
 
   publish:
     needs: [plan, release-ready]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.plan.outputs.runtime == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.plan.outputs.publish-images == 'true' || needs.plan.outputs.publish-chart == 'true')
     permissions:
       contents: read
       packages: write
     uses: ./.github/workflows/publish-posthog-artifacts.yaml
+    with:
+      publish_images: ${{ needs.plan.outputs.publish-images == 'true' }}
+      publish_chart: ${{ needs.plan.outputs.publish-chart == 'true' }}

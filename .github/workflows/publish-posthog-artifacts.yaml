@@ -3,6 +3,13 @@ name: publish-posthog-artifacts
 # Called only after release-ready in kind-happy-path; never rebuild at publish time.
 on:
   workflow_call:
+    inputs:
+      publish_images:
+        required: true
+        type: boolean
+      publish_chart:
+        required: true
+        type: boolean
 
 permissions:
   contents: read
@@ -11,7 +18,7 @@ permissions:
 jobs:
   images:
     name: publish tested ${{ matrix.image }} (${{ matrix.arch }})
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.publish_images
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -55,6 +62,7 @@ jobs:
     needs: images
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
         with:
           version: v0.28.0
@@ -70,19 +78,28 @@ jobs:
           for role in web worker worker-exports migrate cyclotron-migrate clickhouse; do
             image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/posthog-${role}"
             sources=("${image}:sha-${GITHUB_SHA}-amd64")
-            if [[ "$role" == clickhouse ]]; then sources+=("${image}:sha-${GITHUB_SHA}-arm64"); fi
-            docker buildx imagetools create -t "${image}:sha-${GITHUB_SHA}" -t "${image}:latest" "${sources[@]}"
+            tags=(-t "${image}:sha-${GITHUB_SHA}" -t "${image}:latest")
+            if [[ "$role" == clickhouse ]]; then
+              sources+=("${image}:sha-${GITHUB_SHA}-arm64")
+              base="$(awk '$1=="FROM"{ref=$2} END{print ref}' images/clickhouse/Dockerfile)"
+              base="${base%%@*}"
+              version="${base##*:}"
+              [[ "$version" != "$base" && "$version" =~ ^[0-9][a-zA-Z0-9_.-]*$ ]]
+              tags+=(-t "${image}:${version}")
+            fi
+            docker buildx imagetools create "${tags[@]}" "${sources[@]}"
             docker buildx imagetools inspect "${image}:sha-${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
           done
 
   chart:
     name: publish tested chart
     needs: image-tags
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.publish_chart && ((!inputs.publish_images && needs.image-tags.result == 'skipped') || needs.image-tags.result == 'success')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: chart
@@ -93,11 +110,15 @@ jobs:
       - name: Push exact tested package when chart version changes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
           (cd dist && sha256sum --check SHA256SUMS)
           test "$(cat dist/revision)" = "$GITHUB_SHA"
-          previous="$(git show HEAD^:charts/posthog/Chart.yaml | sed -n 's/^version: *//p')"
+          previous=""
+          if [[ -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            previous="$(git show "${PUSH_BEFORE}:charts/posthog/Chart.yaml" | sed -n 's/^version: *//p')"
+          fi
           current="$(sed -n 's/^version: *//p' charts/posthog/Chart.yaml)"
           if [[ "$previous" == "$current" ]]; then
             echo "Chart version unchanged ($current); no chart publication." >> "$GITHUB_STEP_SUMMARY"
