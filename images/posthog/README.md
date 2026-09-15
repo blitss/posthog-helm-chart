@@ -36,3 +36,12 @@ docker build \
   -f images/posthog/Dockerfile.web \
   -t posthog-web .
 ```
+
+The image workflow accepts `posthog_image` (the full immutable upstream reference)
+and `image_tag` (the published tag). All roles use the same pinned source.
+
+The migration image includes the legacy model-move preparation command required
+by the chart. Its build guard currently requires upstream commit
+`8471862b083b25d3a11b97eb7730f21aa0cb4c7f`; review
+[issue #65](https://github.com/blitss/posthog-helm-chart/issues/65) before changing
+that pin, including the [SCIM historical-field backport](https://github.com/blitss/posthog-helm-chart/issues/66). An unmodified upstream monolith cannot replace this migration role.
