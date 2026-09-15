@@ -2,7 +2,7 @@
 
 Compatibility for PostHog 8471862b083b25d3a11b97eb7730f21aa0cb4c7f:
 https://github.com/blitss/posthog-helm-chart/issues/65
-The image build pins the source revision; no upstream migration is rewritten.
+The image pins this revision and separately backports SCIM migration ee.0058 (#66).
 """
 
 from django.core.management.base import BaseCommand, CommandError

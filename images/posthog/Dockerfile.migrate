@@ -46,11 +46,12 @@ COPY --from=upstream --chown=posthog:posthog /code/frontend/src/products.json /c
 COPY --from=upstream --chown=posthog:posthog /code/services/mcp/schema /code/services/mcp/schema
 COPY --from=upstream --chown=posthog:posthog /code/rust/persons_migrations /code/rust/persons_migrations
 
-# Re-review the legacy model-move ordering before accepting another upstream revision.
-# https://github.com/blitss/posthog-helm-chart/issues/65
+# Re-review the legacy model moves and SCIM backfill before accepting another upstream revision.
+# https://github.com/blitss/posthog-helm-chart/issues/65 and /issues/66
 RUN test "$(cat /code/commit.txt)" = "8471862b083b25d3a11b97eb7730f21aa0cb4c7f" || \
-    { echo "Upstream revision changed: review legacy model-move compatibility (#65)" >&2; exit 1; }
+    { echo "Upstream revision changed: review migration compatibility (#65/#66)" >&2; exit 1; }
 COPY --chown=posthog:posthog images/posthog/migrate_legacy_model_moves.py /code/posthog/management/commands/migrate_legacy_model_moves.py
+COPY --chown=posthog:posthog images/posthog/migrations/0058_backfill_scim_provisioned_user_config.py /code/ee/migrations/0058_backfill_scim_provisioned_user_config.py
 
 USER posthog
 
