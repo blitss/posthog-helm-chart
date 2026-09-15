@@ -109,6 +109,10 @@ python3 scripts/deploy-hub-production.py backup \
   --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade \
   --writers-quiesced --apply
 
+python3 scripts/deploy-hub-production.py infrastructure \
+  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade \
+  --writers-quiesced --apply
+
 python3 scripts/deploy-hub-production.py migrate \
   --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade \
   --writers-quiesced --apply
@@ -122,14 +126,16 @@ python3 scripts/deploy-hub-production.py verify \
   --url https://YOUR-POSTHOG-HOST --apply
 ```
 
-For fresh installation use the same stages with `--mode fresh`. Before any
-cluster mutation, `prepare` pulls the profile's exact `OCIRepository.ref.digest`
-and verifies its recorded `posthog.streamloop.app/chart-version` and supported
-application revision. It then suspends the parent Flux Kustomization and
-HelmRelease when present, locks the namespace, removes HPAs, scales application
-writers to zero, applies dependency
-CRs, waits for databases, bootstraps Secrets and creates a pinned migration pod.
-The initial Helm installation holds application Deployments at zero.
+For fresh installation use `--mode fresh` and omit the explicit `infrastructure`
+invocation: fresh `prepare` provisions dependencies and completes that stage.
+Before any cluster mutation, `prepare` pulls the profile's exact OCI digest and
+verifies its recorded chart version and supported application revision. For
+upgrades it also rejects PostgreSQL major-version changes before holding
+workloads. It suspends Flux, locks the namespace, removes HPAs, stops application
+writers, bootstraps Secrets and creates the pinned migration pod. **Upgrade
+prepare does not apply target CNPG, ClickHouse, Redpanda or Elasticsearch specs.**
+It checks the existing databases; their verified backup must come first.
+The initial fresh Helm installation holds application Deployments at zero.
 `backup` runs `pg_dumpall` into a private server-side file and freezes every
 ClickHouse MergeTree in `default` and `posthog` with a unique alphanumeric
 snapshot name. It retains SHOW CREATE/engine/UUID metadata and compresses the
@@ -147,6 +153,16 @@ private backups. No CSI snapshots, ClickHouse backup disk, or application R2
 bucket is assumed. This is a verified backup transfer, not a restore drill:
 retain an independently tested recovery procedure and secure off-cluster copies.
 
+After backup, `infrastructure` first patches only the ClickHouse container image
+in the live CHI, retaining the old configuration. It requires completed operator
+reconciliation and a Ready pod using the target image before applying new
+ClickHouse configuration, then the remaining target dependency resources.
+This prevents an older ClickHouse binary from loading newer settings. The
+operator's `taskID` is required to distinguish a completed new reconciliation
+from stale readiness. CNPG major-version migrations are deliberately unsupported.
+Required database names come from the configured main/persons/Node URLs; an
+unused separate `posthog_persons` database is not required.
+
 `migrate` refuses unreconciled legacy logs, verifies required system log tables
 and runs actual chart hook Jobs in weight order, including Node SQLx, original
 legacy model moves, Django/product, persons, ClickHouse/schema sync and async
@@ -159,7 +175,7 @@ not claim success from HTTP acceptance alone.
 
 #### Legacy logs database reconciliation
 
-Between `backup` and `migrate`, installations affected by #70 run:
+After `infrastructure` and before `migrate`, installations affected by #70 run:
 
 ```bash
 python3 scripts/deploy-hub-production.py logs --logs-phase snapshot \
@@ -185,8 +201,9 @@ legacy Kafka metadata is deliberately retained, never reattached or dropped.
 For direct execution in the pinned migration image, the standalone interface is
 `python /path/to/reconcile-clickhouse-logs.py PHASE /private/logs-repair.json
 [--apply --writers-quiesced]`; `PHASE` is `snapshot`, `reconcile`, `consumers`,
-`drain`, `verify` or `finalize`. The script adds `/code` to its import path, so
-absolute-path invocation works. Snapshot is database-read-only; mutations
+`drain`, `verify` or `finalize`. The script adds `/code` and `/python-runtime` to
+its import path, and the runner explicitly sets `PYTHONPATH=/code:/python-runtime`
+for remote Python execution. Snapshot is database-read-only; mutations
 require `--apply`. Verification only updates the private checkpoint.
 
 #### Interrupted runs

@@ -21,8 +21,8 @@ from pathlib import Path
 
 import sys
 
-# Absolute script paths otherwise omit /code from Python module lookup.
-sys.path.insert(0, "/code")
+# Absolute script paths otherwise omit the application and slim-image dependencies.
+sys.path[:0] = ["/code", "/python-runtime"]
 
 SOURCE = "default"
 DEST = "posthog"

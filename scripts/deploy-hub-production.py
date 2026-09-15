@@ -66,7 +66,7 @@ def main():
         yaml.safe_dump_all(held([d for d in yaml.safe_load_all(sys.stdin) if d]), sys.stdout)
         return
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("phase", choices=("prepare", "backup", "logs", "migrate", "rollout", "verify"))
+    p.add_argument("phase", choices=("prepare", "backup", "infrastructure", "logs", "migrate", "rollout", "verify"))
     p.add_argument("--context", required=True)
     p.add_argument("--kubeconfig")
     p.add_argument("--mode", choices=("fresh", "upgrade"), required=True)
@@ -83,6 +83,7 @@ def main():
         print(f"PLAN {args.mode} {args.phase}: context={args.context}, namespace=posthog, profile={args.profile}")
         print("prepare: suspend Flux owners; stop application writers; bootstrap dependencies/Secrets; hold application rollout")
         print("backup: private pg_dumpall + frozen ClickHouse archive, bounded transfer and remote/local SHA-256 verification")
+        print("infrastructure: after verified backup, upgrade ClickHouse binary with live config, then apply target stateful specs")
         print("logs (legacy default database only): snapshot -> reconcile -> consumers; then migrate -> drain -> verify -> finalize")
         print("migrate: real Node SQLx, legacy model moves, Django/product/persons, ClickHouse and async migrations")
         print("rollout: release held workloads and resume Flux; verify: readiness + HTTPS capture -> ClickHouse UUID")
@@ -110,12 +111,36 @@ def main():
     def complete(name):
         require(state["steps"].get(name) == "complete", "Complete stage first: " + name)
     def execute(code):
-        return k("-n", NAMESPACE, "exec", "-i", POD, "--", "python", "-", data=code.encode())
+        return k("-n", NAMESPACE, "exec", "-i", POD, "--", "env", "PYTHONPATH=/code:/python-runtime", "python", "-", data=code.encode())
     def ch(sql):
         code = "import os,json\nfrom clickhouse_driver import Client\nc=Client(os.environ['CLICKHOUSE_HOST'],user=os.environ['CLICKHOUSE_USER'],password=os.environ['CLICKHOUSE_PASSWORD'])\n"
         return json.loads(execute(code + "print(json.dumps(c.execute(" + repr(sql) + "),default=str))"))
     def wait_resource(resource, condition="Ready"):
         k("-n", NAMESPACE, "wait", resource, "--for=condition=" + condition, "--timeout=" + str(args.timeout) + "s")
+    def wait_clickhouse(image=None, previous_task=None):
+        deadline = time.monotonic() + args.timeout
+        while True:
+            chi = obj("-n", NAMESPACE, "get", "clickhouseinstallation", "posthog")
+            pods = obj("-n", NAMESPACE, "get", "pods", "-l", "clickhouse.altinity.com/chi=posthog")["items"]
+            ready = len(pods) == 1 and any(c["type"] == "Ready" and c["status"] == "True"
+                                         for c in pods[0].get("status", {}).get("conditions", []))
+            if image and ready:
+                ready = any(c["name"] == "clickhouse" and c["image"] == image for c in pods[0]["spec"]["containers"])
+            status = chi.get("status", {})
+            reconciled = status.get("status") == "Completed" and (
+                previous_task is None or status.get("taskID") not in {None, previous_task})
+            if ready and reconciled:
+                return
+            require(time.monotonic() < deadline, "ClickHouse reconciliation/image readiness did not complete")
+            time.sleep(2)
+    def apply_clickhouse(doc):
+        before = obj("-n", NAMESPACE, "get", "clickhouseinstallation", "posthog")
+        apply(doc)
+        after = obj("-n", NAMESPACE, "get", "clickhouseinstallation", "posthog")
+        task = before.get("status", {}).get("taskID")
+        changed = before["metadata"]["generation"] != after["metadata"]["generation"]
+        require(not changed or task, "Cannot verify ClickHouse reconciliation without an operator taskID")
+        wait_clickhouse(previous_task=task if changed else None)
     def assert_held():
         for d in obj("-n", NAMESPACE, "get", "deployments")["items"]:
             if d["metadata"]["name"].startswith("posthog-") and d["metadata"].get("labels", {}).get("app.kubernetes.io/component") not in INFRA:
@@ -154,9 +179,11 @@ def main():
         require(obj("get", "namespace", NAMESPACE)["metadata"]["uid"] == state["namespace_uid"], "Namespace was replaced")
         require(obj("-n", NAMESPACE, "get", "configmap", "posthog-upgrade-lock")["data"]["run"] == state["id"],
                 "Upgrade lock belongs to another run")
-    if args.phase in {"logs", "migrate"}:
+    if args.phase in {"infrastructure", "logs", "migrate"}:
         complete("backup")
         assert_held()
+    if args.phase in {"logs", "migrate"}:
+        complete("infrastructure")
     if args.phase == "rollout":
         complete("migrate")
         if "logs:reconcile" in state["steps"]:
@@ -190,6 +217,23 @@ def main():
         require(chart.get("appVersion") == "8471862b083b25d3a11b97eb7730f21aa0cb4c7f",
                 "Unsupported application revision")
         state["chart_source"] = reference
+        state["dependencies"] = [d for d in docs if d["kind"] not in {"Namespace", "HelmRelease"}]
+        if args.mode == "upgrade":
+            current_pg = obj("-n", NAMESPACE, "get", "cluster.postgresql.cnpg.io", "posthog-pg")
+            targets = [d for d in docs if d["kind"] == "Cluster" and d["apiVersion"].startswith("postgresql.cnpg.io/")]
+            require(len(targets) == 1, "Expected one target CNPG Cluster")
+            def pg_major(cluster):
+                image = cluster["spec"].get("imageName", "")
+                match = re.search(r":(\d+)(?:[.@-]|$)", image)
+                require(match, "Cannot establish PostgreSQL major version from explicit imageName")
+                return int(match.group(1))
+            require(pg_major(current_pg) == pg_major(targets[0]),
+                    "PostgreSQL major-version upgrades require a separate migration; refusing before holding workloads")
+            server_version = int(k("-n", NAMESPACE, "exec", current_pg["status"]["currentPrimary"],
+                                   "-c", "postgres", "--", "psql", "-U", "postgres", "-Atc",
+                                   "SHOW server_version_num").strip())
+            require(server_version // 10000 == pg_major(targets[0]),
+                    "Running PostgreSQL major differs from target; refusing before holding workloads")
     state["steps"][stage] = "started"
     checkpoint()
     if args.phase == "prepare":
@@ -220,21 +264,26 @@ def main():
                     k("-n", NAMESPACE, "scale", "deployment/" + d["metadata"]["name"], "--replicas=0")
                     selector = ",".join(a + "=" + b for a, b in d["spec"]["selector"]["matchLabels"].items())
                     k("-n", NAMESPACE, "wait", "pod", "-l", selector, "--for=delete", "--timeout=" + str(args.timeout) + "s")
-        for d in docs:
-            if d["kind"] == "Cluster" and d["apiVersion"].startswith("postgresql.cnpg.io/"):
-                apply(d)
+        if args.mode == "fresh":
+            for d in docs:
+                if d["kind"] == "Cluster" and d["apiVersion"].startswith("postgresql.cnpg.io/"):
+                    apply(d)
         wait_resource("cluster.postgresql.cnpg.io/posthog-pg")
         bootstrap = [sys.executable, ROOT / "scripts/bootstrap-hub-production-secrets.py", "--context", args.context, "--apply"]
         if args.kubeconfig:
             bootstrap += ["--kubeconfig", args.kubeconfig]
         command(bootstrap)
-        for d in docs:
-            if d["kind"] not in {"Namespace", "HelmRelease", "Cluster"}:
-                apply(d)
-        for resource in ("redpanda/posthog-redpanda",):
-            wait_resource(resource)
-        k("-n", NAMESPACE, "wait", "clickhouseinstallation/posthog", "--for=jsonpath={.status.status}=Completed",
-          "--timeout=" + str(args.timeout) + "s")
+        if args.mode == "fresh":
+            for d in docs:
+                if d["kind"] not in {"Namespace", "HelmRelease", "Cluster"}:
+                    apply(d)
+            wait_resource("redpanda/posthog-redpanda")
+            wait_clickhouse()
+            state["steps"]["infrastructure"] = "complete"
+        else:
+            # Existing stateful specs remain untouched until their backup is verified.
+            wait_resource("redpanda/posthog-redpanda")
+            wait_clickhouse()
         rendered = [d for d in yaml.safe_load_all(helm("template", RELEASE, state["chart"], "-n", NAMESPACE, "-f", "-", data=helm_values())) if d]
         jobs = {d["metadata"]["name"]: d for d in rendered if d["kind"] == "Job"}
         require(RELEASE + "-migrate" in jobs and RELEASE + "-cyclotron-migrate" in jobs, "Both migration roles must be enabled")
@@ -252,6 +301,7 @@ def main():
         apply({"apiVersion": "v1", "kind": "Pod", "metadata": {"name": POD, "namespace": NAMESPACE}, "spec": spec})
         wait_resource("pod/" + POD)
         require(execute("from pathlib import Path; print(Path('/code/commit.txt').read_text().strip())").decode().strip() == chart["appVersion"], "Migration image source differs")
+        require(ch("SELECT 1") == [[1]], "Existing ClickHouse is not reachable")
     elif args.phase == "backup":
         assert_held()
         snapshot_name = "posthog" + state["id"]
@@ -283,7 +333,12 @@ def main():
             return {"bytes": size, "sha256": expected}
         databases = remote(primary, "postgres", "psql", "-U", "postgres", "-Atc",
                            "SELECT datname FROM pg_database WHERE NOT datistemplate").decode().splitlines()
-        require({"posthog", "posthog_persons", "cyclotron_node"} <= set(databases), "Required existing PostgreSQL databases are missing")
+        required_databases = json.loads(execute(
+            "import os,json,urllib.parse\n"
+            "names={urllib.parse.unquote(urllib.parse.urlsplit(os.environ[key]).path.lstrip('/')) "
+            "for key in ('DATABASE_URL','PERSONS_DATABASE_URL','CYCLOTRON_NODE_DATABASE_URL')}\n"
+            "assert all(names), 'Configured database URL lacks a database name'\nprint(json.dumps(sorted(names)))"))
+        require(set(required_databases) <= set(databases), "A configured main/persons/Node database is missing from CNPG")
         pg_remote = "/tmp/" + snapshot_name + ".sql"
         remote(primary, "postgres", "sh", "-ec", "umask 077; pg_dumpall -U postgres -f " + pg_remote)
         pg_local = args.state_dir / "postgres.sql"
@@ -329,6 +384,38 @@ def main():
             ch("ALTER TABLE `" + db + "`.`" + name + "` UNFREEZE WITH NAME '" + snapshot_name + "'")
         remote(primary, "postgres", "rm", pg_remote)
         remote(ch_pod, "clickhouse", "rm", ch_remote)
+    elif args.phase == "infrastructure":
+        targets = [d for d in state["dependencies"] if d["kind"] == "ClickHouseInstallation"]
+        require(len(targets) == 1, "Expected one target ClickHouseInstallation")
+        target_chi = targets[0]
+        live_chi = obj("-n", NAMESPACE, "get", "clickhouseinstallation", "posthog")
+        target_images = {p["name"]: c["image"] for p in target_chi["spec"]["templates"]["podTemplates"]
+                         for c in p["spec"]["containers"] if c["name"] == "clickhouse"}
+        patches = []
+        for i, template in enumerate(live_chi["spec"]["templates"]["podTemplates"]):
+            for j, container in enumerate(template["spec"]["containers"]):
+                if container["name"] == "clickhouse":
+                    require(template["name"] in target_images, "Target changes ClickHouse pod template layout")
+                    patches.append({"op": "replace", "path": f"/spec/templates/podTemplates/{i}/spec/containers/{j}/image",
+                                    "value": target_images[template["name"]]})
+        require(len(patches) == 1, "Binary-only upgrade supports one ClickHouse container")
+        task = live_chi.get("status", {}).get("taskID")
+        require(task, "Cannot verify binary-only ClickHouse upgrade without an operator taskID")
+        k("-n", NAMESPACE, "patch", "clickhouseinstallation", "posthog", "--type=json", "-p", json.dumps(patches))
+        updated = obj("-n", NAMESPACE, "get", "clickhouseinstallation", "posthog")
+        changed = updated["metadata"]["generation"] != live_chi["metadata"]["generation"]
+        wait_clickhouse(image=patches[0]["value"], previous_task=task if changed else None)
+        # Only the ready new binary may load the new configuration.
+        apply_clickhouse(target_chi)
+        for doc in state["dependencies"]:
+            if doc["kind"] != "ClickHouseInstallation":
+                apply(doc)
+        wait_resource("cluster.postgresql.cnpg.io/posthog-pg")
+        wait_resource("redpanda/posthog-redpanda")
+        elasticsearch = [d for d in state["dependencies"] if d["kind"] == "Elasticsearch"]
+        for doc in elasticsearch:
+            k("-n", NAMESPACE, "wait", "elasticsearch/" + doc["metadata"]["name"],
+              "--for=jsonpath={.status.phase}=Ready", "--timeout=" + str(args.timeout) + "s")
     elif args.phase == "logs":
         require(args.logs_phase, "--logs-phase is required")
         repair = ROOT / "scripts/reconcile-clickhouse-logs.py"
@@ -337,7 +424,8 @@ def main():
         if snapshot.exists():
             execute("from pathlib import Path; Path('/tmp/logs-repair.json').write_bytes(" + repr(snapshot.read_bytes()) + ")")
         try:
-            k("-n", NAMESPACE, "exec", POD, "--", "python", "/tmp/reconcile-clickhouse-logs.py", args.logs_phase, "/tmp/logs-repair.json", "--writers-quiesced", "--apply")
+            k("-n", NAMESPACE, "exec", POD, "--", "env", "PYTHONPATH=/code:/python-runtime",
+              "python", "/tmp/reconcile-clickhouse-logs.py", args.logs_phase, "/tmp/logs-repair.json", "--writers-quiesced", "--apply")
         finally:
             # Recovery checkpoints must outlive the temporary pod, including failed phases.
             saved = execute("from pathlib import Path; p=Path('/tmp/logs-repair.json'); print(p.read_text() if p.exists() else '')")

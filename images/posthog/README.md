@@ -53,6 +53,7 @@ with application rollout held until those Jobs finish.
 The repository also carries [`scripts/reconcile-clickhouse-logs.py`](../../scripts/reconcile-clickhouse-logs.py),
 the staged storage-preserving #70 recovery. Run it inside this pinned migration
 image, not a web/worker image. Absolute script paths work because it adds `/code`
-to its Python import path. Keep its private journal outside the container;
+and `/python-runtime` to its Python import path. The runner also explicitly sets
+`PYTHONPATH=/code:/python-runtime`. Keep its private journal outside the container;
 the deployment runner transfers it after each phase. Never fake migration
 history or substitute a snapshot rollback for completing genuine migrations.
