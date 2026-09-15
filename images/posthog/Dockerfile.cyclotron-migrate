@@ -3,20 +3,16 @@
 # A small image for the Node v2 cyclotron database. Runtime PostHog images
 # do not ship sqlx-cli or its migrations, so the Helm pre-upgrade hook uses
 # this image to run sqlx database create and sqlx migrate run.
-#
-# POSTHOG_IMAGE build-arg is accepted (passed by the shared build matrix) but
-# unused here.
-ARG POSTHOG_IMAGE=posthog/posthog:latest
 
-FROM rust:1.91-slim-bookworm AS sqlx-builder
+FROM rust:1.91-slim-bookworm@sha256:8514999d4786ef12efe89239e86b3d0a021b94b9d35108c8efe6c79ca7dc1a65 AS sqlx-builder
 ARG SQLX_CLI_VERSION=0.8.3
 RUN apt-get update \
  && apt-get install -y --no-install-recommends pkg-config libssl-dev \
  && rm -rf /var/lib/apt/lists/* \
- && cargo install sqlx-cli --version "${SQLX_CLI_VERSION}" \
+ && cargo install sqlx-cli --version "${SQLX_CLI_VERSION}" --locked \
       --no-default-features --features rustls,postgres --root /opt/sqlx
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates libssl3 \
  && rm -rf /var/lib/apt/lists/* \

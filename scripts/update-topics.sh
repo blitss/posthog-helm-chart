@@ -11,8 +11,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALUES="${SCRIPT_DIR}/../charts/posthog/values.yaml"
 
-PY_URL="https://raw.githubusercontent.com/PostHog/posthog/master/posthog/kafka_client/topics.py"
-TS_URL="https://raw.githubusercontent.com/PostHog/posthog/master/nodejs/src/common/config/kafka-topics.ts"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -23,6 +21,13 @@ require_cmd() {
 
 require_cmd curl
 require_cmd yq
+POSTHOG_REF="${POSTHOG_REF:-$(yq -r '.appVersion' "${SCRIPT_DIR}/../charts/posthog/Chart.yaml")}"
+if [[ ! "$POSTHOG_REF" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "POSTHOG_REF must be an immutable 40-character commit SHA" >&2
+  exit 1
+fi
+PY_URL="https://raw.githubusercontent.com/PostHog/posthog/${POSTHOG_REF}/posthog/kafka_client/topics.py"
+TS_URL="https://raw.githubusercontent.com/PostHog/posthog/${POSTHOG_REF}/nodejs/src/common/config/kafka-topics.ts"
 
 echo "Fetching topics from PostHog repo..."
 
