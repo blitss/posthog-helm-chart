@@ -11,6 +11,8 @@ from django.db.migrations.executor import MigrationExecutor
 from django.db.migrations.loader import MigrationLoader
 from django.db.migrations.recorder import MigrationRecorder
 
+SQUASH_NAME = "0001_squash_2026_09_07_initial"
+
 
 MODEL_MOVES = (
     ("cohorts", "0001_migrate_cohorts_models"),
@@ -36,7 +38,7 @@ class LegacyModelMoveLoader(MigrationLoader):
                 self.applied_migrations[key] = migration
             else:
                 self.applied_migrations.pop(key, None)
-            legacy_move = key[0] in model_move_apps and key[1] == "0001_squash_2026_09_07_initial"
+            legacy_move = key[0] in model_move_apps and key[1] == SQUASH_NAME
             if not legacy_move and (all(applied) or not any(applied)):
                 self.graph.remove_replaced_nodes(key, migration.replaces)
             else:
@@ -54,9 +56,38 @@ class Command(BaseCommand):
         connection = connections[DEFAULT_DB_ALIAS]
         recorder = MigrationRecorder(connection)
         applied = recorder.applied_migrations()
-        if ("posthog", "0001_initial") not in applied or (
-            "posthog", "1340_drop_userproductlist_reason_columns"
-        ) in applied:
+        if ("posthog", "0001_initial") not in applied:
+            self.stdout.write("Legacy model-move preparation is not required.")
+            return
+
+        loader = MigrationLoader(connection)
+        for key, migration in loader.replacements.items():
+            if key[1] != SQUASH_NAME or key not in applied or key not in loader.graph.nodes:
+                continue
+            if not all(original in applied for original in migration.replaces):
+                continue
+            missing = [
+                parent.key
+                for parent in loader.graph.node_map[key].parents
+                if parent.key not in applied
+                and not (
+                    parent.key in loader.replacements
+                    and all(original in applied for original in loader.replacements[parent.key].replaces)
+                )
+            ]
+            if missing:
+                # Django's check_replacements can synthesize these redundant
+                # rows before their new squash dependencies are satisfied.
+                # Only remove a derived marker with every original recorded;
+                # never remove original history or skip its validation.
+                self.stdout.write(
+                    f"Removing premature derived marker {key}; retaining all "
+                    f"{len(migration.replaces)} original records; unmet dependencies: {missing}"
+                )
+                recorder.record_unapplied(*key)
+                applied.pop(key)
+
+        if ("posthog", "1340_drop_userproductlist_reason_columns") in applied:
             self.stdout.write("Legacy model-move preparation is not required.")
             return
 
@@ -74,6 +105,14 @@ class Command(BaseCommand):
             plan = executor.migration_plan([target])
             if any(backwards for _, backwards in plan):
                 raise CommandError(f"Refusing a backward model-move plan for {target}")
+            # Defer September's derived-marker bookkeeping to the regular
+            # full migrate. Its original operations remain in the graph and
+            # execute normally; only premature summary records are prevented.
+            executor.loader.replacements = {
+                key: migration
+                for key, migration in executor.loader.replacements.items()
+                if key[1] != SQUASH_NAME
+            }
             self.stdout.write(f"Preparing legacy model move: {target[0]}.{target[1]}")
             # Ordinary execution performs every prerequisite and records only
             # successfully applied migrations. No fake or fake_initial mode.
