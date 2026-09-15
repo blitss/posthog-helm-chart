@@ -7,45 +7,57 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  actions: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Clone upstream PostHog ClickHouse assets
         shell: bash
         run: |
           set -euo pipefail
 
+          POSTHOG_REF="$(sed -n 's/^appVersion: *["\x27]*\([0-9a-f]\{40\}\).*/\1/p' charts/posthog/Chart.yaml)"
+          [[ "$POSTHOG_REF" =~ ^[0-9a-f]{40}$ ]]
           tmpdir="$(mktemp -d)"
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/PostHog/posthog.git "${tmpdir}/posthog"
-          git -C "${tmpdir}/posthog" sparse-checkout set posthog/user_scripts docker/clickhouse/user_defined_function.xml
+          trap 'rm -rf "$tmpdir"' EXIT
+          git init "${tmpdir}/posthog"
+          git -C "${tmpdir}/posthog" remote add origin https://github.com/PostHog/posthog.git
+          git -C "${tmpdir}/posthog" sparse-checkout set --no-cone '/posthog/user_scripts/' '/docker/clickhouse/user_defined_function.xml'
+          git -C "${tmpdir}/posthog" fetch --depth 1 origin "$POSTHOG_REF"
+          git -C "${tmpdir}/posthog" checkout --detach FETCH_HEAD
+          test "$(git -C "${tmpdir}/posthog" rev-parse HEAD)" = "$POSTHOG_REF"
 
           mkdir -p vendor/posthog
           rsync -a --delete "${tmpdir}/posthog/posthog/user_scripts/" vendor/posthog/user_scripts/
           mkdir -p vendor/posthog/docker/clickhouse
           cp "${tmpdir}/posthog/docker/clickhouse/user_defined_function.xml" vendor/posthog/docker/clickhouse/user_defined_function.xml
 
-      - name: Detect changes
-        id: changes
-        shell: bash
+      # create-pull-request includes additions/deletions, unlike git diff --quiet
+      # against an unstaged tree, which missed entirely new UDF files.
+      - name: Propose pinned asset sync
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
+          add-paths: vendor/posthog/
+          branch: chore/sync-posthog-user-scripts
+          base: main
+          delete-branch: true
+          commit-message: "chore: sync pinned PostHog user scripts"
+          title: "chore: sync pinned PostHog user scripts"
+          body: |
+            Sync ClickHouse UDF assets from the immutable `appVersion` in
+            `charts/posthog/Chart.yaml`. Normal PR smoke checks must pass;
+            no upstream master checkout or direct production deployment.
+      - name: Dispatch checks for owned bot PR heads
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NATIVE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
         run: |
-          set -euo pipefail
-          if git diff --quiet -- vendor/posthog; then
-            echo "changed=false" >> "${GITHUB_OUTPUT}"
-          else
-            echo "changed=true" >> "${GITHUB_OUTPUT}"
-          fi
-
-      - name: Commit and push sync
-        if: steps.changes.outputs.changed == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add vendor/posthog
-          git commit -m "chore: sync PostHog user scripts"
-          git push origin HEAD:${GITHUB_REF_NAME}
+          if [[ -z "$NATIVE_TOKEN" ]]; then python3 scripts/verify-release-dispatch.py chore/sync-posthog-user-scripts; fi

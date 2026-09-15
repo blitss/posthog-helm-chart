@@ -1,144 +1,108 @@
 name: publish-posthog-artifacts
 
+# Called only after release-ready in kind-happy-path; never rebuild at publish time.
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/publish-posthog-artifacts.yaml
-      - vendor/posthog/**
-      - charts/posthog/**
-      - images/clickhouse/**
-      - manifests/kubeblocks/posthog-clickhouse-component-version.yaml
+  workflow_call:
 
 permissions:
   contents: read
   packages: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/posthog-clickhouse
-  CHART_PATH: charts/posthog
-
 jobs:
-  build-clickhouse:
-    name: build clickhouse image (${{ matrix.arch }})
+  images:
+    name: publish tested ${{ matrix.image }} (${{ matrix.arch }})
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: amd64
-            runs_on: ubuntu-latest
-            platform: linux/amd64
-          - arch: arm64
-            runs_on: ubuntu-24.04-arm
-            platform: linux/arm64
-    runs-on: ${{ matrix.runs_on }}
+          - {image: posthog-web, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-worker, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-worker-exports, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-migrate, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-cyclotron-migrate, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-clickhouse, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-clickhouse, arch: arm64, runner: ubuntu-24.04-arm}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Derive ClickHouse base tag
-        id: clickhouse
-        shell: bash
-        run: |
-          set -euo pipefail
-          IMAGE_REF="$(awk '$1=="FROM"{ref=$2} END{print ref}' images/clickhouse/Dockerfile)"
-          IMAGE_NO_DIGEST="${IMAGE_REF%%@*}"
-          BASE_TAG="${IMAGE_NO_DIGEST##*:}"
-          if [[ -z "${BASE_TAG}" || "${BASE_TAG}" == "${IMAGE_NO_DIGEST}" ]]; then
-            echo "Failed to parse ClickHouse tag from: ${IMAGE_REF}" >&2
-            exit 1
-          fi
-          echo "base_tag=${BASE_TAG}" >> "${GITHUB_OUTPUT}"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          registry: ${{ env.REGISTRY }}
+          name: image-${{ matrix.image }}-${{ matrix.arch }}
+          path: dist
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: images/clickhouse/Dockerfile
-          platforms: ${{ matrix.platform }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.clickhouse.outputs.base_tag }}-${{ matrix.arch }}
-
-  publish-clickhouse-manifest:
-    name: publish clickhouse manifest
-    needs: build-clickhouse
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Derive ClickHouse base tag
-        id: clickhouse
-        shell: bash
+      - name: Push the tested image without rebuilding
+        env:
+          ROLE: ${{ matrix.image }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          IMAGE_REF="$(awk '$1=="FROM"{ref=$2} END{print ref}' images/clickhouse/Dockerfile)"
-          IMAGE_NO_DIGEST="${IMAGE_REF%%@*}"
-          BASE_TAG="${IMAGE_NO_DIGEST##*:}"
-          echo "base_tag=${BASE_TAG}" >> "${GITHUB_OUTPUT}"
+          (cd dist && sha256sum --check SHA256SUMS)
+          test "$(cat dist/revision)" = "$GITHUB_SHA"
+          docker load -i dist/image.tar
+          SOURCE="posthog-ci/${ROLE}:${GITHUB_SHA}-${ARCH}"
+          test "$(docker inspect -f '{{.Id}}' "$SOURCE")" = "$(jq -r '.[0].Id' dist/image.json)"
+          TARGET="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${ROLE}:sha-${GITHUB_SHA}-${ARCH}"
+          docker tag "$SOURCE" "$TARGET"
+          docker push "$TARGET"
+          docker image inspect "$TARGET" --format '{{json .RepoDigests}}' >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+  image-tags:
+    name: tag tested image bundle
+    needs: images
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
         with:
-          registry: ${{ env.REGISTRY }}
+          version: v0.28.0
+          driver-opts: image=moby/buildkit:v0.23.2
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create multi-arch manifest
-        shell: bash
+      - name: Publish revision tags and validated update channel
         run: |
           set -euo pipefail
-          IMAGE="${REGISTRY}/${IMAGE_NAME}"
-          docker buildx imagetools create \
-            -t "${IMAGE}:${{ steps.clickhouse.outputs.base_tag }}" \
-            -t "${IMAGE}:sha-${GITHUB_SHA::12}" \
-            "${IMAGE}:${{ steps.clickhouse.outputs.base_tag }}-amd64" \
-            "${IMAGE}:${{ steps.clickhouse.outputs.base_tag }}-arm64"
+          for role in web worker worker-exports migrate cyclotron-migrate clickhouse; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/posthog-${role}"
+            sources=("${image}:sha-${GITHUB_SHA}-amd64")
+            if [[ "$role" == clickhouse ]]; then sources+=("${image}:sha-${GITHUB_SHA}-arm64"); fi
+            docker buildx imagetools create -t "${image}:sha-${GITHUB_SHA}" -t "${image}:latest" "${sources[@]}"
+            docker buildx imagetools inspect "${image}:sha-${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+          done
 
-          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            docker buildx imagetools create \
-              -t "${IMAGE}:latest" \
-              "${IMAGE}:${{ steps.clickhouse.outputs.base_tag }}"
-          fi
-
-          docker buildx imagetools inspect "${IMAGE}:${{ steps.clickhouse.outputs.base_tag }}"
-
-  publish-chart:
-    name: publish helm chart
-    runs-on: ubuntu-latest
+  chart:
+    name: publish tested chart
+    needs: image-tags
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: azure/setup-helm@v4
-
-      - name: Lint chart
-        shell: bash
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: chart
+          path: dist
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v3.18.4
+      - name: Push exact tested package when chart version changes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Subchart tarballs are committed under charts/posthog/charts/, so
-          # no dependency build / repo add is needed here.
-          helm lint "${CHART_PATH}"
-          helm template posthog "${CHART_PATH}" >/dev/null
-
-      - name: Log in to GHCR for Helm
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "${REGISTRY}" --username "${GITHUB_ACTOR}" --password-stdin
-
-      - name: Package and push chart
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          helm package "${CHART_PATH}" --destination dist
-          helm push dist/posthog-*.tgz "oci://${REGISTRY}/${GITHUB_REPOSITORY_OWNER}/charts"
+          (cd dist && sha256sum --check SHA256SUMS)
+          test "$(cat dist/revision)" = "$GITHUB_SHA"
+          previous="$(git show HEAD^:charts/posthog/Chart.yaml | sed -n 's/^version: *//p')"
+          current="$(sed -n 's/^version: *//p' charts/posthog/Chart.yaml)"
+          if [[ "$previous" == "$current" ]]; then
+            echo "Chart version unchanged ($current); no chart publication." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          helm push dist/posthog-*.tgz "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"
+          cat dist/SHA256SUMS >> "$GITHUB_STEP_SUMMARY"
