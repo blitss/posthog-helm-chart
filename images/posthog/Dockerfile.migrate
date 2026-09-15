@@ -3,26 +3,30 @@ FROM ${POSTHOG_IMAGE} AS upstream
 
 FROM ${POSTHOG_IMAGE} AS python-runtime-slim
 
-# Remove bytecode caches and packaged test suites before copying the runtime
-# into the final image. Doing this in a separate stage shrinks the copied layer.
+# Remove bytecode caches before copying the runtime into the final image.
 RUN find /python-runtime -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete && \
     find /python-runtime -type d -name __pycache__ -prune -exec rm -rf {} +
 
-FROM python:3.12.12-slim-bookworm
+# Match the interpreter ABI used by upstream's /python-runtime virtualenv.
+FROM python:3.13.13-slim-bookworm@sha256:355bfa66770995d7e9a0da4b3473b44d0cb451f6b56f5615ad9c39e3c4eca03f
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUTF8=1 \
+    LANG=C.UTF-8 \
     PATH=/python-runtime/bin:$PATH \
     PYTHONPATH=/python-runtime
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends --allow-downgrades \
     ca-certificates \
+    git \
     libjemalloc2 \
     libpq5 \
     libxml2 \
-    libxmlsec1 \
-    libxmlsec1-openssl \
+    libxmlsec1=1.2.37-2 \
+    libxmlsec1-openssl=1.2.37-2 \
+    libssl3=3.0.* \
     && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -g 1000 posthog && \
@@ -38,6 +42,9 @@ COPY --from=upstream --chown=posthog:posthog /code/ee /code/ee
 COPY --from=upstream --chown=posthog:posthog /code/common/hogvm /code/common/hogvm
 COPY --from=upstream --chown=posthog:posthog /code/common/migration_utils /code/common/migration_utils
 COPY --from=upstream --chown=posthog:posthog /code/products /code/products
+COPY --from=upstream --chown=posthog:posthog /code/frontend/src/products.json /code/frontend/src/products.json
+COPY --from=upstream --chown=posthog:posthog /code/services/mcp/schema /code/services/mcp/schema
+COPY --from=upstream --chown=posthog:posthog /code/rust/persons_migrations /code/rust/persons_migrations
 
 USER posthog
 

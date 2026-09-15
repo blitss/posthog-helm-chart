@@ -1,11 +1,6 @@
 #!/bin/sh
-# Reproducibly migrate the cyclotron + cyclotron_node databases using the
-# canonical sqlx engine. Mirrors upstream rust/bin/migrate-entry: the Rust
-# cyclotron (CYCLOTRON_DATABASE_URL) uses cyclotron-core/migrations, while the
-# Node v2 cyclotron (CYCLOTRON_NODE_DATABASE_URL) uses the SEPARATE
-# cyclotron-node-migrations (different schema — has the person/distinct_id
-# columns the cdp-cyclotron-v2 worker/janitor need). The runtime PostHog images
-# ship neither sqlx nor these migrations, so this dedicated image carries both.
+# Migrate the Node v2 cyclotron database with the canonical sqlx engine.
+# Runtime PostHog images ship neither sqlx nor these migrations.
 set -eu
 
 MIGRATIONS_DIR="${CYCLOTRON_MIGRATIONS_DIR:-/migrations}"
@@ -26,6 +21,5 @@ run() {
   echo "[$label] up to date"
 }
 
-run "${CYCLOTRON_DATABASE_URL:-}"      "cyclotron"      "$MIGRATIONS_DIR/cyclotron-core/migrations"
 run "${CYCLOTRON_NODE_DATABASE_URL:-}" "cyclotron_node" "$MIGRATIONS_DIR/cyclotron-node-migrations"
 echo "cyclotron migrations complete"

@@ -1,13 +1,8 @@
 # posthog-cyclotron-migrate
 #
-# A small image that runs PostHog's cyclotron sqlx migrations. The runtime
-# PostHog images (posthog/posthog, posthog-node, the cyclotron service images)
-# do NOT ship sqlx-cli or the cyclotron migrations, so there is no in-image way
-# to create/migrate the cyclotron + cyclotron_node databases. This image bundles
-# sqlx-cli + the vendored cyclotron-core migrations and is run as a Helm
-# pre-upgrade hook (charts/posthog/templates/hooks/cyclotron-migrate.job.yaml),
-# mirroring upstream's rust/bin/migrate-cyclotron[-node] (sqlx database create +
-# sqlx migrate run).
+# A small image for the Node v2 cyclotron database. Runtime PostHog images
+# do not ship sqlx-cli or its migrations, so the Helm pre-upgrade hook uses
+# this image to run sqlx database create and sqlx migrate run.
 #
 # POSTHOG_IMAGE build-arg is accepted (passed by the shared build matrix) but
 # unused here.
@@ -28,7 +23,7 @@ RUN apt-get update \
  && groupadd -g 1000 posthog \
  && useradd -m -u 1000 -g posthog posthog
 COPY --from=sqlx-builder /opt/sqlx/bin/sqlx /usr/local/bin/sqlx
-COPY images/posthog/cyclotron-migrations/ /migrations/
+COPY images/posthog/cyclotron-migrations/cyclotron-node-migrations/ /migrations/cyclotron-node-migrations/
 COPY images/posthog/cyclotron-migrate-entrypoint.sh /usr/local/bin/cyclotron-migrate
 RUN chmod +x /usr/local/bin/cyclotron-migrate
 USER posthog

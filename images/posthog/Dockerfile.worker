@@ -3,28 +3,33 @@ FROM ${POSTHOG_IMAGE} AS upstream
 
 FROM ${POSTHOG_IMAGE} AS python-runtime-slim
 
-# Remove bytecode caches and packaged test suites before copying the runtime
-# into the final image. Doing this in a separate stage shrinks the copied layer.
+# Remove bytecode caches before copying the runtime into the final image.
 RUN find /python-runtime -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete && \
     find /python-runtime -type d -name __pycache__ -prune -exec rm -rf {} +
 
-FROM python:3.12.12-slim-bookworm
+# Match the interpreter ABI used by upstream's /python-runtime virtualenv.
+FROM python:3.13.13-slim-bookworm@sha256:355bfa66770995d7e9a0da4b3473b44d0cb451f6b56f5615ad9c39e3c4eca03f
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUTF8=1 \
+    LANG=C.UTF-8 \
+    TIKTOKEN_CACHE_DIR=/code/.tiktoken_cache \
     PATH=/python-runtime/bin:$PATH \
     PYTHONPATH=/python-runtime \
     NODE_ENV=production \
-    CELERY_WORKER_QUEUES=celery,stats,email,analytics_queries,analytics_limited,long_running,subscription_delivery,usage_reports,session_replay_embeddings,session_replay_general,session_replay_persistence,integrations,feature_flags,feature_flags_long_running
+    CELERY_WORKER_QUEUES=ai_research_privacy,celery,stats,email,analytics_queries,analytics_limited,long_running,subscription_delivery,usage_reports,integrations,feature_flags,feature_flags_long_running
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends --allow-downgrades \
     ca-certificates \
+    git \
     libjemalloc2 \
     libpq5 \
     libxml2 \
-    libxmlsec1 \
-    libxmlsec1-openssl \
+    libxmlsec1=1.2.37-2 \
+    libxmlsec1-openssl=1.2.37-2 \
+    libssl3=3.0.* \
     && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -g 1000 posthog && \
@@ -42,13 +47,16 @@ COPY --from=upstream --chown=posthog:posthog /code/common/hogvm /code/common/hog
 COPY --from=upstream --chown=posthog:posthog /code/common/migration_utils /code/common/migration_utils
 COPY --from=upstream --chown=posthog:posthog /code/products /code/products
 COPY --from=upstream --chown=posthog:posthog /code/frontend/src/products.json /code/frontend/src/products.json
+COPY --from=upstream --chown=posthog:posthog /code/tools/owners /code/tools/owners
+COPY --from=upstream --chown=posthog:posthog /code/services/mcp/schema /code/services/mcp/schema
+COPY --from=upstream --chown=posthog:posthog /code/share/GeoLite2-City.mmdb /code/share/GeoLite2-City.mmdb
+COPY --from=upstream --chown=posthog:posthog /code/.tiktoken_cache /code/.tiktoken_cache
 
 # The default celery queue runs scheduled `sync_all_remote_configs` and any
 # HogFunction transpile, both of which shell out to Node via the plugin
 # transpiler. The Temporal Django worker reuses this image and triggers the
 # same code paths.
 COPY --from=upstream --chown=posthog:posthog /code/common/plugin_transpiler /code/common/plugin_transpiler
-COPY --from=upstream --chown=posthog:posthog /code/node_modules /code/node_modules
 COPY --from=upstream /usr/local/bin/node /usr/local/bin/node
 RUN ln -s /usr/local/bin/node /usr/local/bin/nodejs
 
