@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 from pathlib import Path
+from decimal import Decimal
 import subprocess
 import re
 import sys
@@ -15,6 +16,55 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET_FIELDS = {"secret", "password", "accessKey", "secretKey", "encryptionSaltKeys", "internalApiSecret", "signedStateKey", "token"}
+GENERATED_KEYS = ("posthog-secret", "encryption-salt-keys", "internal-api-secret", "browserless-token", "mcp-signed-state-key", "valkey-password")
+
+
+def target_scalar(value):
+    """Helm strvals scalar types; compound/escaped expressions need full parsing."""
+    if any(character in value for character in ",{}\\"):
+        raise ValueError("compound or escaped targetPath value")
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        return value[1:-1]
+    if value.startswith(("'", '"')) or value.endswith(("'", '"')):
+        raise ValueError("unmatched quote in targetPath value")
+    lowered = value.lower()
+    if lowered in ("true", "false", "null"):
+        return {"true": True, "false": False, "null": None}[lowered]
+    if value == "0" or (value and value[0] != "0" and re.fullmatch(r"[+-]?[0-9]+", value)):
+        number = int(value)
+        if -(2 ** 63) <= number < 2 ** 63:
+            return number
+    return value
+
+
+def redaction_paths(value, path=""):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield from redaction_paths(child, f"{path}/{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from redaction_paths(child, f"{path}/{index}")
+    elif isinstance(value, str) and re.search(r"redacted|required secret input|audit-only-secret", value, re.I):
+        yield path
+
+
+def runtime_spec(value, path=()):
+    """Normalize API quantities and volatile chart/restart metadata, not behavior."""
+    if isinstance(value, dict):
+        return {key: runtime_spec(child, path + (key,)) for key, child in value.items()
+                if not (key == "helm.sh/chart" and path[-1:] == ("labels",))
+                and not (key == "kubectl.kubernetes.io/restartedAt" and path[-1:] == ("annotations",))}
+    if isinstance(value, list):
+        return [runtime_spec(child, path + (str(index),)) for index, child in enumerate(value)]
+    if len(path) >= 2 and path[-2] in ("requests", "limits") and path[-1] in ("cpu", "memory", "storage", "ephemeral-storage"):
+        match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)(m|[KMGTPE]i?|)?", str(value))
+        if match:
+            suffix = match[2] or ""
+            multiplier = Decimal("0.001") if suffix == "m" else Decimal(1)
+            if suffix and suffix != "m":
+                multiplier = Decimal(1024 if suffix.endswith("i") else 1000) ** ("KMGTPE".index(suffix[0]) + 1)
+            return str((Decimal(match[1]) * multiplier).normalize())
+    return value
 
 
 def redact(value):
@@ -24,7 +74,7 @@ def redact(value):
         secret_env = re.search(r"secret|password|token|access.?key|api.?key|private.?key|salt|authorization|credential", str(value.get("name", "")), re.I)
         for key, child in value.items():
             sensitive = key != "existingSecret" and re.search(r"password$|secret$|secret.?key$|access.?key$|api.?key$|salt.?keys$|signed.?state.?key$|token$|private.?key$|authorization$|credential", key, re.I)
-            if isinstance(child, str) and (sensitive or (key == "value" and secret_env)):
+            if isinstance(child, str) and child and (sensitive or (key == "value" and secret_env)):
                 result[key] = "audit-only-secret"
             else:
                 result[key] = redact(child)
@@ -169,6 +219,8 @@ def main():
                 # Sanitized snapshots may retain a marker instead of base64 bytes.
                 if not str(raw).startswith(("[", "<")):
                     raw = base64.b64decode(raw, validate=True).decode()
+            if args.snapshot_dir and list(redaction_paths(raw)):
+                incomplete.append(f"Unverified secret input: {ref['name']}/{key}")
             if "targetPath" in ref:
                 targeted.append((ref["targetPath"], raw))
             else:
@@ -176,8 +228,14 @@ def main():
         values = merge(values, hr["spec"].get("values", {}))
         # Flux targetPath has Helm --set precedence, even over inline values.
         for path, value in targeted:
-            if any(char in path for char in "[\\"):
-                raise RuntimeError("Unsupported valuesFrom targetPath; supply plain dotted keys")
+            if not re.fullmatch(r"[A-Za-z_][\w-]*(?:\.[A-Za-z_][\w-]*)*", path):
+                print("UNVERIFIED Unsupported valuesFrom targetPath syntax")
+                raise RuntimeError("Unsupported valuesFrom targetPath syntax")
+            try:
+                value = target_scalar(value)
+            except ValueError:
+                print("UNVERIFIED Unsupported compound, escaped or unmatched-quote valuesFrom targetPath value")
+                raise RuntimeError("Unsupported valuesFrom targetPath value") from None
             cursor = values
             parts = path.split(".")
             for key in parts[:-1]:
@@ -195,6 +253,7 @@ def main():
         "posthog-elastic-es-elastic-user": ("elastic",),
         "posthog-oidc-generated": ("tls.key",),
         "posthog-tls": ("tls.crt", "tls.key"),
+        "posthog-secrets": GENERATED_KEYS + ("database-url", "redis-url", "postgresql-password", "object-storage-access-key", "object-storage-secret-key", "seaweedfs-access-key", "seaweedfs-secret-key"),
     }
     for name, keys in required_secrets.items():
         secret = observed({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name, "namespace": args.namespace}})
@@ -203,6 +262,19 @@ def main():
         for key in keys:
             if not (secret or {}).get("data", {}).get(key):
                 drift.append(f"Required Secret key missing: {name}/{key}")
+            elif args.snapshot_dir and list(redaction_paths(secret["data"][key])):
+                incomplete.append(f"Unverified Secret value: {name}/{key}")
+            else:
+                decoded = base64.b64decode(secret["data"][key], validate=True).decode()
+                if not decoded:
+                    drift.append(f"Required Secret key empty: {name}/{key}")
+                if args.snapshot_dir and list(redaction_paths(decoded)):
+                    incomplete.append(f"Unverified Secret value: {name}/{key}")
+        if name == "posthog-secrets" and secret:
+            metadata = secret.get("metadata", {})
+            annotations = metadata.get("annotations", {})
+            if metadata.get("labels", {}).get("app.kubernetes.io/managed-by") != "Helm" or annotations.get("meta.helm.sh/release-name") != "posthog" or annotations.get("meta.helm.sh/release-namespace") != args.namespace:
+                drift.append("Application Secret Helm ownership mismatch")
     for obj in desired:
         actual = live_hr if identity(obj) == identity(desired_hr) else observed(obj)
         label = obj["kind"] + "/" + obj["metadata"]["name"]
@@ -256,6 +328,9 @@ def main():
             incomplete.append("Missing helm-values.json: installed effective values not checked")
         else:
             installed = json.loads(run(helm + ["get", "values", "posthog", "-n", args.namespace, "--all", "-o", "json"]))
+        if args.snapshot_dir:
+            for name, values in (("desired", wanted_effective), ("live", live_effective), ("installed", installed)):
+                incomplete.extend(f"Unverified redacted {name} value: {path}" for path in redaction_paths(values))
 
         def comparable(want, have, path=""):
             # Secret equality is checked in memory live; snapshots cannot establish it.
@@ -263,7 +338,7 @@ def main():
             for key in set(a) | set(b):
                 child = f"{path}/{key}"
                 if key in SECRET_FIELDS and not isinstance(a.get(key), dict) and not isinstance(b.get(key), dict):
-                    if args.snapshot_dir and a.get(key) != b.get(key):
+                    if args.snapshot_dir and (a.get(key) != b.get(key) or list(redaction_paths(a.get(key))) or list(redaction_paths(b.get(key)))):
                         incomplete.append("Unverified credential equality: " + child)
                     elif a.get(key) != b.get(key):
                         drift.append("Credential drift: " + child)
@@ -295,10 +370,36 @@ def main():
             (folder / "kustomization.yaml").write_text(json.dumps(config))
             documents = yaml.safe_load_all(run(["kubectl", "kustomize", str(folder)]))
             # Helm lookup/random Secret contents cannot be reproduced offline.
-            return {"/".join(identity(doc)): doc for doc in documents if doc and doc["kind"] != "Secret"}
+            result = {}
+            for doc in documents:
+                if not doc or doc["kind"] == "Secret" or doc.get("metadata", {}).get("annotations", {}).get("helm.sh/hook"):
+                    continue
+                doc["metadata"].setdefault("namespace", args.namespace)
+                result["/".join(identity(doc))] = doc
+            return result
 
         try:
-            drift.extend("Rendered manifests/" + path for path in changes(render(want_render, desired_hr, "desired"), render(live_render, live_hr, "observed")))
+            rendered = render(wanted_effective, desired_hr, "desired")
+            drift.extend("Rendered manifests/" + path for path in changes(rendered, render(live_effective, live_hr, "observed")))
+            for obj in rendered.values():
+                if obj["kind"] not in ("Deployment", "StatefulSet", "DaemonSet", "CronJob", "Service", "Ingress", "IngressRoute", "Middleware", "ConfigMap", "HorizontalPodAutoscaler", "PodDisruptionBudget", "NetworkPolicy"):
+                    continue
+                actual = observed(obj)
+                label = "Runtime/" + obj["kind"] + "/" + obj["metadata"]["name"]
+                if actual is None:
+                    if not args.snapshot_dir:
+                        drift.append(label + " missing")
+                    continue
+                want_spec = runtime_spec(redact(obj.get("spec", {})))
+                have_spec = runtime_spec(redact(actual.get("spec", {})))
+                drift.extend(label + "/spec" + path for path in changes(want_spec, have_spec, subset=True))
+                for key in ("selector", "data"):
+                    wanted = obj.get("spec", {}).get(key) if key == "selector" else obj.get(key)
+                    found = actual.get("spec", {}).get(key) if key == "selector" else actual.get(key)
+                    if wanted is not None:
+                        drift.extend(label + "/" + key + path for path in changes(wanted, found))
+                for path in redaction_paths(obj.get("spec", {})):
+                    incomplete.append(label + "/spec" + path + " inline credential equality cannot be established from redacted rendering")
         except (RuntimeError, ValueError, OSError, yaml.YAMLError):
             incomplete.append("Helm/post-render comparison failed; desired spec/value drift above remains authoritative")
     for message in sorted(set(drift)):
