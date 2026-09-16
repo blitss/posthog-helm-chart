@@ -145,7 +145,7 @@ spec:
       adminTools:
         image:
           repository: docker.io/temporalio/admin-tools
-          tag: 1.31.0@sha256:3e68adcd54195a7c1222e99f2dbc32a4fdbf44ad69e3bb48e21e85c4bf417c2e
+          tag: 1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
       ui:
         image:
           repository: docker.io/temporalio/ui
