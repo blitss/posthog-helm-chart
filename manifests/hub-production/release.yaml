@@ -59,7 +59,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+        tag: latest@sha256:6054548223af8e38c474f77d84e4a16deb9182237f2fc400cce15ff30995ff6a
     browserless:
       enabled: true
       image:
@@ -183,7 +183,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+        tag: latest@sha256:6054548223af8e38c474f77d84e4a16deb9182237f2fc400cce15ff30995ff6a
       persons:
         enabled: true
         skipPartitioning: true
