@@ -18,7 +18,7 @@ permissions:
 jobs:
   images:
     name: publish tested ${{ matrix.image }} (${{ matrix.arch }})
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.publish_images
+    if: github.ref == 'refs/heads/main' && inputs.publish_images
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -94,7 +94,7 @@ jobs:
   chart:
     name: publish tested chart
     needs: image-tags
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.publish_chart && ((!inputs.publish_images && needs.image-tags.result == 'skipped') || needs.image-tags.result == 'success')
+    if: always() && github.ref == 'refs/heads/main' && inputs.publish_chart && ((!inputs.publish_images && needs.image-tags.result == 'skipped') || needs.image-tags.result == 'success')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
