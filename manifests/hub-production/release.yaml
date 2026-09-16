@@ -222,7 +222,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-web
-        tag: latest@sha256:934b3aa684231a6c3be8b5801626d160e5159197691702b88cfc3414dd124b41
+        tag: latest@sha256:40ec356993db6b165dc107a10217163bd0bfd805001aef4ebd297cc9fec3c7e3
       optOutCapture: true
       secretEnv:
         OIDC_RSA_PRIVATE_KEY:
@@ -280,7 +280,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-web
-        tag: latest@sha256:934b3aa684231a6c3be8b5801626d160e5159197691702b88cfc3414dd124b41
+        tag: latest@sha256:40ec356993db6b165dc107a10217163bd0bfd805001aef4ebd297cc9fec3c7e3
       replicas: 1
       resources:
         limits:
