@@ -24,10 +24,6 @@ def target_scalar(value):
     """Helm strvals scalar types; compound/escaped expressions need full parsing."""
     if any(character in value for character in ",{}\\"):
         raise ValueError("compound or escaped targetPath value")
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-        return value[1:-1]
-    if value.startswith(("'", '"')) or value.endswith(("'", '"')):
-        raise ValueError("unmatched quote in targetPath value")
     lowered = value.lower()
     if lowered in ("true", "false", "null"):
         return {"true": True, "false": False, "null": None}[lowered]
@@ -429,6 +425,9 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (RuntimeError, ValueError, OSError, yaml.YAMLError) as exc:
+    except RuntimeError as exc:
+        print("ERROR: " + str(exc), file=sys.stderr)
+        sys.exit(2)
+    except (ValueError, OSError, yaml.YAMLError):
         print("ERROR: alignment check failed; check prerequisites and snapshot syntax (details withheld for secret safety)", file=sys.stderr)
         sys.exit(2)

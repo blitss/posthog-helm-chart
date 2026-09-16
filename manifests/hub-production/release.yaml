@@ -77,6 +77,9 @@ spec:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture-logs
         tag: master@sha256:e8ebc718503c27230403601b1036a7db106d347eccf0ee2714b4c0e245e033fa
+      extraEnv:
+        - name: CLICKHOUSE_LOGS_DATABASE
+          value: posthog
     cdpCyclotronV2Janitor:
       enabled: true
     cdpHogflowScheduler:

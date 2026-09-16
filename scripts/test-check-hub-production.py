@@ -21,7 +21,7 @@ class DriftBoundaries(unittest.TestCase):
         self.assertEqual(list(check.redaction_paths({"credential": "[REDACTED]"})), ["/credential"])
         self.assertIs(check.target_scalar("false"), False)
         self.assertIsNone(check.target_scalar("null"))
-        self.assertEqual(check.target_scalar('"false"'), "false")
+        self.assertEqual(check.target_scalar('"false"'), '"false"')
         with self.assertRaises(ValueError):
             check.target_scalar("{one,two}")
 
