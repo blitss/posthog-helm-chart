@@ -149,7 +149,7 @@ spec:
       ui:
         image:
           repository: docker.io/temporalio/ui
-          tag: 2.50.0@sha256:49a61456f6b770af926d6d7d74f63ebb4b9a3c5abc4fb68ddb146321d49391e4
+          tag: 2.54.1@sha256:ff0943fe532b8e33c46cd28b29e81e0ce0b6f55b9ee50a38ef1b437cc4de3fa5
     worker:
       image:
         repository: ghcr.io/blitss/posthog-worker
