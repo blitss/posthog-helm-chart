@@ -1,10 +1,7 @@
 - op: replace
   path: /spec/timeout
   value: 75m
-# Start suspended so Flux applies the manifests (incl. the CNPG Cluster) without
-# installing the chart yet. CI restores the cached Postgres snapshot into the
-# empty DBs, then unsuspends so the migrate hook only applies the new-migration
-# delta instead of the full ~28 min run.
+# Start suspended until CNPG is ready, then run all migrations against empty DBs.
 - op: add
   path: /spec/suspend
   value: true
@@ -21,6 +18,14 @@
   value:
     cpu: 50m
     memory: 256Mi
+# Leave room for the ingestion smoke's additional Django process.
+- op: add
+  path: /spec/values/web/granian
+  value:
+    workers: 1
+- op: replace
+  path: /spec/values/web/resources/limits/memory
+  value: 3Gi
 # Web's entrypoint blocks on the migrate job before granian serves /preflight.
 # Give the startup probe a budget beyond the HelmRelease timeout so a slow
 # migrate can't trip it and restart-thrash the web pod. (period 10s x 300.)
