@@ -1,6 +1,6 @@
 [tools]
 codex = "latest"
-python = "3.12.12"
+python = "3.14.7"
 actionlint = "1.7.7"
 kind = "0.29.0"
 helm = "3.18.4"
