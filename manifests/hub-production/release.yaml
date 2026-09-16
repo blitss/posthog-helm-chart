@@ -320,7 +320,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker-exports
-        tag: latest@sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00
+        tag: latest@sha256:05732ee4ef24b02d868627bf939d92dccbcfbe4f0f56a2593e719482c40b31d9
     zookeeper:
       enabled: false
   valuesFrom:
