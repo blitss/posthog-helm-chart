@@ -31,7 +31,9 @@ scripts/
   update-topics.sh           # Sync Kafka topic list from upstream PostHog
 
 .github/workflows/
-  build-posthog-images.yaml  # Build and publish split PostHog images + ClickHouse to ghcr.io
+  build-posthog-images.yaml  # Build immutable test artifacts; no publication
+  kind-happy-path.yaml       # Fresh-cluster smoke tests and required release-ready gate
+  publish-posthog-artifacts.yaml  # Publish the tested artifacts without rebuilding
   sync-posthog-topics.yaml   # Daily PR to sync Kafka topics with upstream
   sync-posthog-user-scripts.yaml  # Daily sync of ClickHouse UDF scripts
 
@@ -99,6 +101,12 @@ docker build -f images/clickhouse/Dockerfile -t local/posthog-clickhouse:test .
 ```
 
 The chart and manifests work with either `ghcr.io/blitss/*` or `local/*:test` — override via `--set` / `values.yaml`.
+
+## Release verification
+
+Require the GitHub Actions `release-ready` status check on `main`, with the branch up to date before merging. Runtime PRs test three fresh kind environments: declared images, production-profile images, and same-run candidate artifacts. The smoke check verifies ingestion as well as readiness; publication on `main` uses those tested artifacts rather than rebuilding them.
+
+Bot workflows explicitly dispatch verification when using `GITHUB_TOKEN`, whose pushes do not trigger ordinary PR workflows. Renovate rebases behind-base branches and never automerges dependency updates. Stateful major upgrades still need a separate migration decision; a fresh-install smoke test does not prove an in-place data migration.
 
 ## Publish targets
 
