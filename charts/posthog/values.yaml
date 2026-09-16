@@ -201,7 +201,7 @@ browserless:
   enabled: true
   image:
     repository: ghcr.io/browserless/chromium
-    tag: v2.51.2
+    tag: v2.56.7
     pullPolicy: IfNotPresent
   replicas: 1
   ## Dedicated token, generated and preserved across upgrades when empty.
