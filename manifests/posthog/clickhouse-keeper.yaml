@@ -19,7 +19,7 @@ spec:
         spec:
           containers:
             - name: clickhouse-keeper
-              image: docker.io/altinity/clickhouse-keeper:25.3.6.10034.altinitystable
+              image: docker.io/altinity/clickhouse-keeper:25.3.6.10034.altinitystable@sha256:7d44b89b1b73be004ededa43fb7a5f71e8191a6c4c53232de249ed8bb208ba0d
               resources:
                 requests:
                   cpu: 100m
