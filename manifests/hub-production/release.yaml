@@ -263,7 +263,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+        tag: latest@sha256:e2b18b0c01cba771df226c954299f8119cf5e3204ee08e8f643e4a0d65dd17d0
       resources:
         limits:
           memory: 6Gi
@@ -295,7 +295,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+        tag: latest@sha256:e2b18b0c01cba771df226c954299f8119cf5e3204ee08e8f643e4a0d65dd17d0
       resources:
         limits:
           memory: 8Gi
@@ -307,7 +307,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+        tag: latest@sha256:e2b18b0c01cba771df226c954299f8119cf5e3204ee08e8f643e4a0d65dd17d0
       replicas: 1
       resources:
         limits:
