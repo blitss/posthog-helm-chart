@@ -1,1 +1,342 @@
-{"apiVersion": "helm.toolkit.fluxcd.io/v2", "kind": "HelmRelease", "spec": {"chartRef": {"kind": "OCIRepository", "name": "posthog-chart"}, "dependsOn": [{"name": "clickhouse-operator"}], "install": {"disableWait": true, "remediation": {"retries": 0, "remediateLastFailure": false}}, "interval": "5m", "postRenderers": [{"kustomize": {"patches": [{"patch": "- op: replace\n  path: /spec/template/spec/containers/0/startupProbe/httpGet/path\n  value: /preflight\n- op: replace\n  path: /spec/template/spec/containers/0/readinessProbe/httpGet/path\n  value: /preflight\n- op: replace\n  path: /spec/template/spec/containers/0/livenessProbe/httpGet/path\n  value: /preflight\n", "target": {"group": "apps", "kind": "Deployment", "name": "posthog-web", "version": "v1"}}, {"patch": "- op: add\n  path: /spec/routes/8\n  value:\n    kind: Rule\n    match: Host(`posthog.streamloop.app`) && PathPrefix(`/static/`)\n    priority: 2\n    middlewares:\n      - name: posthog-static-cache\n      - name: posthog-static-compress\n    services:\n      - name: posthog-web\n        port: 8000\n", "target": {"group": "traefik.io", "kind": "IngressRoute", "name": "posthog", "version": "v1alpha1"}}]}}], "timeout": "45m", "upgrade": {"disableWait": true, "remediation": {"remediateLastFailure": false, "retries": 0}}, "values": {"asyncMigrationsCheck": {"image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-migrate", "tag": "latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732"}}, "browserless": {"enabled": true, image: {repository: ghcr.io/browserless/chromium, tag: 'v2.51.2@sha256:79a37927bdd235c8f5a299a8846c37e946c3505dff2562ece3922d4562d016a3'}}, "capture": {"image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/capture", "tag": "master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4"}}, "captureAi": {"image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/capture", "tag": "master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4"}}, "captureLogs": {"image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/capture-logs", "tag": "master@sha256:e8ebc718503c27230403601b1036a7db106d347eccf0ee2714b4c0e245e033fa"}}, "cdpCyclotronV2Janitor": {"enabled": true}, "cdpHogflowScheduler": {"enabled": true}, "clickhouse": {"database": "posthog", "enabled": false}, "cyclotronMigrate": {"enabled": true, "image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-cyclotron-migrate", "tag": "latest@sha256:ac726ab397f131d530cd22c8d8addc5854e6942f780d6479f89ea9c3797193c5"}}, "cymbal": {"image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/cymbal", "tag": "master@sha256:939d140ae9632eabce36286edacab9aa38bba34ce9e8818856b876f08e3671a9"}}, "cymbalResolution": {"enabled": true}, "elasticsearch": {"enabled": false}, "externalClickhouse": {"apiUser": "api", "appUser": "app", "cluster": "posthog", "dictReaderUser": "dict_reader", "host": "clickhouse-posthog.posthog.svc.cluster.local", "logsCluster": "posthog", "migrationsCluster": "posthog", "primaryReplicaCluster": "posthog", "secretName": "posthog-clickhouse-password", "secretPasswordKey": "password", "singleShardCluster": "posthog", "user": "default", "writableCluster": "posthog"}, "externalElasticsearch": {"host": "posthog-elastic-es-http.posthog.svc.cluster.local", "passwordKey": "elastic", "scheme": "http", "secretName": "posthog-elastic-es-elastic-user", "user": "elastic", "version": "v8"}, "externalKafka": {"brokers": "posthog-redpanda.posthog.svc.cluster.local:9093"}, "externalObjectStorage": {"endpoint": "https://f7bb26785c99f3c0603872623fa23bdf.r2.cloudflarestorage.com"}, "externalPostgresql": {"database": "posthog", "host": "posthog-pg-rw", "passwordKey": "password", "personsDatabase": "posthog", "port": 5432, "secretName": "posthog-pg-app", "usernameKey": "username"}, "externalSeaweedfs": {"endpoint": "https://f7bb26785c99f3c0603872623fa23bdf.r2.cloudflarestorage.com"}, "featureFlags": {"image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/feature-flags", "tag": "master@sha256:65030502939f230ff7ba820e6a145a8598019c846383fb10fd9ec2ecba5c9048"}}, "geoip": {"brotli": false, "downloadUrl": "https://r2.streamloop.app/GeoIP2-City.mmdb", "enabled": true, image: 'alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40'}, "global": {"containerSecurityContext": {}, "podSecurityContext": {}}, "hypercacheServer": {"image": {"repository": "ghcr.io/posthog/posthog/hypercache-server", "tag": "master@sha256:2acd76fc8219a9156f6036251cdeb63746cca0cf20fbe62c4563e8654e25f889"}}, "ingress": {"enabled": true, "gateway": {"enabled": false}, "hostname": "posthog.streamloop.app", "nginx": {"enabled": false}, "traefik": {"enabled": true, "entryPoints": ["websecure"], "tls": {"enabled": true, "secretName": "posthog-tls"}}}, "kafka": {"enabled": false}, "livestream": {"enabled": true, "image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/livestream", "tag": "master@sha256:6926f340b72d609e43cee5aa8b75a85cfdc77d182e610dafafdd81d3b2ab53f5"}}, "mcp": {"enabled": true, "image": {"pullPolicy": "Always", "repository": "registry.streamloop.app/ghcr.io/posthog/posthog-mcp", "tag": "latest@sha256:a51e79eaf77ed02afd4c883da612a31191c6b2b31c45378cf28110659b4c03e4"}}, "migrate": {"image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-migrate", "tag": "latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732"}, "persons": {"enabled": true, "skipPartitioning": true}}, "minio": {"enabled": false}, "networkPolicies": {"enabled": false}, "objectStorage": {"aiBlobs": {"bucket": "posthog", "offloadTeams": "*", "prefix": "ai-blobs/aio/"}, "enabled": true}, "personhog": {"addr": "posthog-personhog-router:50052", "enabled": true}, "personhogReplica": {"enabled": true, "image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/personhog-replica", "tag": "master@sha256:9fb5f8238df3b5c5d11d2f3ed1f4bc3d13f0ec3b9453737b6df661aa786ecbf3"}}, "personhogRouter": {"enabled": true, "image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/personhog-router", "tag": "master@sha256:da51c627e026f75b1da1eac9befaf618890070038c33bcfc971ba0e8113f7168"}}, "plugins": {"image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog-node", "tag": "master@sha256:a2e93efadd13b8e0b551ea6e23364ebae3caf6888109debb239caa1945a49e16"}}, "postgresql": {"enabled": false}, "posthog": {"env": {"MULTI_ORG_ENABLED": "1"}, "image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-web", "tag": "latest@sha256:934b3aa684231a6c3be8b5801626d160e5159197691702b88cfc3414dd124b41"}, "optOutCapture": true, "secretEnv": {"OIDC_RSA_PRIVATE_KEY": {"key": "tls.key", "name": "posthog-oidc-generated"}}}, "propertyDefsRs": {"image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/property-defs-rs", "tag": "master@sha256:66ccc059c4b7464ac19bf4ea6a4a0db9712c423779529baeb5e64afea4909f10"}}, "redis": {"enabled": true, image: {repository: redis, tag: '7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99'}}, "replayCapture": {"image": {"repository": "registry.streamloop.app/ghcr.io/posthog/posthog/capture", "tag": "master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4"}}, "rustfs": {"enabled": false}, "seaweedfs": {"enabled": false}, "temporal": {"adminTools": {"image": {"repository": "registry.streamloop.app/docker.io/temporalio/admin-tools", "tag": "1.31.0@sha256:3e68adcd54195a7c1222e99f2dbc32a4fdbf44ad69e3bb48e21e85c4bf417c2e"}}, "enabled": true, "server": {"image": {"repository": "registry.streamloop.app/docker.io/temporalio/auto-setup", "tag": "1.29.6@sha256:1263120feed69d82e4ca23b8ca6f1d702c3029fe70714e382966d0192318eab6"}}, "ui": {"image": {"repository": "registry.streamloop.app/docker.io/temporalio/ui", "tag": "2.50.0@sha256:49a61456f6b770af926d6d7d74f63ebb4b9a3c5abc4fb68ddb146321d49391e4"}}}, "temporalDjangoWorker": {"image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-worker", "tag": "latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316"}, "resources": {"limits": {"memory": "6Gi"}, "requests": {"cpu": "500m", "memory": "1Gi"}}}, "valkey": {"enabled": true, image: {repository: valkey/valkey, tag: '8.1-alpine@sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1'}}, "web": {"enabled": true, "image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-web", "tag": "latest@sha256:934b3aa684231a6c3be8b5801626d160e5159197691702b88cfc3414dd124b41"}, "replicas": 1, "resources": {"limits": {"memory": "8Gi"}, "requests": {"cpu": "500m", "memory": "2Gi"}}}, "worker": {"extraEnv": [{"name": "CELERY_WORKER_CONCURRENCY", "value": "2"}], "image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-worker", "tag": "latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316"}, "resources": {"limits": {"memory": "8Gi"}, "requests": {"cpu": "500m", "memory": "1Gi"}}}, "workerBeat": {"enabled": true, "image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-worker", "tag": "latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316"}, "replicas": 1, "resources": {"limits": {"memory": "6Gi"}, "requests": {"cpu": "100m", "memory": "512Mi"}}}, "workerExports": {"enabled": true, "image": {"pullPolicy": "IfNotPresent", "repository": "registry.streamloop.app/ghcr.io/blitss/posthog-worker-exports", "tag": "latest@sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00"}}, "zookeeper": {"enabled": false}}, "valuesFrom": [{"kind": "Secret", "name": "posthog-secrets", "valuesKey": "object-storage-access-key", "targetPath": "externalObjectStorage.accessKey"}, {"kind": "Secret", "name": "posthog-secrets", "valuesKey": "object-storage-secret-key", "targetPath": "externalObjectStorage.secretKey"}, {"kind": "Secret", "name": "posthog-secrets", "valuesKey": "seaweedfs-access-key", "targetPath": "externalSeaweedfs.accessKey"}, {"kind": "Secret", "name": "posthog-secrets", "valuesKey": "seaweedfs-secret-key", "targetPath": "externalSeaweedfs.secretKey"}]}, "metadata": {"name": "posthog", "namespace": "posthog"}}
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: posthog-chart
+  dependsOn:
+    - name: clickhouse-operator
+  install:
+    disableWait: true
+    remediation:
+      retries: 0
+      remediateLastFailure: false
+  interval: 5m
+  postRenderers:
+    - kustomize:
+        patches:
+          - patch: |
+              - op: replace
+                path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+                value: /preflight
+              - op: replace
+                path: /spec/template/spec/containers/0/readinessProbe/httpGet/path
+                value: /preflight
+              - op: replace
+                path: /spec/template/spec/containers/0/livenessProbe/httpGet/path
+                value: /preflight
+            target:
+              group: apps
+              kind: Deployment
+              name: posthog-web
+              version: v1
+          - patch: |
+              - op: add
+                path: /spec/routes/8
+                value:
+                  kind: Rule
+                  match: Host(`posthog.streamloop.app`) && PathPrefix(`/static/`)
+                  priority: 2
+                  middlewares:
+                    - name: posthog-static-cache
+                    - name: posthog-static-compress
+                  services:
+                    - name: posthog-web
+                      port: 8000
+            target:
+              group: traefik.io
+              kind: IngressRoute
+              name: posthog
+              version: v1alpha1
+  timeout: 45m
+  upgrade:
+    disableWait: true
+    remediation:
+      remediateLastFailure: false
+      retries: 0
+  values:
+    asyncMigrationsCheck:
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-migrate
+        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+    browserless:
+      enabled: true
+      image:
+        repository: ghcr.io/browserless/chromium
+        tag: v2.51.2@sha256:79a37927bdd235c8f5a299a8846c37e946c3505dff2562ece3922d4562d016a3
+    capture:
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
+        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+    captureAi:
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
+        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+    captureLogs:
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture-logs
+        tag: master@sha256:e8ebc718503c27230403601b1036a7db106d347eccf0ee2714b4c0e245e033fa
+    cdpCyclotronV2Janitor:
+      enabled: true
+    cdpHogflowScheduler:
+      enabled: true
+    clickhouse:
+      database: posthog
+      enabled: false
+    cyclotronMigrate:
+      enabled: true
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-cyclotron-migrate
+        tag: latest@sha256:ac726ab397f131d530cd22c8d8addc5854e6942f780d6479f89ea9c3797193c5
+    cymbal:
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/cymbal
+        tag: master@sha256:939d140ae9632eabce36286edacab9aa38bba34ce9e8818856b876f08e3671a9
+    cymbalResolution:
+      enabled: true
+    elasticsearch:
+      enabled: false
+    externalClickhouse:
+      apiUser: api
+      appUser: app
+      cluster: posthog
+      dictReaderUser: dict_reader
+      host: clickhouse-posthog.posthog.svc.cluster.local
+      logsCluster: posthog
+      migrationsCluster: posthog
+      primaryReplicaCluster: posthog
+      secretName: posthog-clickhouse-password
+      secretPasswordKey: password
+      singleShardCluster: posthog
+      user: default
+      writableCluster: posthog
+    externalElasticsearch:
+      host: posthog-elastic-es-http.posthog.svc.cluster.local
+      passwordKey: elastic
+      scheme: http
+      secretName: posthog-elastic-es-elastic-user
+      user: elastic
+      version: v8
+    externalKafka:
+      brokers: posthog-redpanda.posthog.svc.cluster.local:9093
+    externalObjectStorage:
+      endpoint: https://f7bb26785c99f3c0603872623fa23bdf.r2.cloudflarestorage.com
+    externalPostgresql:
+      database: posthog
+      host: posthog-pg-rw
+      passwordKey: password
+      personsDatabase: posthog
+      port: 5432
+      secretName: posthog-pg-app
+      usernameKey: username
+    externalSeaweedfs:
+      endpoint: https://f7bb26785c99f3c0603872623fa23bdf.r2.cloudflarestorage.com
+    featureFlags:
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/feature-flags
+        tag: master@sha256:65030502939f230ff7ba820e6a145a8598019c846383fb10fd9ec2ecba5c9048
+    geoip:
+      brotli: false
+      downloadUrl: https://r2.streamloop.app/GeoIP2-City.mmdb
+      enabled: true
+      image: alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+    global:
+      containerSecurityContext: {}
+      podSecurityContext: {}
+    hypercacheServer:
+      image:
+        repository: ghcr.io/posthog/posthog/hypercache-server
+        tag: master@sha256:2acd76fc8219a9156f6036251cdeb63746cca0cf20fbe62c4563e8654e25f889
+    ingress:
+      enabled: true
+      gateway:
+        enabled: false
+      hostname: posthog.streamloop.app
+      nginx:
+        enabled: false
+      traefik:
+        enabled: true
+        entryPoints:
+          - websecure
+        tls:
+          enabled: true
+          secretName: posthog-tls
+    kafka:
+      enabled: false
+    livestream:
+      enabled: true
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/livestream
+        tag: master@sha256:6926f340b72d609e43cee5aa8b75a85cfdc77d182e610dafafdd81d3b2ab53f5
+    mcp:
+      enabled: true
+      image:
+        pullPolicy: Always
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog-mcp
+        tag: latest@sha256:a51e79eaf77ed02afd4c883da612a31191c6b2b31c45378cf28110659b4c03e4
+    migrate:
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-migrate
+        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+      persons:
+        enabled: true
+        skipPartitioning: true
+    minio:
+      enabled: false
+    networkPolicies:
+      enabled: false
+    objectStorage:
+      aiBlobs:
+        bucket: posthog
+        offloadTeams: '*'
+        prefix: ai-blobs/aio/
+      enabled: true
+    personhog:
+      addr: posthog-personhog-router:50052
+      enabled: true
+    personhogReplica:
+      enabled: true
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/personhog-replica
+        tag: master@sha256:9fb5f8238df3b5c5d11d2f3ed1f4bc3d13f0ec3b9453737b6df661aa786ecbf3
+    personhogRouter:
+      enabled: true
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/personhog-router
+        tag: master@sha256:da51c627e026f75b1da1eac9befaf618890070038c33bcfc971ba0e8113f7168
+    plugins:
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog-node
+        tag: master@sha256:a2e93efadd13b8e0b551ea6e23364ebae3caf6888109debb239caa1945a49e16
+    postgresql:
+      enabled: false
+    posthog:
+      env:
+        MULTI_ORG_ENABLED: "1"
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-web
+        tag: latest@sha256:934b3aa684231a6c3be8b5801626d160e5159197691702b88cfc3414dd124b41
+      optOutCapture: true
+      secretEnv:
+        OIDC_RSA_PRIVATE_KEY:
+          key: tls.key
+          name: posthog-oidc-generated
+    propertyDefsRs:
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/property-defs-rs
+        tag: master@sha256:66ccc059c4b7464ac19bf4ea6a4a0db9712c423779529baeb5e64afea4909f10
+    redis:
+      enabled: true
+      image:
+        repository: redis
+        tag: 7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    replayCapture:
+      image:
+        repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
+        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+    rustfs:
+      enabled: false
+    seaweedfs:
+      enabled: false
+    temporal:
+      adminTools:
+        image:
+          repository: registry.streamloop.app/docker.io/temporalio/admin-tools
+          tag: 1.31.0@sha256:3e68adcd54195a7c1222e99f2dbc32a4fdbf44ad69e3bb48e21e85c4bf417c2e
+      enabled: true
+      server:
+        image:
+          repository: registry.streamloop.app/docker.io/temporalio/auto-setup
+          tag: 1.29.6@sha256:1263120feed69d82e4ca23b8ca6f1d702c3029fe70714e382966d0192318eab6
+      ui:
+        image:
+          repository: registry.streamloop.app/docker.io/temporalio/ui
+          tag: 2.50.0@sha256:49a61456f6b770af926d6d7d74f63ebb4b9a3c5abc4fb68ddb146321d49391e4
+    temporalDjangoWorker:
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
+        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+      resources:
+        limits:
+          memory: 6Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+    valkey:
+      enabled: true
+      image:
+        repository: valkey/valkey
+        tag: 8.1-alpine@sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1
+    web:
+      enabled: true
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-web
+        tag: latest@sha256:934b3aa684231a6c3be8b5801626d160e5159197691702b88cfc3414dd124b41
+      replicas: 1
+      resources:
+        limits:
+          memory: 8Gi
+        requests:
+          cpu: 500m
+          memory: 2Gi
+    worker:
+      extraEnv:
+        - name: CELERY_WORKER_CONCURRENCY
+          value: "2"
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
+        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+      resources:
+        limits:
+          memory: 8Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+    workerBeat:
+      enabled: true
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
+        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+      replicas: 1
+      resources:
+        limits:
+          memory: 6Gi
+        requests:
+          cpu: 100m
+          memory: 512Mi
+    workerExports:
+      enabled: true
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker-exports
+        tag: latest@sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00
+    zookeeper:
+      enabled: false
+  valuesFrom:
+    - kind: Secret
+      name: posthog-secrets
+      valuesKey: object-storage-access-key
+      targetPath: externalObjectStorage.accessKey
+    - kind: Secret
+      name: posthog-secrets
+      valuesKey: object-storage-secret-key
+      targetPath: externalObjectStorage.secretKey
+    - kind: Secret
+      name: posthog-secrets
+      valuesKey: seaweedfs-access-key
+      targetPath: externalSeaweedfs.accessKey
+    - kind: Secret
+      name: posthog-secrets
+      valuesKey: seaweedfs-secret-key
+      targetPath: externalSeaweedfs.secretKey
+metadata:
+  name: posthog
+  namespace: posthog

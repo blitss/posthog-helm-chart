@@ -1,24 +1,17 @@
-{
-  "apiVersion": "cert-manager.io/v1",
-  "kind": "Certificate",
-  "spec": {
-    "commonName": "posthog-oidc",
-    "dnsNames": [
-      "posthog-oidc.local"
-    ],
-    "issuerRef": {
-      "kind": "Issuer",
-      "name": "selfsigned"
-    },
-    "privateKey": {
-      "algorithm": "RSA",
-      "encoding": "PKCS8",
-      "size": 4096
-    },
-    "secretName": "posthog-oidc-generated"
-  },
-  "metadata": {
-    "name": "posthog-oidc-keypair",
-    "namespace": "posthog"
-  }
-}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+spec:
+  commonName: posthog-oidc
+  dnsNames:
+    - posthog-oidc.local
+  issuerRef:
+    kind: Issuer
+    name: selfsigned
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS8
+    size: 4096
+  secretName: posthog-oidc-generated
+metadata:
+  name: posthog-oidc-keypair
+  namespace: posthog

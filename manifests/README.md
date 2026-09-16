@@ -84,7 +84,7 @@ kubectl --context hub-production -n posthog port-forward svc/posthog-web 8000:80
 curl --fail http://127.0.0.1:8000/preflight
 ```
 
-Preflight is not a substitute for topic, migration, SQL-consumer or Temporal checks. In self-hosted code, `kafka` may be false by design; validate Redpanda separately. Do not assert a fixed pod count or treat Flux Ready with workload waiting disabled as proof all workloads are healthy.
+Preflight is not a substitute for topic, migration, SQL-consumer or Temporal checks. Validate Kafka with the broker/topic checks and an actual capture-to-ClickHouse event, not a version-specific preflight flag. Do not assert a fixed pod count or treat Flux Ready with workload waiting disabled as proof all workloads are healthy.
 
 ## Generic/local operator example
 

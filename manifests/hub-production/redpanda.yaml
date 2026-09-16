@@ -1,106 +1,67 @@
-{
-  "apiVersion": "cluster.redpanda.com/v1alpha2",
-  "kind": "Redpanda",
-  "spec": {
-    "chartRef": {},
-    "clusterSpec": {
-      "auth": {
-        "sasl": {
-          "enabled": false
-        }
-      },
-      "config": {
-        "cluster": {
-          "auto_create_topics_enabled": true,
-          "default_topic_partitions": 1,
-          "default_topic_replications": 1
-        },
-        "tunable": {
-          "group_topic_partitions": 1
-        }
-      },
-      "connectors": {
-        "enabled": false
-      },
-      "console": {
-        "enabled": false
-      },
-      "external": {
-        "enabled": false
-      },
-      "image": {
-        "tag": "v26.1.1"
-      },
-      "listeners": {
-        "admin": {
-          "port": 9644,
-          "tls": {
-            "enabled": false
-          }
-        },
-        "http": {
-          "enabled": false
-        },
-        "kafka": {
-          "port": 9093,
-          "tls": {
-            "enabled": false
-          }
-        },
-        "rpc": {
-          "port": 33145,
-          "tls": {
-            "enabled": false
-          }
-        },
-        "schemaRegistry": {
-          "enabled": false
-        }
-      },
-      "resources": {
-        "cpu": {
-          "cores": 1
-        },
-        "memory": {
-          "container": {
-            "max": "2Gi"
-          }
-        }
-      },
-      "statefulset": {
-        "replicas": 1,
-        "podTemplate": {
-          "spec": {
-            "containers": [
-              {
-                "name": "redpanda",
-                "image": "docker.redpanda.com/redpandadata/redpanda:v26.1.1@sha256:e0efb480a5056f5df535e8978790840d4c18458e99934aa38b99ac89baf17f74"
-              },
-              {
-                "name": "sidecar",
-                "image": "docker.redpanda.com/redpandadata/redpanda-operator:v26.1.2@sha256:d5d1d9a5629d3e1a4bd8fe4b1120407074ad8fec83f075ad9b825364b6d9be25"
-              }
-            ]
-          }
-        }
-      },
-      "storage": {
-        "persistentVolume": {
-          "enabled": true,
-          "size": "20Gi"
-        }
-      },
-      "tls": {
-        "enabled": false
-      }
-    }
-  },
-  "metadata": {
-    "name": "posthog-redpanda",
-    "namespace": "posthog",
-    "annotations": {
-      "operator.redpanda.com/config-sync-mode": "additive",
-      "operator.redpanda.com/restart-cluster-on-config-change": "false"
-    }
-  }
-}
+apiVersion: cluster.redpanda.com/v1alpha2
+kind: Redpanda
+spec:
+  chartRef: {}
+  clusterSpec:
+    auth:
+      sasl:
+        enabled: false
+    config:
+      cluster:
+        auto_create_topics_enabled: true
+        default_topic_partitions: 1
+        default_topic_replications: 1
+      tunable:
+        group_topic_partitions: 1
+    connectors:
+      enabled: false
+    console:
+      enabled: false
+    external:
+      enabled: false
+    image:
+      tag: v26.1.1
+    listeners:
+      admin:
+        port: 9644
+        tls:
+          enabled: false
+      http:
+        enabled: false
+      kafka:
+        port: 9093
+        tls:
+          enabled: false
+      rpc:
+        port: 33145
+        tls:
+          enabled: false
+      schemaRegistry:
+        enabled: false
+    resources:
+      cpu:
+        cores: 1
+      memory:
+        container:
+          max: 2Gi
+    statefulset:
+      replicas: 1
+      podTemplate:
+        spec:
+          containers:
+            - name: redpanda
+              image: docker.redpanda.com/redpandadata/redpanda:v26.1.1@sha256:e0efb480a5056f5df535e8978790840d4c18458e99934aa38b99ac89baf17f74
+            - name: sidecar
+              image: docker.redpanda.com/redpandadata/redpanda-operator:v26.1.2@sha256:d5d1d9a5629d3e1a4bd8fe4b1120407074ad8fec83f075ad9b825364b6d9be25
+    storage:
+      persistentVolume:
+        enabled: true
+        size: 20Gi
+    tls:
+      enabled: false
+metadata:
+  name: posthog-redpanda
+  namespace: posthog
+  annotations:
+    operator.redpanda.com/config-sync-mode: additive
+    operator.redpanda.com/restart-cluster-on-config-change: "false"

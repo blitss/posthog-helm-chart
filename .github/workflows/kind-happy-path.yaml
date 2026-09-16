@@ -480,10 +480,6 @@ jobs:
           bad = [key for key in required_true if payload.get(key) is not True]
           if bad:
               raise SystemExit(f"preflight fields not true: {bad}; payload={payload}")
-
-          # Current PostHog self-host preflight reports kafka as in_cloud or TEST.
-          if payload.get("kafka") is not False:
-              raise SystemExit(f"unexpected kafka preflight value: {payload.get('kafka')!r}")
           PY
             then
               break
