@@ -3,6 +3,10 @@ name: kind-happy-path
 on:
   workflow_dispatch:
     inputs:
+      publish:
+        description: "Publish tested artifacts (main only); omit base_sha for a full release"
+        type: boolean
+        default: false
       base_sha:
         description: "Optional comparison base for owned bot PR checks"
         type: string
@@ -547,7 +551,7 @@ jobs:
 
   publish:
     needs: [plan, release-ready]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.plan.outputs.publish-images == 'true' || needs.plan.outputs.publish-chart == 'true')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)) && (needs.plan.outputs.publish-images == 'true' || needs.plan.outputs.publish-chart == 'true')
     permissions:
       contents: read
       packages: write

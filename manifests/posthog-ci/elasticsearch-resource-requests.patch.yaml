@@ -3,3 +3,7 @@
   value:
     cpu: 50m
     memory: 512Mi
+# JVM heap is not total process memory; reserve headroom for native allocations.
+- op: replace
+  path: /spec/nodeSets/0/podTemplate/spec/containers/0/resources/limits/memory
+  value: 2Gi

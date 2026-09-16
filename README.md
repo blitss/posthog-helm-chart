@@ -108,6 +108,8 @@ Require the GitHub Actions `release-ready` status check on `main`, with the bran
 
 Bot workflows explicitly dispatch verification when using `GITHUB_TOKEN`, whose pushes do not trigger ordinary PR workflows. Renovate rebases behind-base branches and never automerges dependency updates. Stateful major upgrades still need a separate migration decision; a fresh-install smoke test does not prove an in-place data migration.
 
+To recover an unpublished release after fixing CI, run `gh workflow run kind-happy-path.yaml --ref main -f publish=true` without `base_sha`. This rebuilds and verifies the full release before publication; it does not promote artifacts from a failed run. Manual publication is restricted to `main`; ordinary manual/bot verification never publishes.
+
 ## Publish targets
 
 - Chart OCI: `oci://ghcr.io/blitss/charts/posthog`
