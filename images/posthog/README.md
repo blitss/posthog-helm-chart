@@ -15,7 +15,6 @@ Images in this directory:
 - `Dockerfile.worker-exports`: Celery `exports` worker using remote Browserless; no local browser/media tooling.
 - `Dockerfile.migrate`: Django, persons SQL and ClickHouse schema migrations.
 - `Dockerfile.cyclotron-migrate`: SQLx migrations for the retained Node Cyclotron database only.
-- `Dockerfile.bootstrap-clickhouse`: tiny helper image for the ClickHouse bootstrap hook.
 
 Example builds:
 
@@ -24,7 +23,6 @@ docker build -f images/posthog/Dockerfile.web -t posthog-web .
 docker build -f images/posthog/Dockerfile.worker -t posthog-worker .
 docker build -f images/posthog/Dockerfile.worker-exports -t posthog-worker-exports .
 docker build -f images/posthog/Dockerfile.migrate -t posthog-migrate .
-docker build -f images/posthog/Dockerfile.bootstrap-clickhouse -t posthog-bootstrap-clickhouse .
 ```
 
 The split Python images require the September 2026 upstream Python 3.13.13
@@ -45,3 +43,17 @@ by the chart. Its build guard currently requires upstream commit
 `8471862b083b25d3a11b97eb7730f21aa0cb4c7f`; review
 [issue #65](https://github.com/blitss/posthog-helm-chart/issues/65) before changing
 that pin, including the [SCIM historical-field backport](https://github.com/blitss/posthog-helm-chart/issues/66). An unmodified upstream monolith cannot replace this migration role.
+
+Use the [guarded setup/upgrade runner](../../charts/posthog/README.md#guarded-hub-production-setup-and-upgrade)
+for hub-production. The migration image's default CMD is not the complete
+production migration sequence: the runner executes the chart's real
+Django/product/persons/ClickHouse/async hooks and the separate Node SQLx image,
+with application rollout held until those Jobs finish.
+
+The repository also carries [`scripts/reconcile-clickhouse-logs.py`](../../scripts/reconcile-clickhouse-logs.py),
+the staged storage-preserving #70 recovery. Run it inside this pinned migration
+image, not a web/worker image. Absolute script paths work because it adds `/code`
+and `/python-runtime` to its Python import path. The runner also explicitly sets
+`PYTHONPATH=/code:/python-runtime`. Keep its private journal outside the container;
+the deployment runner transfers it after each phase. Never fake migration
+history or substitute a snapshot rollback for completing genuine migrations.

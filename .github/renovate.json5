@@ -3,10 +3,12 @@
   "extends": [
     "config:recommended",
     ":semanticCommits",
-    ":disableRateLimiting"
+    ":disableRateLimiting",
+    "helpers:pinGitHubActionDigests"
   ],
   "dependencyDashboard": true,
-  "enabledManagers": ["helm-values", "flux", "kubernetes"],
+  "rebaseWhen": "behind-base-branch",
+  "enabledManagers": ["helm-values", "flux", "kubernetes", "github-actions", "mise"],
   "helm-values": {
     "fileMatch": ["^manifests/.+\\.ya?ml$"]
   },
@@ -21,22 +23,29 @@
   ],
   "packageRules": [
     {
-      "description": "Bundle every image update from the PostHog HelmRelease values into one PR.",
-      "matchFileNames": ["manifests/posthog/release.yaml"],
+      "description": "Keep compatible PostHog application and split-role images in one tested bundle.",
+      "matchFileNames": ["manifests/posthog/release.yaml", "manifests/hub-production/**"],
       "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/blitss/posthog-*", "ghcr.io/posthog/**", "posthog/posthog"],
+      "matchUpdateTypes": ["digest", "pin", "pinDigest", "patch", "minor"],
       "groupName": "posthog images",
       "groupSlug": "posthog-images",
-      "separateMajorMinor": false,
-      "separateMultipleMajor": false,
-      "separateMinorPatch": false,
+      "separateMajorMinor": true,
       "commitMessageTopic": "posthog images",
       "addLabels": ["renovate/posthog-images"]
     },
     {
-      "description": "Pin floating tags (latest, master) in the PostHog release so Renovate can track digests.",
-      "matchFileNames": ["manifests/posthog/release.yaml"],
+      "description": "Track immutable digests for all deployed image references.",
+      "matchFileNames": ["manifests/**"],
       "matchDatasources": ["docker"],
       "pinDigests": true
+    },
+    {
+      "description": "Major database, operator and image upgrades need independent review.",
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "separateMultipleMajor": true,
+      "addLabels": ["renovate/major"]
     },
     {
       "description": "Helm chart bumps (cnpg, cert-manager, redpanda-operator, altinity-clickhouse-operator, …) get one PR per chart.",

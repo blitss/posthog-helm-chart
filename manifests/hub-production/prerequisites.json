@@ -1,0 +1,629 @@
+{
+  "purpose": "Inventory only; not a Kustomize resource. Install shared services separately before namespace profile.",
+  "controllers": [
+    {
+      "kind": "Deployment",
+      "namespace": "cert-manager",
+      "name": "cert-manager",
+      "chart": "cert-manager-v1.17.2",
+      "replicas": 1,
+      "serviceAccountName": "cert-manager",
+      "containers": [
+        {
+          "name": "cert-manager-controller",
+          "image": "quay.io/jetstack/cert-manager-controller:v1.17.2",
+          "args": [
+            "--v=2",
+            "--cluster-resource-namespace=$(POD_NAMESPACE)",
+            "--leader-election-namespace=kube-system",
+            "--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.17.2",
+            "--default-issuer-name=letsencrypt-prod",
+            "--default-issuer-kind=ClusterIssuer",
+            "--default-issuer-group=cert-manager.io",
+            "--max-concurrent-challenges=60"
+          ],
+          "env": [
+            {
+              "name": "POD_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "cert-manager",
+      "name": "cert-manager-cainjector",
+      "chart": "cert-manager-v1.17.2",
+      "replicas": 1,
+      "serviceAccountName": "cert-manager-cainjector",
+      "containers": [
+        {
+          "name": "cert-manager-cainjector",
+          "image": "quay.io/jetstack/cert-manager-cainjector:v1.17.2",
+          "args": [
+            "--v=2",
+            "--leader-election-namespace=kube-system"
+          ],
+          "env": [
+            {
+              "name": "POD_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "cert-manager",
+      "name": "cert-manager-webhook",
+      "chart": "cert-manager-v1.17.2",
+      "replicas": 1,
+      "serviceAccountName": "cert-manager-webhook",
+      "containers": [
+        {
+          "name": "cert-manager-webhook",
+          "image": "quay.io/jetstack/cert-manager-webhook:v1.17.2",
+          "args": [
+            "--v=2",
+            "--secure-port=10250",
+            "--dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)",
+            "--dynamic-serving-ca-secret-name=cert-manager-webhook-ca",
+            "--dynamic-serving-dns-names=cert-manager-webhook",
+            "--dynamic-serving-dns-names=cert-manager-webhook.$(POD_NAMESPACE)",
+            "--dynamic-serving-dns-names=cert-manager-webhook.$(POD_NAMESPACE).svc"
+          ],
+          "env": [
+            {
+              "name": "POD_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "cnpg-system",
+      "name": "cnpg-controller-manager",
+      "chart": null,
+      "replicas": 1,
+      "serviceAccountName": "cnpg-manager",
+      "containers": [
+        {
+          "name": "manager",
+          "image": "ghcr.io/cloudnative-pg/cloudnative-pg:1.29.0",
+          "command": [
+            "/manager"
+          ],
+          "args": [
+            "controller",
+            "--leader-elect",
+            "--max-concurrent-reconciles=10",
+            "--config-map-name=cnpg-controller-manager-config",
+            "--secret-name=cnpg-controller-manager-config",
+            "--webhook-port=9443"
+          ],
+          "env": [
+            {
+              "name": "OPERATOR_IMAGE_NAME",
+              "value": "ghcr.io/cloudnative-pg/cloudnative-pg:1.29.0"
+            },
+            {
+              "name": "OPERATOR_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            },
+            {
+              "name": "MONITORING_QUERIES_CONFIGMAP",
+              "value": "cnpg-default-monitoring"
+            }
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "flux-system",
+      "name": "helm-controller",
+      "chart": null,
+      "replicas": 1,
+      "serviceAccountName": "helm-controller",
+      "containers": [
+        {
+          "name": "manager",
+          "image": "ghcr.io/fluxcd/helm-controller:v1.3.0",
+          "args": [
+            "--events-addr=http://notification-controller.flux-system.svc.cluster.local./",
+            "--watch-all-namespaces=true",
+            "--log-level=info",
+            "--log-encoding=json",
+            "--enable-leader-election"
+          ],
+          "env": [
+            {
+              "name": "RUNTIME_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            },
+            {
+              "name": "GOMAXPROCS",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "manager",
+                  "resource": "limits.cpu",
+                  "divisor": "0"
+                }
+              }
+            },
+            {
+              "name": "GOMEMLIMIT",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "manager",
+                  "resource": "limits.memory",
+                  "divisor": "0"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "flux-system",
+      "name": "kustomize-controller",
+      "chart": null,
+      "replicas": 1,
+      "serviceAccountName": "kustomize-controller",
+      "containers": [
+        {
+          "name": "manager",
+          "image": "ghcr.io/fluxcd/kustomize-controller:v1.6.1",
+          "args": [
+            "--events-addr=http://notification-controller.flux-system.svc.cluster.local./",
+            "--watch-all-namespaces=true",
+            "--log-level=info",
+            "--log-encoding=json",
+            "--enable-leader-election"
+          ],
+          "env": [
+            {
+              "name": "RUNTIME_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            },
+            {
+              "name": "GOMAXPROCS",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "manager",
+                  "resource": "limits.cpu",
+                  "divisor": "0"
+                }
+              }
+            },
+            {
+              "name": "GOMEMLIMIT",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "manager",
+                  "resource": "limits.memory",
+                  "divisor": "0"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "flux-system",
+      "name": "source-controller",
+      "chart": null,
+      "replicas": 1,
+      "serviceAccountName": "source-controller",
+      "containers": [
+        {
+          "name": "manager",
+          "image": "ghcr.io/fluxcd/source-controller:v1.6.2",
+          "args": [
+            "--events-addr=http://notification-controller.flux-system.svc.cluster.local./",
+            "--watch-all-namespaces=true",
+            "--log-level=info",
+            "--log-encoding=json",
+            "--enable-leader-election",
+            "--storage-path=/data",
+            "--storage-adv-addr=source-controller.$(RUNTIME_NAMESPACE).svc.cluster.local."
+          ],
+          "env": [
+            {
+              "name": "RUNTIME_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            },
+            {
+              "name": "TUF_ROOT",
+              "value": "/tmp/.sigstore"
+            },
+            {
+              "name": "GOMAXPROCS",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "manager",
+                  "resource": "limits.cpu",
+                  "divisor": "0"
+                }
+              }
+            },
+            {
+              "name": "GOMEMLIMIT",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "manager",
+                  "resource": "limits.memory",
+                  "divisor": "0"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator",
+      "chart": "altinity-clickhouse-operator-0.26.1",
+      "replicas": 1,
+      "serviceAccountName": "clickhouse-operator-altinity-clickhouse-operator",
+      "containers": [
+        {
+          "name": "altinity-clickhouse-operator",
+          "image": "altinity/clickhouse-operator:0.26.1",
+          "env": [
+            {
+              "name": "OPERATOR_POD_NODE_NAME",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "spec.nodeName"
+                }
+              }
+            },
+            {
+              "name": "OPERATOR_POD_NAME",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.name"
+                }
+              }
+            },
+            {
+              "name": "OPERATOR_POD_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            },
+            {
+              "name": "OPERATOR_POD_IP",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "status.podIP"
+                }
+              }
+            },
+            {
+              "name": "OPERATOR_POD_SERVICE_ACCOUNT",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "spec.serviceAccountName"
+                }
+              }
+            },
+            {
+              "name": "OPERATOR_CONTAINER_CPU_REQUEST",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "altinity-clickhouse-operator",
+                  "resource": "requests.cpu",
+                  "divisor": "0"
+                }
+              }
+            },
+            {
+              "name": "OPERATOR_CONTAINER_CPU_LIMIT",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "altinity-clickhouse-operator",
+                  "resource": "limits.cpu",
+                  "divisor": "0"
+                }
+              }
+            },
+            {
+              "name": "OPERATOR_CONTAINER_MEM_REQUEST",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "altinity-clickhouse-operator",
+                  "resource": "requests.memory",
+                  "divisor": "0"
+                }
+              }
+            },
+            {
+              "name": "OPERATOR_CONTAINER_MEM_LIMIT",
+              "valueFrom": {
+                "resourceFieldRef": {
+                  "containerName": "altinity-clickhouse-operator",
+                  "resource": "limits.memory",
+                  "divisor": "0"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "configMaps": [
+        "clickhouse-operator-altinity-clickhouse-operator-files",
+        "clickhouse-operator-altinity-clickhouse-operator-confd-files",
+        "clickhouse-operator-altinity-clickhouse-operator-configd-files",
+        "clickhouse-operator-altinity-clickhouse-operator-templatesd-files",
+        "clickhouse-operator-altinity-clickhouse-operator-usersd-files",
+        "clickhouse-operator-altinity-clickhouse-operator-keeper-confd-files",
+        "clickhouse-operator-altinity-clickhouse-operator-keeper-configd-files",
+        "clickhouse-operator-altinity-clickhouse-operator-keeper-templatesd-files",
+        "clickhouse-operator-altinity-clickhouse-operator-keeper-usersd-files"
+      ]
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "posthog",
+      "name": "redpanda-operator",
+      "chart": "operator-26.1.2",
+      "replicas": 1,
+      "serviceAccountName": "redpanda-operator",
+      "containers": [
+        {
+          "name": "manager",
+          "image": "docker.redpanda.com/redpandadata/redpanda-operator:v26.1.2",
+          "command": [
+            "/manager"
+          ],
+          "args": [
+            "--configurator-base-image=docker.redpanda.com/redpandadata/redpanda-operator",
+            "--configurator-tag=v26.1.2",
+            "--enable-console=true",
+            "--enable-vectorized-controllers=false",
+            "--health-probe-bind-address=:8081",
+            "--leader-elect",
+            "--log-level=info",
+            "--metrics-bind-address=:8443",
+            "--webhook-enabled=false"
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "traefik",
+      "name": "traefik",
+      "chart": "traefik-26.0.0",
+      "replicas": 2,
+      "serviceAccountName": "traefik",
+      "containers": [
+        {
+          "name": "traefik",
+          "image": "docker.io/traefik:v2.10.6",
+          "args": [
+            "--global.checknewversion",
+            "--global.sendanonymoususage",
+            "--entrypoints.metrics.address=:9100/tcp",
+            "--entrypoints.traefik.address=:9000/tcp",
+            "--entrypoints.web.address=:8000/tcp",
+            "--entrypoints.websecure.address=:8443/tcp",
+            "--api.dashboard=true",
+            "--ping=true",
+            "--metrics.prometheus=true",
+            "--metrics.prometheus.entrypoint=metrics",
+            "--providers.kubernetescrd",
+            "--providers.kubernetesingress",
+            "--entrypoints.websecure.http.tls=true",
+            "--experimental.http3=true",
+            "--entrypoints.websecure.http3",
+            "--entrypoints.websecure.http3.advertisedPort=443",
+            "--entrypoints.websecure.forwardedHeaders.insecure"
+          ],
+          "env": [
+            {
+              "name": "POD_NAME",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.name"
+                }
+              }
+            },
+            {
+              "name": "POD_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "configMaps": []
+    },
+    {
+      "kind": "StatefulSet",
+      "namespace": "elastic-system",
+      "name": "elastic-operator",
+      "chart": null,
+      "replicas": 1,
+      "serviceAccountName": "elastic-operator",
+      "containers": [
+        {
+          "name": "manager",
+          "image": "docker.elastic.co/eck/eck-operator:2.7.0",
+          "args": [
+            "manager",
+            "--config=/conf/eck.yaml"
+          ],
+          "env": [
+            {
+              "name": "OPERATOR_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            },
+            {
+              "name": "POD_IP",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "status.podIP"
+                }
+              }
+            },
+            {
+              "name": "WEBHOOK_SECRET",
+              "value": "elastic-webhook-server-cert"
+            }
+          ]
+        }
+      ],
+      "configMaps": [
+        "elastic-operator"
+      ]
+    }
+  ],
+  "configurationSources": {
+    "altinity": "https://helm.altinity.com (altinity-clickhouse-operator chart 0.26.1)",
+    "eck": "https://download.elastic.co/downloads/eck/2.7.0/operator.yaml"
+  },
+  "configMaps": [
+    {
+      "namespace": "elastic-system",
+      "name": "elastic-operator",
+      "dataSha256": {
+        "eck.yaml": "83f53b1f33482ad7c048cf6292b099f89d1fb3891af2bc99db33e79ae78f81c3"
+      }
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-usersd-files",
+      "dataSha256": {
+        "01-clickhouse-operator-profile.xml": "0ec35e5878c18639e1d3a6223d4cba8c669649b41a5dfe1d34ac231fb0373ee1",
+        "02-clickhouse-default-profile.xml": "20842ef2c81f6e53c4b182e6477407620f0ec8892871e55739f4e8c9c71cf915"
+      }
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-templatesd-files",
+      "dataSha256": {}
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-keeper-usersd-files",
+      "dataSha256": {}
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-keeper-templatesd-files",
+      "dataSha256": {}
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-keeper-configd-files",
+      "dataSha256": {
+        "01-keeper-01-default-config.xml": "e6712e2b490ed82c3d61838c6a5f1598a7f63c2703ad9d7e838e3bb166dc3ab8",
+        "01-keeper-02-readiness.xml": "eb1bf0d40042c16f19d0eae8770f0e8a474cf717f9b19ff58ead6d662dd8166b",
+        "01-keeper-03-enable-reconfig.xml": "5cacf9677084f4c99c6cc1c75dcdc9deaf520eab949d13bc4d05e171ceeba625"
+      }
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-keeper-confd-files",
+      "dataSha256": {}
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-files",
+      "dataSha256": {
+        "config.yaml": "1c344d248eb7cb78b434bd12e0225bd087c6686d5fc2285d0f870eba0f293122"
+      }
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-configd-files",
+      "dataSha256": {
+        "01-clickhouse-01-listen.xml": "56cfe874961e88a2c0a089f81133a3feb38d9e916fa3da897c2ae358e0aeec46",
+        "01-clickhouse-02-logger.xml": "423991efb4a6ae577eaee1b2fd203579390dd84bb5ae66ff733d79ecbf8413ff",
+        "01-clickhouse-03-query_log.xml": "9616b6d4b8e2df7a0246d2ab25490437dc4ef47434c36c6e909df6cec47d5c37",
+        "01-clickhouse-04-part_log.xml": "d1f57e1bfe6692b08b8a9777e802ccc21d24f7db6d934a359b5fca225a6ade93",
+        "01-clickhouse-05-trace_log.xml": "5c5fec38ab10238c321762a7be5f06d90b48d2cc116216425b8d3c0bd8938b72"
+      }
+    },
+    {
+      "namespace": "posthog",
+      "name": "clickhouse-operator-altinity-clickhouse-operator-confd-files",
+      "dataSha256": {}
+    }
+  ]
+}

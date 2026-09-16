@@ -2,26 +2,24 @@ name: kind-happy-path
 
 on:
   workflow_dispatch:
+    inputs:
+      base_sha:
+        description: "Optional comparison base for owned bot PR checks"
+        type: string
+        default: ""
+      expected_head:
+        description: "Refuse a moved bot branch rather than testing a different head"
+        type: string
+        default: ""
   pull_request:
-    paths:
-      - .github/workflows/kind-happy-path.yaml
-      - charts/posthog/**
-      - images/clickhouse/**
-      - kind-config*.yaml
-      - manifests/**
-      - scripts/kind-bootstrap.sh
-      - vendor/posthog/**
+  merge_group:
   push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/kind-happy-path.yaml
-      - charts/posthog/**
-      - images/clickhouse/**
-      - kind-config*.yaml
-      - manifests/**
-      - scripts/kind-bootstrap.sh
-      - vendor/posthog/**
+    branches: [main]
+
+# Serialize main releases so an older run cannot move latest after a newer one.
+concurrency:
+  group: posthog-release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -30,12 +28,89 @@ env:
   KIND_CLUSTER_NAME: posthog-ci
   LOCAL_REGISTRY_NAME: kind-registry
   LOCAL_REGISTRY_PORT: "5001"
-  CLICKHOUSE_TAG: "26.6.2.158"
+  HELM_VERSION: v3.18.4
+  FLUX_VERSION: 2.6.4
 
 jobs:
+  plan:
+    name: classify release inputs
+    runs-on: ubuntu-24.04
+    outputs:
+      runtime: ${{ steps.changes.outputs.runtime }}
+      publish-images: ${{ steps.changes.outputs.publish-images }}
+      publish-chart: ${{ steps.changes.outputs.publish-chart }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Validate reproducibility tooling
+        run: |
+          set -euo pipefail
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          python3 -m venv /tmp/posthog-ops-venv
+          /tmp/posthog-ops-venv/bin/pip install -r requirements-ops.txt
+          /tmp/posthog-ops-venv/bin/python scripts/test-reconcile-clickhouse-logs.py
+          /tmp/posthog-ops-venv/bin/python scripts/test-check-hub-production.py
+          bash scripts/test-update-topics.sh
+          bash scripts/test-cyclotron-entrypoint.sh
+          for mode in fresh upgrade; do
+            for phase in prepare backup infrastructure logs migrate rollout verify; do
+              /tmp/posthog-ops-venv/bin/python scripts/deploy-hub-production.py "$phase" \
+                --context nonexistent-plan-only-context --mode "$mode" --state-dir /tmp/posthog-offline-plan
+            done
+          done
+          test ! -e /tmp/posthog-offline-plan
+      - id: changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || inputs.base_sha }}
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$EXPECTED_HEAD" ]]; then test "$EXPECTED_HEAD" = "$GITHUB_SHA"; fi
+          if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
+            printf 'runtime=true\npublish-images=true\npublish-chart=true\n' >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only "$BASE" "$GITHUB_SHA" > /tmp/changed-paths
+            python3 - <<'PY'
+          import os, pathlib, re, subprocess
+          paths = pathlib.Path("/tmp/changed-paths").read_text().splitlines()
+          prefixes = (".github/workflows/", "charts/", "images/", "vendor/", "manifests/", "scripts/", "kind-config")
+          files = {".github/renovate.json5", ".dockerignore", "mise.toml", "requirements-ops.txt"}
+          runtime = any(not p.endswith(".md") and (p.startswith(prefixes) or p in files) for p in paths)
+          # A deployment-pin PR must be tested, but rebuilding/promoting it would
+          # produce another digest-only Renovate PR forever (labels include SHA).
+          image_files = {
+              ".dockerignore", ".github/workflows/build-posthog-images.yaml",
+              "charts/posthog/files/web-startup.sh",
+          }
+          publish_images = any(
+              not p.endswith(".md") and (p.startswith(("images/", "vendor/")) or p in image_files)
+              for p in paths
+          )
+          def chart_version(ref):
+              chart = subprocess.check_output(["git", "show", f"{ref}:charts/posthog/Chart.yaml"], text=True)
+              return re.search(r"^version:\s*(.+)$", chart, re.MULTILINE).group(1).strip()
+          publish_chart = chart_version(os.environ["BASE"]) != chart_version(os.environ["GITHUB_SHA"])
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"runtime={str(runtime).lower()}\n")
+              output.write(f"publish-images={str(publish_images).lower()}\n")
+              output.write(f"publish-chart={str(publish_chart).lower()}\n")
+          PY
+          fi
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.runtime == 'true'
+    uses: ./.github/workflows/build-posthog-images.yaml
+
   happy-path:
-    name: manifests happy path in kind
-    runs-on: ubuntu-latest
+    name: manifests happy path (${{ matrix.images }})
+    needs: [plan, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        images: [declared, hub-production, candidate]
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
@@ -57,29 +132,38 @@ jobs:
           docker builder prune --all --force
           df -h
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      # Restore the most recent pre-migrated Postgres snapshot (zstd via cache v5).
-      # The key is unique per run so it never hits exactly; restore-keys falls back
-      # to the latest prior snapshot. Shared across all images on purpose — Django
-      # migrations are incremental, so the migrate hook just applies the delta.
-      - name: Restore Postgres migration snapshot
-        uses: actions/cache/restore@v5
+
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
-          path: /tmp/pg-snapshot
-          key: posthog-pg-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            posthog-pg-snapshot-
+          version: v3.18.4
 
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+        with:
+          version: v1.33.1
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: chart
+          path: /tmp/chart
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: matrix.images == 'candidate'
+        with:
+          pattern: image-*-amd64
+          path: /tmp/images
 
       - name: Install kind and Flux
         shell: bash
         run: |
           set -euo pipefail
-          go install sigs.k8s.io/kind@v0.29.0
-          sudo install -m 0755 "$(go env GOPATH)/bin/kind" /usr/local/bin/kind
-          curl -fsSL https://fluxcd.io/install.sh | sudo bash
+          curl -fsSL https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64 -o /tmp/kind
+          sudo install -m 0755 /tmp/kind /usr/local/bin/kind
+          curl -fsSL "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz" | tar -xz -C /tmp flux
+          sudo install -m 0755 /tmp/flux /usr/local/bin/flux
+          curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_linux_amd64 -o /tmp/yq
+          sudo install -m 0755 /tmp/yq /usr/local/bin/yq
           kind version
           flux --version
           kubectl version --client=true
@@ -109,27 +193,38 @@ jobs:
             - role: control-plane
           EOF
 
-          kind create cluster --name "${KIND_CLUSTER_NAME}" --config /tmp/kind-ci.yaml
+          kind create cluster --name "${KIND_CLUSTER_NAME}" --image kindest/node:v1.33.1@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f --config /tmp/kind-ci.yaml
           docker network connect kind "${LOCAL_REGISTRY_NAME}" || true
           kubectl get nodes -o wide
 
-      - name: Build and publish local test artifacts
+      - name: Load exact same-run test artifacts
         shell: bash
+        env:
+          IMAGE_MODE: ${{ matrix.images }}
         run: |
           set -euo pipefail
-          CH_IMAGE="localhost:${LOCAL_REGISTRY_PORT}/posthog-clickhouse:${CLICKHOUSE_TAG}"
-          docker build -f images/clickhouse/Dockerfile -t "${CH_IMAGE}" .
-          docker push "${CH_IMAGE}"
-
-          mkdir -p /tmp/chart
-          helm package charts/posthog --destination /tmp/chart
+          (cd /tmp/chart && sha256sum --check SHA256SUMS)
+          test "$(cat /tmp/chart/revision)" = "$GITHUB_SHA"
           helm push --plain-http /tmp/chart/posthog-*.tgz "oci://localhost:${LOCAL_REGISTRY_PORT}/charts"
+          if [[ "$IMAGE_MODE" == candidate ]]; then
+            for archive in /tmp/images/image-*-amd64; do
+              (cd "$archive" && sha256sum --check SHA256SUMS)
+              test "$(cat "$archive/revision")" = "$GITHUB_SHA"
+              docker load -i "$archive/image.tar"
+              source="$(jq -r '.[0].RepoTags[0]' "$archive/image.json")"
+              test "$(docker inspect -f '{{.Id}}' "$source")" = "$(jq -r '.[0].Id' "$archive/image.json")"
+              role="${source#posthog-ci/}"; role="${role%%:*}"
+              docker tag "$source" "localhost:${LOCAL_REGISTRY_PORT}/${role}:${GITHUB_SHA}"
+              docker push "localhost:${LOCAL_REGISTRY_PORT}/${role}:${GITHUB_SHA}"
+              rm "$archive/image.tar"
+            done
+          fi
 
       - name: Install Flux
         shell: bash
         run: |
           set -euo pipefail
-          flux install
+          flux install --version="v${FLUX_VERSION}"
           kubectl -n flux-system rollout status deploy/source-controller --timeout=5m
           kubectl -n flux-system rollout status deploy/helm-controller --timeout=5m
 
@@ -139,13 +234,9 @@ jobs:
           set -euo pipefail
           cp -a manifests /tmp/ci-manifests
 
-          sed -i \
-            's#url: oci://ghcr.io/blitss/charts/posthog#url: oci://ci-registry.posthog.svc.cluster.local:5000/charts/posthog\n  insecure: true#' \
-            /tmp/ci-manifests/posthog/ocirepository.yaml
-
-          sed -i \
-            "s#image: ghcr.io/blitss/posthog-clickhouse:${CLICKHOUSE_TAG}#image: localhost:${LOCAL_REGISTRY_PORT}/posthog-clickhouse:${CLICKHOUSE_TAG}#" \
-            /tmp/ci-manifests/posthog/clickhouse.yaml
+          CHART_VERSION="$(yq '.version' charts/posthog/Chart.yaml)"
+          export CHART_VERSION
+          yq -i '.spec.url = "oci://ci-registry.posthog.svc.cluster.local:5000/charts/posthog" | .spec.insecure = true | .spec.ref = {"tag": strenv(CHART_VERSION)}' /tmp/ci-manifests/posthog/ocirepository.yaml
 
           kubectl create namespace posthog --dry-run=client -o yaml | kubectl apply -f -
           REGISTRY_IP="$(docker inspect -f '{{.NetworkSettings.Networks.kind.IPAddress}}' "${LOCAL_REGISTRY_NAME}")"
@@ -178,7 +269,6 @@ jobs:
           kubectl create namespace elastic-system --dry-run=client -o yaml | kubectl apply -f -
           kubectl create namespace secretgen-controller --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply --dry-run=server -k /tmp/ci-manifests/infra
-          kubectl apply --dry-run=server -k /tmp/ci-manifests/posthog-ci || true
 
       - name: Apply infra manifests
         shell: bash
@@ -285,43 +375,33 @@ jobs:
           WATCH_PID="$!"
           trap 'kill "${WATCH_PID}" 2>/dev/null || true' EXIT
 
-          kubectl apply -k /tmp/ci-manifests/posthog-ci
+          # Materialize resource patches first, then substitute ONLY in the candidate
+          # lane. The declared lane tests every proposed image/digest as committed.
+          kubectl kustomize /tmp/ci-manifests/posthog-ci > /tmp/posthog-ci.yaml
+          if [[ "${{ matrix.images }}" == hub-production ]]; then
+            yq -o=json manifests/hub-production/release.yaml > /tmp/profile.json
+            yq -o=json 'select(.kind == "HelmRelease" and .metadata.name == "posthog")' /tmp/posthog-ci.yaml \
+              | python3 scripts/verify-release-profile-images.py /tmp/profile.json > /tmp/profile-release.json
+            yq -i '(select(.kind == "HelmRelease" and .metadata.name == "posthog")) = load("/tmp/profile-release.json")' /tmp/posthog-ci.yaml
+            # ClickHouse is an operator CR, not a HelmRelease image value.
+            CH_IMAGE="$(yq -er '.spec.templates.podTemplates[].spec.containers[] | select(.name == "clickhouse") | .image' manifests/hub-production/clickhouse.yaml)"
+            export CH_IMAGE="${CH_IMAGE#registry.streamloop.app/}"
+            [[ "$CH_IMAGE" =~ ^[^[:space:]]+@sha256:[0-9a-f]{64}$ ]]
+            yq -i '(select(.kind == "ClickHouseInstallation") | .spec.templates.podTemplates[].spec.containers[] | select(.name == "clickhouse") | .image) = strenv(CH_IMAGE)' /tmp/posthog-ci.yaml
+          fi
+          if [[ "${{ matrix.images }}" == candidate ]]; then
+            for pair in posthog:web web:web worker:worker workerBeat:worker temporalDjangoWorker:worker workerExports:worker-exports migrate:migrate asyncMigrationsCheck:migrate cyclotronMigrate:cyclotron-migrate; do
+              export COMPONENT="${pair%%:*}" ROLE="${pair#*:}"
+              yq -i '(select(.kind == "HelmRelease" and .metadata.name == "posthog") | .spec.values[strenv(COMPONENT)].image) = {"repository": ("localhost:" + strenv(LOCAL_REGISTRY_PORT) + "/posthog-" + strenv(ROLE)), "tag": strenv(GITHUB_SHA), "pullPolicy": "IfNotPresent"}' /tmp/posthog-ci.yaml
+            done
+            yq -i '(select(.kind == "ClickHouseInstallation") | .spec.templates.podTemplates[].spec.containers[] | select(.name == "clickhouse") | .image) = ("localhost:" + strenv(LOCAL_REGISTRY_PORT) + "/posthog-clickhouse:" + strenv(GITHUB_SHA))' /tmp/posthog-ci.yaml
+          fi
+          kubectl apply -f /tmp/posthog-ci.yaml
           kubectl wait --for=condition=Ready ocirepository/posthog-chart -n posthog --timeout=10m
 
-          # The HelmRelease is applied suspended; bring Postgres up and restore the
-          # cached snapshot before the migrate hook runs, so it only applies the
-          # delta of new migrations instead of the full set.
-          echo "::group::wait for CNPG postgres to be ready"
+          # Always migrate a fresh database. Cross-revision dumps can hide broken
+          # fresh installs or carry incompatible schema past the migration gate.
           kubectl wait --for=condition=Ready clusters.postgresql.cnpg.io/posthog-pg -n posthog --timeout=10m
-          echo "::endgroup::"
-
-          PG_PRIMARY="$(kubectl get pods -n posthog -l 'cnpg.io/cluster=posthog-pg,role=primary' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-          if [[ -z "${PG_PRIMARY}" ]]; then
-            PG_PRIMARY="$(kubectl get pods -n posthog -l 'cnpg.io/cluster=posthog-pg,cnpg.io/instanceRole=primary' -o jsonpath='{.items[0].metadata.name}')"
-          fi
-          echo "postgres primary pod: ${PG_PRIMARY}"
-
-          if ls /tmp/pg-snapshot/*.dump >/dev/null 2>&1; then
-            echo "::group::restore Postgres migration snapshot"
-            for dump in /tmp/pg-snapshot/*.dump; do
-              db="$(basename "${dump}" .dump)"
-              echo "restoring ${db}"
-              # If a cached dump is no longer restorable (e.g. PG major bump), reset
-              # that DB to empty so the migrate hook runs it in full — self-healing
-              # cache rather than a poisoned one that fails every subsequent run.
-              if ! kubectl exec -i -n posthog "${PG_PRIMARY}" -c postgres -- \
-                   pg_restore -U postgres -d "${db}" --no-acl --exit-on-error < "${dump}"; then
-                echo "::warning::restore of ${db} failed; resetting it so migrate runs full"
-                kubectl exec -n posthog "${PG_PRIMARY}" -c postgres -- \
-                  psql -U postgres -d "${db}" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION posthog;"
-              fi
-            done
-            echo "::endgroup::"
-          else
-            echo "no cached snapshot found — cold run, migrate will run in full"
-          fi
-
-          # Resume the chart so the migrate hook runs against the restored DBs.
           kubectl patch helmrelease posthog -n posthog --type=merge -p '{"spec":{"suspend":false}}'
           kubectl annotate helmrelease posthog -n posthog \
             reconcile.fluxcd.io/requestedAt="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite
@@ -401,10 +481,6 @@ jobs:
           bad = [key for key in required_true if payload.get(key) is not True]
           if bad:
               raise SystemExit(f"preflight fields not true: {bad}; payload={payload}")
-
-          # Current PostHog self-host preflight reports kafka as in_cloud or TEST.
-          if payload.get("kafka") is not False:
-              raise SystemExit(f"unexpected kafka preflight value: {payload.get('kafka')!r}")
           PY
             then
               break
@@ -425,33 +501,9 @@ jobs:
           kubectl exec -n posthog chi-posthog-posthog-0-0-0 -- clickhouse client --password "${CH_PW}" --database system --query "SELECT throwIf(count() = 0, 'aggregate_funnel missing') FROM system.functions WHERE name = 'aggregate_funnel'"
           kubectl exec -n posthog chi-posthog-posthog-0-0-0 -- clickhouse client --password "${CH_PW}" --database system --query "SELECT throwIf(count() < 4, 'warpstream named collections missing') FROM system.named_collections WHERE name LIKE 'warpstream_%'"
 
-      # Only snapshot after a green run, so the cache always holds known-good,
-      # fully-migrated state. Dumps the migrate-populated databases only (Temporal
-      # DBs are managed by its own auto-setup, not the migrate hook).
-      - name: Snapshot Postgres for cache
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/pg-snapshot
-          rm -f /tmp/pg-snapshot/*.dump
-          PG_PRIMARY="$(kubectl get pods -n posthog -l 'cnpg.io/cluster=posthog-pg,role=primary' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-          if [[ -z "${PG_PRIMARY}" ]]; then
-            PG_PRIMARY="$(kubectl get pods -n posthog -l 'cnpg.io/cluster=posthog-pg,cnpg.io/instanceRole=primary' -o jsonpath='{.items[0].metadata.name}')"
-          fi
-          for db in posthog posthog_persons cyclotron cyclotron_node behavioral_cohorts ducklake; do
-            echo "dumping ${db}"
-            kubectl exec -n posthog "${PG_PRIMARY}" -c postgres -- \
-              pg_dump -U postgres -Fc --compress=zstd "${db}" > "/tmp/pg-snapshot/${db}.dump"
-          done
-          ls -lh /tmp/pg-snapshot
+          # A green preflight alone does not prove the capture/ingestion pipeline.
+          kubectl exec -i -n posthog "${WEB}" -- env POSTHOG_RELEASE_SMOKE=disposable-kind /python-runtime/bin/python < scripts/verify-release-smoke.py
 
-      - name: Save Postgres migration snapshot
-        if: success()
-        uses: actions/cache/save@v5
-        with:
-          path: /tmp/pg-snapshot
-          key: posthog-pg-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Dump diagnostics
         if: failure()
@@ -471,3 +523,35 @@ jobs:
           kubectl logs -n posthog chi-posthog-posthog-0-0-0 --all-containers --tail=300 --prefix
           docker ps -a
           docker logs "${KIND_CLUSTER_NAME}-control-plane" --tail=300
+
+  release-ready:
+    name: release-ready
+    if: always()
+    needs: [plan, build, happy-path]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require smoke success or an explicit metadata-only result
+        env:
+          PLAN: ${{ needs.plan.result }}
+          RUNTIME: ${{ needs.plan.outputs.runtime }}
+          BUILD: ${{ needs.build.result }}
+          SMOKE: ${{ needs.happy-path.result }}
+        run: |
+          set -euo pipefail
+          test "$PLAN" = success
+          if [[ "$RUNTIME" == false ]]; then
+            test "$BUILD" = skipped && test "$SMOKE" = skipped
+          else
+            test "$BUILD" = success && test "$SMOKE" = success
+          fi
+
+  publish:
+    needs: [plan, release-ready]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.plan.outputs.publish-images == 'true' || needs.plan.outputs.publish-chart == 'true')
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish-posthog-artifacts.yaml
+    with:
+      publish_images: ${{ needs.plan.outputs.publish-images == 'true' }}
+      publish_chart: ${{ needs.plan.outputs.publish-chart == 'true' }}

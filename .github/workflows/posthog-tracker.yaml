@@ -22,12 +22,14 @@ on:
 
 concurrency:
   group: posthog-tracker
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
-  # contents: write so we can commit the last-scanned-SHA state file back to the repo.
+  # Propose cursor updates through a PR; never bypass branch protection.
   contents: write
   issues: write
+  pull-requests: write
+  actions: write
   id-token: write
 
 jobs:
@@ -36,7 +38,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
+      - name: Record this scan's start
+        run: echo "TRACKER_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Fetch and pre-filter PostHog upstream commits
         id: commits
@@ -54,7 +60,7 @@ jobs:
             SINCE_SHA="$SINCE_SHA_INPUT"
             echo "Using explicit since_sha: $SINCE_SHA"
           elif [ -f "$STATE_FILE" ]; then
-            SINCE_SHA=$(cat "$STATE_FILE" | tr -d '[:space:]')
+            SINCE_SHA=$(tr -d '[:space:]' < "$STATE_FILE")
             echo "Using state file SHA: $SINCE_SHA"
           fi
 
@@ -62,44 +68,27 @@ jobs:
           NEW_HEAD=$(gh api repos/PostHog/posthog/commits/master --jq '.sha')
           echo "Upstream master HEAD: $NEW_HEAD"
 
-          : > /tmp/posthog-commits-raw.json
-          echo "[" > /tmp/posthog-commits-raw.json
-          first=true
-
+          [[ "$NEW_HEAD" =~ ^[0-9a-f]{40}$ ]]
           if [ -n "$SINCE_SHA" ]; then
-            # SHA-based: use compare API to get commits SINCE_SHA..NEW_HEAD in one call.
-            # Compare returns up to 250 commits in .commits[].
-            if [ "$SINCE_SHA" = "$NEW_HEAD" ]; then
-              echo "No new commits since last run."
-            else
-              compare=$(gh api "repos/PostHog/posthog/compare/${SINCE_SHA}...${NEW_HEAD}" 2>/dev/null || echo '{"commits":[]}')
-              entries=$(echo "$compare" | jq -c '[.commits[] | {sha: .sha, message: .commit.message, author: .commit.author.name, date: .commit.author.date, url: .html_url}] | .[]')
-              while IFS= read -r entry; do
-                [ -z "$entry" ] && continue
-                if [ "$first" = true ]; then first=false; else echo "," >> /tmp/posthog-commits-raw.json; fi
-                echo "$entry" >> /tmp/posthog-commits-raw.json
-              done <<< "$entries"
-            fi
+            [[ "$SINCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            # Paginate every commit. A failed API request must fail this run,
+            # never turn into an empty success that advances the cursor.
+            gh api --paginate --slurp \
+              "repos/PostHog/posthog/compare/${SINCE_SHA}...${NEW_HEAD}?per_page=100" \
+              > /tmp/posthog-compare.json
+            jq -e '.[0].status == "ahead" or .[0].status == "identical"' /tmp/posthog-compare.json >/dev/null
+            jq '[.[].commits[]] | unique_by(.sha)' /tmp/posthog-compare.json > /tmp/posthog-commits-list.json
+            test "$(jq length /tmp/posthog-commits-list.json)" = "$(jq '.[0].total_commits' /tmp/posthog-compare.json)"
           else
-            # Time-window fallback (first run, no state file).
+            [[ "$SINCE_HOURS" =~ ^[0-9]+$ ]]
             SINCE=$(date -u -d "${SINCE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)
-            echo "No prior cursor — falling back to ${SINCE_HOURS}h window since $SINCE"
-            for page in 1 2 3 4 5; do
-              page_data=$(gh api \
-                "repos/PostHog/posthog/commits?sha=master&since=${SINCE}&per_page=100&page=${page}" \
-                --jq '[.[] | {sha: .sha, message: .commit.message, author: .commit.author.name, date: .commit.author.date, url: .html_url}]')
-              page_count=$(echo "$page_data" | jq length)
-              [ "$page_count" -eq 0 ] && break
-              entries=$(echo "$page_data" | jq -c '.[]')
-              while IFS= read -r entry; do
-                if [ "$first" = true ]; then first=false; else echo "," >> /tmp/posthog-commits-raw.json; fi
-                echo "$entry" >> /tmp/posthog-commits-raw.json
-              done <<< "$entries"
-              [ "$page_count" -lt 100 ] && break
-            done
+            # Freeze the listing at NEW_HEAD; master may move while paginating.
+            gh api --paginate --slurp \
+              "repos/PostHog/posthog/commits?sha=${NEW_HEAD}&since=${SINCE}&per_page=100" \
+              | jq 'add' > /tmp/posthog-commits-list.json
           fi
-
-          echo "]" >> /tmp/posthog-commits-raw.json
+          jq '[.[] | {sha, message: .commit.message, author: .commit.author.name, date: .commit.author.date, url: .html_url}]' \
+            /tmp/posthog-commits-list.json > /tmp/posthog-commits-raw.json
           RAW_COUNT=$(jq length /tmp/posthog-commits-raw.json)
           echo "Total commits to scan: $RAW_COUNT"
           echo "new_head=$NEW_HEAD" >> "$GITHUB_OUTPUT"
@@ -119,15 +108,18 @@ jobs:
           # We filter server-side here so Claude only sees commits that touch
           # these paths — message-first triage was missing infra changes with
           # generic commit messages.
-          WATCHED_REGEX='^(docker-compose|production\.Dockerfile|Dockerfile|.*\.Dockerfile$|docker/|bin/|charts/|\.github/workflows/build-)'
+          WATCHED_REGEX='^(docker-compose|production\.Dockerfile|Dockerfile|.*\.Dockerfile$|.*\.dockerignore$|docker/|bin/|charts/|\.github/workflows/build-)'
 
           echo "Pre-filtering commits by changed paths…"
           : > /tmp/posthog-commits-filtered.ndjson
           fetched=0
           while IFS= read -r commit; do
             sha=$(echo "$commit" | jq -r .sha)
-            files_json=$(gh api "repos/PostHog/posthog/commits/${sha}" \
-              --jq '[.files[].filename]' 2>/dev/null || echo '[]')
+            gh api --paginate --slurp "repos/PostHog/posthog/commits/${sha}?per_page=100" > /tmp/posthog-commit-pages.json
+            # GitHub caps this endpoint at 3000 files. Refuse to advance rather
+            # than silently miss paths when the cap is reached.
+            test "$(jq '[.[].files[]] | length' /tmp/posthog-commit-pages.json)" -lt 3000
+            files_json=$(jq '[.[].files[] | .filename, .previous_filename // empty] | unique' /tmp/posthog-commit-pages.json)
             watched=$(echo "$files_json" | jq --arg re "$WATCHED_REGEX" \
               '[.[] | select(test($re))]')
             watched_count=$(echo "$watched" | jq 'length')
@@ -196,14 +188,14 @@ jobs:
           - \`charts/posthog/\` — the Helm chart (Deployments, Services, ConfigMaps, Secrets, ClickHouse + ClickHouse-Keeper config XML embedded in templates).
           - \`charts/posthog/values.yaml\` — defaults for every component (web, worker, workerBeat, workerExports, temporalDjangoWorker, plugins, capture, replayCapture, captureAi, captureLogs, featureFlags, propertyDefsRs, livestream, cymbal, migrate, asyncMigrationsCheck) and Kafka topic provisioning.
           - \`charts/posthog/templates/external/clickhouse.yaml\` — ClickHouse config.xml + users.xml profiles, system-table TTLs, profile settings copied from upstream \`docker/clickhouse/config.xml\` and \`docker/clickhouse/users.xml\`.
-          - \`images/posthog/Dockerfile.{web,worker,worker-exports,migrate,bootstrap-clickhouse}\` — custom Dockerfiles built from upstream \`production.Dockerfile\` style images.
+          - \`images/posthog/Dockerfile.{web,worker,worker-exports,migrate,cyclotron-migrate}\` — custom Dockerfiles built from pinned upstream images.
           - \`vendor/posthog/docker/clickhouse/user_defined_function.xml\` and \`vendor/posthog/user_scripts/\` — files copied verbatim from upstream (auto-synced by \`sync-posthog-user-scripts\` workflow).
           - \`scripts/update-topics.sh\` — pulls Kafka topic list from upstream (auto-synced by \`sync-posthog-topics\` workflow).
           - \`manifests/posthog/release.yaml\` — Flux HelmRelease values used in production.
 
           ALREADY AUTO-SYNCED — DO NOT FILE ISSUES FOR THESE:
           - Kafka topic config (\`posthog/clickhouse/kafka_engine.py\`, \`posthog/kafka_client/topics.py\`) → handled by \`sync-posthog-topics.yaml\`.
-          - ClickHouse user-defined functions and user scripts under \`posthog/user_scripts/\` and \`posthog/clickhouse/user_defined_function.xml\` → handled by \`sync-posthog-user-scripts.yaml\`.
+          - ClickHouse user-defined functions and user scripts under \`posthog/user_scripts/\` and \`docker/clickhouse/user_defined_function.xml\` → handled by \`sync-posthog-user-scripts.yaml\` at the chart's pinned appVersion.
 
           FILES THAT MATTER (the *only* paths worth a closer look):
           - \`docker-compose*.yml\` / \`docker-compose*.yaml\` — service topology. New service blocks here are the strongest signal a new Deployment may be needed.
@@ -266,11 +258,12 @@ jobs:
 
       - name: Run posthog-tracker (Claude Code)
         if: steps.commits.outputs.has_commits == 'true'
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@bf38e86e58df9ebf3420326d019f955bb3be64dd # v1
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
           prompt: ${{ steps.build_prompt.outputs.prompt }}
           show_full_output: true
           claude_args: |
@@ -278,17 +271,30 @@ jobs:
             --verbose
             --allowed-tools "Bash(gh api:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(jq:*)"
 
+      - name: Dispatch resolver for newly filed bot issues
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NATIVE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$NATIVE_TOKEN" ]]; then
+            # GITHUB_TOKEN issue events do not recursively trigger workflows.
+            gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?labels=posthog-tracker&creator=github-actions%5Bbot%5D&since=${TRACKER_STARTED_AT}&per_page=100" \
+              | jq -r --arg since "$TRACKER_STARTED_AT" '.[][] | select(.pull_request == null and .created_at >= $since) | .number' > /tmp/new-tracker-issues
+            while IFS= read -r issue; do
+              gh workflow run posthog-tracker-resolve.yaml --ref main -f "issue_number=$issue"
+            done < /tmp/new-tracker-issues
+          fi
+
       - name: Skip (no commits)
         if: steps.commits.outputs.has_commits == 'false'
         env:
           SINCE_HOURS: ${{ github.event.inputs.since_hours || '24' }}
         run: echo "No PostHog upstream commits in the window. Nothing to do."
 
-      # Commit the new cursor only on a real scheduled/manual run, not dry-runs.
-      # If Claude opened issues, we still advance the cursor so the same commits
-      # don't get re-flagged tomorrow. If Claude failed mid-run the workflow
-      # itself fails before this step, leaving the cursor untouched (we'll
-      # re-scan the same range next time).
+      # Advance only after a complete successful scan. The PR is metadata-only
+      # and must use a bot token that triggers normal required checks.
       - name: Persist last-scanned SHA
         if: success() && github.event.inputs.dry_run != 'true' && steps.commits.outputs.new_head != ''
         env:
@@ -298,12 +304,26 @@ jobs:
           STATE_FILE=".github/posthog-tracker.last-sha"
           mkdir -p .github
           echo "$NEW_HEAD" > "$STATE_FILE"
-          if git diff --quiet -- "$STATE_FILE"; then
-            echo "Cursor unchanged."
-            exit 0
-          fi
-          git config user.name "posthog-tracker[bot]"
-          git config user.email "posthog-tracker@users.noreply.github.com"
-          git add "$STATE_FILE"
-          git commit -m "chore(tracker): advance cursor to ${NEW_HEAD:0:7}"
-          git push origin HEAD:main
+
+      - name: Propose cursor update
+        if: success() && github.event.inputs.dry_run != 'true' && steps.commits.outputs.new_head != ''
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
+          add-paths: .github/posthog-tracker.last-sha
+          branch: chore/posthog-tracker-cursor
+          base: main
+          delete-branch: true
+          commit-message: "chore(tracker): advance scanned upstream cursor"
+          title: "chore(tracker): advance scanned upstream cursor"
+          body: |
+            Completed upstream scan through `${{ steps.commits.outputs.new_head }}`.
+            API/pagination failures do not advance this cursor. Merge normally;
+            repeated scans deduplicate already-filed issues until this PR lands.
+      - name: Dispatch checks for owned cursor PR heads
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NATIVE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          if [[ -z "$NATIVE_TOKEN" ]]; then python3 scripts/verify-release-dispatch.py chore/posthog-tracker-cursor; fi

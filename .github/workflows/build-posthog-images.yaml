@@ -1,167 +1,113 @@
 name: build-posthog-images
 
+# Only the release orchestrator calls this; nothing is pushed during a build.
 on:
-  workflow_dispatch:
-    inputs:
-      posthog_image:
-        description: "Immutable upstream PostHog image reference"
-        required: false
-        default: "posthog/posthog@sha256:6ae0aa70bbd1ca299b472332e540eab2c829148a8c89b87b58221da260f580e4"
-      image_tag:
-        description: "Tag to publish for the split images"
-        required: false
-        default: "latest"
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/build-posthog-images.yaml
-      - images/posthog/**
-      - images/clickhouse/**
-      - vendor/posthog/**
+  workflow_call:
 
 permissions:
   contents: read
-  packages: write
 
 env:
-  REGISTRY: ghcr.io
-  OWNER: ${{ github.repository_owner }}
-  POSTHOG_TAG: ${{ inputs.image_tag || 'latest' }}
-  POSTHOG_IMAGE: ${{ inputs.posthog_image || 'posthog/posthog@sha256:6ae0aa70bbd1ca299b472332e540eab2c829148a8c89b87b58221da260f580e4' }}
+  POSTHOG_IMAGE: posthog/posthog@sha256:6ae0aa70bbd1ca299b472332e540eab2c829148a8c89b87b58221da260f580e4
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Build split PostHog images (web, worker, worker-exports, migrate)
-  # ---------------------------------------------------------------------------
-  build-posthog:
-    name: build ${{ matrix.image }}
+  build:
+    name: build ${{ matrix.image }} (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - image: posthog-web
-            dockerfile: images/posthog/Dockerfile.web
-          - image: posthog-worker
-            dockerfile: images/posthog/Dockerfile.worker
-          - image: posthog-worker-exports
-            dockerfile: images/posthog/Dockerfile.worker-exports
-          - image: posthog-migrate
-            dockerfile: images/posthog/Dockerfile.migrate
-          - image: posthog-cyclotron-migrate
-            dockerfile: images/posthog/Dockerfile.cyclotron-migrate
-    runs-on: ubuntu-latest
+          - {image: posthog-web, dockerfile: images/posthog/Dockerfile.web, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-worker, dockerfile: images/posthog/Dockerfile.worker, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-worker-exports, dockerfile: images/posthog/Dockerfile.worker-exports, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-migrate, dockerfile: images/posthog/Dockerfile.migrate, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-cyclotron-migrate, dockerfile: images/posthog/Dockerfile.cyclotron-migrate, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-clickhouse, dockerfile: images/clickhouse/Dockerfile, arch: amd64, runner: ubuntu-24.04}
+          - {image: posthog-clickhouse, dockerfile: images/clickhouse/Dockerfile, arch: arm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     steps:
-      - run: df -h
-      - name: "node-cleanup"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Free runner disk
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/lib/jvm /usr/local/.ghcup /usr/local/share/powershell /usr/share/swift
-          sudo docker image prune --all --force
-          sudo docker builder prune -a
-      - run: df -h
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+          docker image prune --all --force
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}
-          tags: |
-            type=raw,value=${{ env.POSTHOG_TAG }}
-            type=raw,value=sha-${{ github.sha }}
-
-      - uses: docker/build-push-action@v6
+          version: v0.28.0
+          driver-opts: image=moby/buildkit:v0.23.2
+      - name: Build candidate once
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          build-args: |
-            POSTHOG_IMAGE=${{ env.POSTHOG_IMAGE }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: linux/${{ matrix.arch }}
+          build-args: POSTHOG_IMAGE=${{ env.POSTHOG_IMAGE }}
+          load: true
+          push: false
+          tags: posthog-ci/${{ matrix.image }}:${{ github.sha }}-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            io.posthog.upstream.image=${{ env.POSTHOG_IMAGE }}
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
+      - name: Exercise image and record immutable identity
+        env:
+          IMAGE: posthog-ci/${{ matrix.image }}:${{ github.sha }}-${{ matrix.arch }}
+          ROLE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          [[ "$POSTHOG_IMAGE" =~ @sha256:[0-9a-f]{64}$ ]]
+          case "$ROLE" in
+            posthog-web|posthog-worker|posthog-worker-exports|posthog-migrate)
+              EXPECTED="$(sed -n 's/^appVersion: *["\x27]*\([0-9a-f]\{40\}\).*/\1/p' charts/posthog/Chart.yaml)"
+              test -n "$EXPECTED"
+              docker run --rm --entrypoint /python-runtime/bin/python -e EXPECTED="$EXPECTED" "$IMAGE" -c 'import os, pathlib; actual = pathlib.Path("/code/commit.txt").read_text().strip(); assert actual == os.environ["EXPECTED"], (actual, os.environ["EXPECTED"]); import django, celery'
+              ;;
+            posthog-cyclotron-migrate)
+              docker run --rm --entrypoint sqlx "$IMAGE" --version
+              ;;
+            posthog-clickhouse)
+              docker run -d --name clickhouse-smoke -e CLICKHOUSE_SKIP_USER_SETUP=1 "$IMAGE"
+              trap 'docker logs clickhouse-smoke; docker rm -f clickhouse-smoke' EXIT
+              timeout 120 bash -c 'until docker exec clickhouse-smoke clickhouse client --query "SELECT 1"; do sleep 2; done'
+              docker exec clickhouse-smoke clickhouse client --query "SELECT throwIf(count() = 0, 'aggregate_funnel missing') FROM system.functions WHERE name = 'aggregate_funnel'"
+              ;;
+          esac
+          mkdir -p dist
+          docker image inspect "$IMAGE" > dist/image.json
+          printf '%s\n' "$GITHUB_SHA" > dist/revision
+          printf '%s\n' "$POSTHOG_IMAGE" > dist/upstream-image
+          docker save "$IMAGE" -o dist/image.tar
+          (cd dist && sha256sum image.tar image.json revision upstream-image > SHA256SUMS)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-${{ matrix.image }}-${{ matrix.arch }}
+          path: dist/
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
 
-  # ---------------------------------------------------------------------------
-  # Build ClickHouse image (multi-arch)
-  # ---------------------------------------------------------------------------
-  build-clickhouse:
-    name: build clickhouse (${{ matrix.arch }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runs_on: ubuntu-latest
-            platform: linux/amd64
-          - arch: arm64
-            runs_on: ubuntu-24.04-arm
-            platform: linux/arm64
-    runs-on: ${{ matrix.runs_on }}
+  chart:
+    name: package chart
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Derive ClickHouse base tag
-        id: ch
-        run: |
-          IMAGE_REF="$(awk '$1=="FROM"{ref=$2} END{print ref}' images/clickhouse/Dockerfile)"
-          BASE_TAG="${IMAGE_REF%%@*}"; BASE_TAG="${BASE_TAG##*:}"
-          echo "base_tag=${BASE_TAG}" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: images/clickhouse/Dockerfile
-          platforms: ${{ matrix.platform }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/posthog-clickhouse:${{ steps.ch.outputs.base_tag }}-${{ matrix.arch }}
-
-  publish-clickhouse-manifest:
-    name: publish clickhouse manifest
-    needs: build-clickhouse
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Derive ClickHouse base tag
-        id: ch
+          version: v3.18.4
+      - name: Package exact chart revision
         run: |
-          IMAGE_REF="$(awk '$1=="FROM"{ref=$2} END{print ref}' images/clickhouse/Dockerfile)"
-          BASE_TAG="${IMAGE_REF%%@*}"; BASE_TAG="${BASE_TAG##*:}"
-          echo "base_tag=${BASE_TAG}" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+          set -euo pipefail
+          helm lint charts/posthog
+          helm template posthog charts/posthog >/dev/null
+          helm package charts/posthog --destination dist
+          printf '%s\n' "$GITHUB_SHA" > dist/revision
+          (cd dist && sha256sum posthog-*.tgz revision > SHA256SUMS)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create multi-arch manifest
-        run: |
-          IMAGE="${REGISTRY}/${OWNER}/posthog-clickhouse"
-          TAG="${{ steps.ch.outputs.base_tag }}"
-          docker buildx imagetools create \
-            -t "${IMAGE}:${TAG}" \
-            -t "${IMAGE}:sha-${GITHUB_SHA::12}" \
-            "${IMAGE}:${TAG}-amd64" \
-            "${IMAGE}:${TAG}-arm64"
-          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            docker buildx imagetools create -t "${IMAGE}:latest" "${IMAGE}:${TAG}"
-          fi
+          name: chart
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

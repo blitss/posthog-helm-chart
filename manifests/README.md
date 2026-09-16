@@ -1,238 +1,96 @@
-# PostHog Manifests (GitOps / Flux)
+# PostHog manifests (Flux and operators)
 
-Production-grade install path. Every stateful dependency is managed by a dedicated operator, and the PostHog Helm chart is deployed as a Flux `HelmRelease` pointing at an OCI registry.
+There are two independent profiles. **Use `manifests/hub-production` to reproduce hub-production.** `manifests/posthog` is a generic, smaller example with different ingress, images, resources and storage. Do not apply both: they use the same resource names. Neither a Git checkout nor an operator CR backs up application data.
 
-Use this path when you want the full operator story: declarative CRs, rolling upgrades managed by operators, proper backup/restore hooks, and no hand-rolled StatefulSets. For a quicker single-command install, use the [chart path](../charts/posthog/README.md).
+## hub-production
 
-## Architecture
+The YAML profile records the working PostHog release and namespace configuration without credentials, status, controller bookkeeping or cluster-wide operator installations. Explicit digest pins strengthen the observed configuration without changing the selected application code.
 
-```
-cert-manager                    CNPG operator            Altinity CH operator    Redpanda operator
-    │                               │                            │                         │
-    ▼                               ▼                            ▼                         ▼
-Certificate ──── Issuer      Cluster (Postgres)          CHI (ClickHouse)           Redpanda CR
-                             posthog-pg                  chi-posthog-posthog-0-0-0  posthog-redpanda-0
-                                                         ClickHouseKeeperInstallation
-                                                         chk-posthog-keeper-0-0-0
+- PostHog chart 0.22.4, OCI digest `sha256:d65943cdce3d349375dab1f485ac1f563bc1ed108f33f4ffe63301f926bdd434`, app source `8471862b083b25d3a11b97eb7730f21aa0cb4c7f`; images use individual observed digests, not an assumption that every component runs that source commit.
+- Web, workers, exports and migration roles use verified `blitss` split images. Worker/beat/Temporal use `registry.streamloop.app/ghcr.io/blitss/posthog-worker` with digest `sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316`; exports uses `posthog-worker-exports` with digest `sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00`. The earlier `docker.io/posthog/posthog` locators were incorrect and depended on node caches. Their repository names were corrected with approval, without changing image digests or application code. [`image-provenance.json`](hub-production/image-provenance.json) records the verified GHCR origins and build revision `32253c7e9d511fb214ef2f8da83b29de7dde6f30`.
+- Web requests 500m/2Gi and limits 8Gi; worker requests 500m/1Gi and limits 8Gi, with `CELERY_WORKER_CONCURRENCY=2`; beat requests 100m/512Mi and limits 6Gi; Temporal Django worker requests 500m/1Gi and limits 6Gi. Other chart settings inherit the pinned chart, not the generic profile's reduced resources.
+- One CNPG PostgreSQL 16 instance, 20Gi; no explicit CPU/memory reservation in the observed CR. PostHog and persons both connect to database `posthog`. Bootstrap also creates `cyclotron`, `cyclotron_node`, `posthog_persons`, `behavioral_cohorts`, `ducklake`, `temporal`, and `temporal_visibility`; the existence of `posthog_persons` does not mean production uses it.
+- One ClickHouse shard/replica (custom 26.6.2.158 image), requests 1 CPU/4Gi, limits 2 CPU/8Gi, 50Gi; one Keeper 25.3.6.10034.altinitystable, 5Gi. This is not HA. Runtime SQL schema and named collections require the deployment runner as well as manifests.
+- One Redpanda v26.1.1 broker, 1 core/2Gi, 20Gi, plaintext internal Kafka on 9093, no SASL or external listeners. This intentionally differs from the generic v26.1.9 example.
+- ECK Elasticsearch 8.17.3, one node, 10Gi, 2Gi memory, 1Gi JVM heap; internal HTTP without TLS. Temporal server 1.29.6, admin tools 1.31.0 and UI 2.50.0 are chart-managed, as are Redis and Valkey.
+- External Cloudflare R2: `https://f7bb26785c99f3c0603872623fa23bdf.r2.cloudflarestorage.com`. AI blobs use bucket `posthog`, prefix `ai-blobs/aio/`, all teams. RustFS, SeaweedFS and MinIO servers are disabled; `externalSeaweedfs` is the session-recording S3 endpoint, not a deployed SeaweedFS service.
+- `posthog.streamloop.app` uses Traefik `websecure`, `posthog-tls`, and the `/static/` cache/compression route. The retained post-renderer sets all web HTTP probes to **`/preflight`**. NetworkPolicies are disabled, as observed; do not describe this single-node internal-plaintext profile as a hardened HA deployment.
+- The profile encodes the observed Deployment environment `CLICKHOUSE_LOGS_DATABASE=posthog` as `captureLogs.extraEnv`. This override exists in the running Deployment but not in the installed Helm values; the checker reports that difference so a fresh deployment preserves the runtime behavior.
 
-                        Flux HelmRelease (posthog-chart) ───▶ PostHog app + rustfs subchart
-                                           │
-                                           ▼
-                                 Kustomize / Flux kustomize-controller
-                                           │
-                                           ▼
-                          kubectl apply -k manifests/
-```
+PostgreSQL, Keeper, Elasticsearch, Redpanda and the Redpanda sidecar are pinned to the digests recorded in [`stateful-image-provenance.json`](hub-production/stateful-image-provenance.json), retaining their semantic version tags. CNPG uses `imageName`, Keeper its container image, ECK `spec.image` with `version` unchanged, and Redpanda the documented named-container `statefulset.podTemplate` merge override (not a nonexistent `image.digest` field). The evidence records observed running Pod imageIDs; it is not a claim that a later cluster still runs those bytes. Registry retention and database backups remain external prerequisites.
 
-What each piece does:
+**These stateful pin-strengthening edits have not been applied to production.** Changing an image locator can roll stateful pods even when its digest identifies the same code. Do not bulk-apply the profile merely to correct worker repository names; schedule any stateful CR reconciliation separately. The alignment checker deliberately continues reporting the CR spec differences as drift while live CRs use tag-only locators. It does not silently waive drift based on a tag or a stale evidence file.
 
-| Operator | Controls | CR kind |
-|---|---|---|
-| **cert-manager** | TLS certs for OIDC, ingress, and Redpanda listeners | `Certificate`, `Issuer` |
-| **CloudNativePG** | Postgres clusters with backups, failover, PITR | `Cluster` |
-| **Altinity ClickHouse Operator** | ClickHouse deployments with cluster topology, users, macros | `ClickHouseInstallation` |
-| **Altinity ClickHouse Keeper Operator** | Raft-based ClickHouse coordinator (replaces ZooKeeper) | `ClickHouseKeeperInstallation` |
-| **Elastic Cloud on Kubernetes** | Elasticsearch deployment for Temporal visibility | `Elasticsearch` |
-| **Redpanda Operator** | Kafka-compatible message broker | `Redpanda` |
-| **Flux helm-controller** | Deploys the PostHog Helm chart from OCI | `HelmRelease` |
-| **Flux kustomize-controller** | Reconciles any of these from git (optional — you can also `kubectl apply -k`) | `Kustomization` |
+Browserless, GeoIP's Alpine init image, Redis and Valkey are also pinned to their observed digests in the profile, but their live Helm values still use tags. These unapplied locator changes likewise remain visible as drift. The profile reproduces the observed runtime selections; it is not a claim that the live declarative configuration already contains all of these pins.
 
-The PostHog chart itself still ships **rustfs** as a subchart, so the S3-compatible object store is installed alongside the app pods rather than via its own operator.
+### External prerequisites and install ordering
 
-## Prerequisites
+Install the existing cluster-wide operators and CRDs first; do not apply `manifests/infra` to an existing production cluster just to deploy this profile. [`hub-production/prerequisites.json`](hub-production/prerequisites.json) inventories the observed controller images, arguments, environment references and ConfigMap names; it is not an install manifest. Versions: Flux distribution 2.6.4 (helm-controller 1.3.0, source-controller 1.6.2, kustomize-controller 1.6.1), cert-manager 1.17.2, CNPG 1.29.0, Altinity ClickHouse/Keeper operator 0.26.1, Redpanda operator/chart 26.1.2, ECK 2.7.0, Traefik chart 26.0.0/image 2.10.6. Flux must support `helm.toolkit.fluxcd.io/v2`, `source.toolkit.fluxcd.io/v1` OCIRepository and `chartRef`; all corresponding CRDs/controllers must be ready. The `posthog/clickhouse-operator` HelmRelease must be Ready because PostHog explicitly depends on it. Production has no secretgen Password API; this profile does not require or install it.
 
-- Kubernetes 1.28+
-- Cluster admin access (operators install cluster-scoped CRDs)
-- Flux v2 installed in the cluster (`flux install`)
-- ~16 GiB RAM across worker nodes for the full production stack
+The inventory also pins SHA-256 hashes of active operator ConfigMap files (ignoring packaged `.example`/`readme` files). Recreate them from the specified operator/chart versions and sources, then check their hashes; do not copy generated controller defaults into application manifests. The alignment checker checks these hashes and the operator workloads' images/arguments/environment, reporting any difference rather than overwriting platform configuration. The generic `manifests/infra` uses newer Altinity/ECK releases and is not an exact production bootstrap.
 
-## Directory layout
+Other required platform configuration:
 
-```
-manifests/
-  kustomization.yaml              # kustomize root: includes infra/ and posthog/
+- A default dynamically provisioned ReadWriteOnce storage class with capacity for the requested PVCs; working cluster DNS and scheduling capacity for the chart's actual requests. PVCs and database backups are separate from this repository.
+- Reachability and pull access to `registry.streamloop.app` (GHCR/Docker Hub mirror), GHCR, Docker Hub, Redpanda's registry and Elastic's registry. Any private mirror credentials belong in the platform's pull-secret/service-account configuration, not Git.
+- Traefik CRDs/controller with entry point `websecure`; DNS `posthog.streamloop.app` points at it. A working `ClusterIssuer/letsencrypt-prod` must issue `posthog-tls`; its ACME account/DNS provider credentials are external. The namespaced self-signed issuer independently generates the RSA OIDC key.
+- Existing R2 buckets and permissions for the object-storage operations used by PostHog, including bucket `posthog` for AI blobs and `posthog` session/object data. The chart does **not** provision buckets when RustFS is disabled. Configure R2 access before the first migration; don't assume a Helm hook creates external buckets.
+- Reachability of `https://r2.streamloop.app/GeoIP2-City.mmdb` and an appropriate license for that database.
 
-  infra/                          # Cluster-wide prerequisites
-    kustomization.yaml
-    namespaces.yaml               # cert-manager, cnpg-system namespaces
-    cert-manager.yaml             # HelmRelease for cert-manager
-    cnpg.yaml                     # HelmRelease for CloudNativePG
-    # ECK is installed from Elastic's official crds.yaml + operator.yaml
-    # because the Helm chart tarball endpoint currently returns 403.
-    # ... plus remote CRD references:
-    #   external-snapshotter CRDs
-    #   gateway-api standard-install
-    #   carvel secretgen-controller
+For a fresh environment, use the staged deployment runner rather than applying all resources in an unordered first pass. Its default is a plan; an explicit apply is required. See `scripts/deploy-hub-production.py --help`. Namespace and CNPG must exist before secret bootstrap; CRDs must exist before their CRs; bootstrap and certificate controllers must provide Secrets before dependent pods can start. Wait for stateful dependencies, run the forward-only migrations, then allow the PostHog HelmRelease to reconcile. A single root Kustomization does not encode these readiness dependencies. Flux users should represent the same ordering with separate Kustomizations and `dependsOn`/health checks.
 
-  posthog/                        # PostHog namespace: operators + CRs + chart
-    kustomization.yaml
-    namespace.yaml                # posthog namespace with pod-security labels
-    issuer.yaml                   # self-signed Issuer for OIDC
-    oidc-certificate.yaml         # cert-manager Certificate for OIDC RSA keypair
-    postgres-cnpg.yaml            # CNPG Cluster CR (posthog-pg)
-    clickhouse-password.yaml      # secretgen.k14s.io Password CR (auto-generated)
-    clickhouse-keeper.yaml        # ClickHouseKeeperInstallation CR
-    clickhouse-initdb.yaml        # ConfigMap with init script for /docker-entrypoint-initdb.d
-    clickhouse.yaml               # ClickHouseInstallation CR with cluster + user config
-    elasticsearch.yaml            # ECK Elasticsearch CR for Temporal visibility
-    redpanda.yaml                 # Redpanda CR
-    ocirepository.yaml            # Flux OCIRepository pointing at ghcr.io/blitss/charts/posthog
-    release.yaml                  # Flux HelmRelease for PostHog
-    kind-values.local.yaml        # Local kind override (gitignored via convention)
+### Secrets: preserve, never rotate implicitly
+
+`posthog-secrets` remains **Helm-managed**. Switching a currently managed Secret to `existingSecret` can cause Helm to delete the previous resource during upgrade; this profile does not make that cutover. Four required `valuesFrom` references resolve the existing Secret's `object-storage-access-key`, `object-storage-secret-key`, `seaweedfs-access-key`, and `seaweedfs-secret-key` into chart values. There are no redaction markers or credentials in the deployable profile.
+
+Run the bootstrap after CNPG creates `posthog-pg-app`:
+
+```sh
+python3 scripts/bootstrap-hub-production-secrets.py --context hub-production
+# Fresh environment only: provide POSTHOG_R2_ACCESS_KEY_ID and
+# POSTHOG_R2_SECRET_ACCESS_KEY through your secret manager's environment injection.
+# Review the plan, then use the same command with --apply.
 ```
 
-## Install
+The helper reads Secret values only in memory, prints key names only, validates missing external R2 inputs, generates missing application signing/browserless/MCP/Valkey keys, derives missing database credentials from CNPG, and never replaces any existing key. Fresh `posthog-secrets` receives the exact Helm release ownership labels/annotations so the first Helm install can adopt it. Foreign-owned or immutable application Secrets and empty/redacted keys are rejected; optimistic concurrency prevents races from overwriting newly supplied keys. The helper separately preserves `posthog-clickhouse-password`, or creates a secure independent Secret when absent—no Helm ownership or secretgen controller is attached to that Secret. Run bootstrap before ClickHouse readiness and keep the PostHog HelmRelease suspended until complete. Plan mode performs read-only API calls, validates prerequisites, and changes nothing.
 
-```bash
-# 1. Install Flux v2 if you haven't
-flux install
+Other Secret producers are declared: CNPG creates `posthog-pg-app`, ECK creates `posthog-elastic-es-elastic-user`, and cert-manager creates `posthog-oidc-generated` and `posthog-tls`. Preserve/restore them and the independently bootstrapped ClickHouse Secret with database recovery where required. R2 credentials, external issuer configuration, image-pull credentials, existing data and backups are not generated by this repo.
 
-# 2. Apply everything (may need two passes on first install — CRDs need to land
-#    before CRs can be validated)
-kubectl apply -k manifests/
-# ... wait for cert-manager + CNPG + Altinity + Redpanda HelmReleases
-#     and the ECK operator StatefulSet to report Ready
-kubectl apply -k manifests/
+Intentional differences from the original live snapshot: the OCI selector is strengthened from `=0.22.4` to its observed immutable digest; inline R2 credentials become required Secret references; install remediation changes from five uninstall/retry attempts to zero retries with `remediateLastFailure: false`; and the ClickHouse init script explicitly authenticates against `system` before creating `posthog`. It preserves the live SQL-created named collections and uses `IF NOT EXISTS`, avoiding duplicate XML/SQL definitions. None of these changes has been applied to production. Operator-managed/default fields are intentionally omitted from namespace manifests rather than copied as desired configuration.
+
+### Read-only alignment check
+
+Requirements: the tools pinned in `mise.toml`, plus `pip install -r requirements-ops.txt` in a private virtual environment. The checker never applies resources or reconciles Flux.
+
+```sh
+python3 scripts/check-hub-production.py --context hub-production
+python3 scripts/check-hub-production.py \
+  --snapshot-dir /path/to/sanitized-snapshots \
+  --chart /path/to/unpacked-exact-production-chart
 ```
 
-Or with Flux's kustomize-controller, commit the repo and create a root `Kustomization` CR pointing at it.
+Live mode reads namespace resources, resolves Flux values references in memory and retrieves installed effective Helm values. It compares desired spec fields (ignoring extra admission defaults), the pinned chart defaults plus overrides, and Helm output including Kustomize post-renderers. It reports paths, never credential values. Rendering excludes generated Secret bodies because offline Helm lookup/random key generation is not evidence of drift. It is an alignment check, not a full workload/database health audit.
 
-## Why `kubectl apply -k` twice
+Offline snapshots are Kubernetes JSON/YAML objects or Lists named arbitrarily in the selected directory; include the HelmRelease, OCIRepository, Namespace, all profile CRs/ConfigMaps/Middlewares and sanitized referenced Secrets when available. Optional `helm-values.json` is sanitized `helm get values posthog -n posthog --all -o json`. Redaction markers are evidence only. Missing snapshots and secret equality that cannot be established are explicitly `UNVERIFIED`; they are never treated as proven alignment. Supply an unpacked exact chart with its vendored dependencies; offline mode makes no cluster or registry calls. Exit codes: **0** aligned, **1** drift, **2** incomplete evidence or error. Source-pin/credential-reference changes from the original live configuration remain visible rather than being whitelisted away.
 
-First pass creates the HelmReleases for cert-manager, CNPG, Altinity, and Redpanda, installs ECK from Elastic's official YAML manifests, and lands the CRDs. The second pass applies the CRs that depend on those CRDs (`Certificate`, `Issuer`, `Cluster`, `Elasticsearch`, `ClickHouseInstallation`, `Redpanda`, etc.). Running the command twice is fine — everything is idempotent.
+### Hooks and recovery
 
-With Flux's kustomize-controller, this dance happens automatically (it retries failed resources), so you only need one commit.
+`install.disableWait` and `upgrade.disableWait` skip Helm's normal workload readiness waiting, **not** hook execution/waiting. They avoid workloads waiting for post-install migration/bucket hooks while Helm waits for workloads. The enabled hooks in the selected chart are authoritative: external Kafka does not automatically imply that `kafka-init` is skipped. The create-buckets hook is for bundled RustFS, not external R2. CNPG `postInitApplicationSQL` only runs when initializing a new database cluster; changing that list is not a migration of an existing cluster.
 
-## Post-install check
+Both installs and upgrades use `retries: 0` and `remediateLastFailure: false`: SQL/schema changes are forward-only; automatic Helm rollback does not undo them. Disabling fresh-install uninstall remediation also prevents a failed hook from deleting the newly adopted application Secret and stranding its required `valuesFrom` references. Do not use `helm rollback`, `--atomic`, or automatic uninstall remediation to recover migrated data. The runner owns compatibility migrations and forward recovery; backups are required before changes.
 
-```bash
-# Operators and CRs
-kubectl get helmrelease -A
-kubectl get clickhouseinstallation,clickhousekeeperinstallation,elasticsearch,redpanda,cluster -n posthog
+For application diagnostics, use the real web service and endpoint:
 
-# PostHog app
-kubectl get pods -n posthog
+```sh
+kubectl --context hub-production -n posthog port-forward svc/posthog-web 8000:8000
+# In another terminal:
+curl --fail http://127.0.0.1:8000/preflight
 ```
 
-Expected state after convergence: ~32 pods Running, hooks completed, `posthog` HelmRelease `True`.
+Preflight is not a substitute for topic, migration, SQL-consumer or Temporal checks. Validate Kafka with the broker/topic checks and an actual capture-to-ClickHouse event, not a version-specific preflight flag. Do not assert a fixed pod count or treat Flux Ready with workload waiting disabled as proof all workloads are healthy.
 
-### Preflight endpoint
+## Generic/local operator example
 
-```bash
-WEB=$(kubectl get pod -n posthog -l app.kubernetes.io/component=web -o jsonpath='{.items[0].metadata.name}')
-kubectl exec -n posthog "$WEB" -- python -c \
-  "import urllib.request, json; print(json.dumps(json.loads(urllib.request.urlopen('http://localhost:8000/_preflight/').read()), indent=2))"
-```
+`manifests/infra` installs shared prerequisites for a new test cluster; `manifests/posthog` then installs namespace CRs and a separate generic HelmRelease. Install Flux, apply infra, wait for each operator and CRD to become ready, then apply `manifests/posthog`. For GitOps, use dependent Kustomizations; do not rely on applying the combined root twice. Customize the example's ingress host, reachable images and object-store configuration before installation. The root includes both phases for composition, not a readiness-aware installer.
 
-Every active infra component should be `true`: `django`, `db`, `clickhouse`, `redis`, `plugins`, `celery`, `object_storage`. Current PostHog self-host preflight returns `kafka: false` by code path (`kafka = in_cloud or settings.TEST`), so validate Kafka separately with Redpanda health/topic checks. Expected false values on a fresh self-host install: `cloud`, `demo`, `email_service_available`, `initiated`, and `kafka`.
-
-## Key design decisions
-
-### `disableWait: true` on the Flux HelmRelease
-
-Flux's helm-controller runs its own kstatus-based readiness check after `helm install`. Without `disableWait: true`, the PostHog install fails because web/cymbal/worker pods crash-loop waiting for migrations to complete — and migrations only run after the Helm hooks fire, which Flux treats as "stalled". Disabling the wait lets hooks finish, pods eventually self-recover, and the release is marked Ready.
-
-### ClickHouse Keeper instead of ZooKeeper
-
-`ClickHouseKeeperInstallation` gives us a Raft-based coordinator without running a separate ZooKeeper fleet. The CHI references it via `spec.configuration.zookeeper.nodes`:
-
-```yaml
-zookeeper:
-  nodes:
-    - host: chk-posthog-keeper-keeper-0-0
-      port: 2181
-```
-
-### CH cluster secret
-
-```yaml
-clusters:
-  - name: posthog
-    secret:
-      auto: "true"
-```
-
-This tells the operator to generate a shared secret used for inter-node authentication when executing distributed DDL (`CREATE TABLE ... ON CLUSTER posthog`). Without it, inter-node connections fall back to the `default` user and fail because that user requires a password.
-
-### PostHog macros
-
-PostHog migrations use `getMacro('hostClusterType')` and `getMacro('hostClusterRole')`. We inject them via CHI `files`:
-
-```yaml
-files:
-  config.d/posthog_macros.xml: |
-    <clickhouse>
-      <macros>
-        <hostClusterType>online</hostClusterType>
-        <hostClusterRole>data</hostClusterRole>
-      </macros>
-    </clickhouse>
-```
-
-### Remote servers for PostHog-specific cluster names
-
-PostHog references several cluster names (`posthog_migrations`, `posthog_single_shard`, `posthog_writable`, `posthog_primary_replica`, `ai_events`, `aux`, `ops`, `sessions`). The CHI's `files` field adds a second `remote_servers` config that aliases all of them to the single `posthog` shard. Production with actual sharding would have these point at the right shards.
-
-### System log tables baked into the CHI config
-
-PostHog's `migrate_clickhouse` expects `system.crash_log`, `system.error_log`, and `system.metric_log` to exist on startup. These aren't created by ClickHouse until the first `SYSTEM FLUSH LOGS`. We declare them explicitly in `config.d/posthog_system_logs.xml` so they're materialized during boot.
-
-### ClickHouse initdb for database creation
-
-`manifests/posthog/clickhouse-initdb.yaml` is a ConfigMap mounted at `/docker-entrypoint-initdb.d` on the CH pod. It runs the upstream PostHog `init-db.sh` which creates the `posthog` database on first boot, so the `migrate` hook can find it without a separate bootstrap job.
-
-### Redpanda replaces bundled Kafka
-
-Redpanda is operator-managed via `cluster.redpanda.com/v1alpha2 Redpanda`. It's single-broker by default (bump `statefulset.replicas` for prod), KRaft-only, plaintext internal listener, no SASL. TLS is intentionally disabled because the PostHog clients in the chart aren't wired up for TLS-encrypted Kafka yet — see "Known gaps" below.
-
-The chart's `kafka.enabled` is set to `false` in `release.yaml` and `externalKafka.brokers` points at `posthog-redpanda.posthog.svc.cluster.local:9093`. The chart's `kafka-init` hook is skipped because Redpanda auto-creates topics.
-
-### CNPG instead of bundled Postgres
-
-`postgres-cnpg.yaml` declares a `Cluster` CR managed by CloudNativePG. It creates the `posthog`, `posthog_persons`, and `cyclotron` databases, and a dedicated `posthog-pg-app` secret that the HelmRelease references via `externalPostgresql.secretName`.
-
-## Local testing with kind
-
-1. Create the cluster with registry mirrors:
-
-   ```bash
-   ./scripts/kind-bootstrap.sh --recreate
-   ```
-
-2. Install Flux:
-
-   ```bash
-   flux install
-   ```
-
-3. Apply manifests (twice on first install):
-
-   ```bash
-   kubectl apply -k manifests/
-   kubectl apply -k manifests/
-   ```
-
-4. Wait for convergence (~5–10 minutes — operators pull images and reconcile CRs):
-
-   ```bash
-   watch kubectl get pods -n posthog
-   ```
-
-A local kind values override (`kind-values.local.yaml`) exists for swapping image repos to `local/*:test` and reducing replica counts during iteration. It's loaded by `scripts/kind-bootstrap.sh --install-posthog` but not by the manifests path.
-
-## Known gaps
-
-- **Redpanda TLS is disabled.** The CR has cert-manager certificates provisioned but the `kafka` listener is plaintext because the PostHog Helm chart has no `externalKafka.tls.caSecret` wiring yet. To enable: flip `listeners.kafka.tls.enabled: true` in `redpanda.yaml` and add CA volume mounts across every PostHog component + CHI Kafka named_collections.
-- **No remote state for operators.** The CR revision is tied to the manifest; on a fresh install the operators rebuild everything from scratch. Add backups (CNPG `Backup`, CH backup hooks) before putting real data on it.
-- **rustfs bucket creation is a helm hook, not an operator reconciliation.** On a destructive reinstall, the bucket is re-created by the chart's `create-buckets` hook.
-
-## Customization
-
-| Want to change | Edit |
-|---|---|
-| ClickHouse cluster topology (shards, replicas, disk, memory) | `manifests/posthog/clickhouse.yaml` — `clusters.layout`, `templates.podTemplates`, `templates.volumeClaimTemplates` |
-| Redpanda broker count, resources, persistence | `manifests/posthog/redpanda.yaml` — `clusterSpec.statefulset.replicas`, `resources`, `storage` |
-| Postgres size, database list, users | `manifests/posthog/postgres-cnpg.yaml` |
-| PostHog app values (ingress host, image tags, resources) | `manifests/posthog/release.yaml` — `spec.values.*` |
-| PostHog chart version | `manifests/posthog/ocirepository.yaml` — `spec.ref.semver` |
-| Which operators to install | `manifests/infra/kustomization.yaml` and `manifests/posthog/kustomization.yaml` |
+The generic profile bundles RustFS through the chart but uses operator-managed ClickHouse/Keeper, PostgreSQL, Redpanda and Elasticsearch. Redis, Valkey and Temporal are chart-managed, so not every stateful service is operator-managed. `kind-values.local.yaml` is an optional local override, not part of either Kustomization. See the root README and `scripts/kind-bootstrap.sh --help` for the local cluster workflow.

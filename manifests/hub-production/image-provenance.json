@@ -1,0 +1,20 @@
+[
+  {
+    "role": "worker",
+    "reference": "ghcr.io/blitss/posthog-worker:latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316",
+    "platform": "single",
+    "created": "2026-09-15T10:09:54.091735082Z",
+    "user": "posthog",
+    "revision": "32253c7e9d511fb214ef2f8da83b29de7dde6f30",
+    "source": "https://github.com/blitss/posthog-helm-chart"
+  },
+  {
+    "role": "workerExports",
+    "reference": "ghcr.io/blitss/posthog-worker-exports:latest@sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00",
+    "platform": "single",
+    "created": "2026-09-15T12:12:40.404122911Z",
+    "user": "posthog",
+    "revision": "32253c7e9d511fb214ef2f8da83b29de7dde6f30",
+    "source": "https://github.com/blitss/posthog-helm-chart"
+  }
+]

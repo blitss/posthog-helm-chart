@@ -44,7 +44,7 @@ chmod +x "$work/bin/curl" "$work/bin/yq"
 for source in python node; do
   for failure in fetch empty unparseable; do
     cp "$work/original" "$work/charts/posthog/values.yaml"
-    if PATH="$work/bin:$PATH" FAILED_SOURCE="$source" FAILURE="$failure" \
+    if PATH="$work/bin:$PATH" POSTHOG_REF=8471862b083b25d3a11b97eb7730f21aa0cb4c7f FAILED_SOURCE="$source" FAILURE="$failure" \
       bash "$work/scripts/update-topics.sh" > "$work/output" 2>&1; then
       cat "$work/output" >&2
       echo "Expected failure for $source/$failure" >&2

@@ -1,0 +1,32 @@
+[
+  {
+    "pod": "chk-posthog-keeper-keeper-0-0-0",
+    "container": "clickhouse-keeper",
+    "image": "altinity/clickhouse-keeper:25.3.6.10034.altinitystable",
+    "imageID": "docker.io/altinity/clickhouse-keeper@sha256:7d44b89b1b73be004ededa43fb7a5f71e8191a6c4c53232de249ed8bb208ba0d"
+  },
+  {
+    "pod": "posthog-elastic-es-default-0",
+    "container": "elasticsearch",
+    "image": "docker.elastic.co/elasticsearch/elasticsearch:8.17.3",
+    "imageID": "docker.elastic.co/elasticsearch/elasticsearch@sha256:224c75e346bd745ce908f06a1cbad7bf10988961dcdcdfccb22556b3f856b3f0"
+  },
+  {
+    "pod": "posthog-pg-1",
+    "container": "postgres",
+    "image": "registry.streamloop.app/ghcr.io/cloudnative-pg/postgresql:16",
+    "imageID": "registry.streamloop.app/ghcr.io/cloudnative-pg/postgresql@sha256:a93b1974ead1779795ea6a17dccd4acbffed1464172f84d79c2010d3e80722d3"
+  },
+  {
+    "pod": "posthog-redpanda-0",
+    "container": "redpanda",
+    "image": "docker.redpanda.com/redpandadata/redpanda:v26.1.1",
+    "imageID": "docker.redpanda.com/redpandadata/redpanda@sha256:e0efb480a5056f5df535e8978790840d4c18458e99934aa38b99ac89baf17f74"
+  },
+  {
+    "pod": "posthog-redpanda-0",
+    "container": "sidecar",
+    "image": "docker.redpanda.com/redpandadata/redpanda-operator:v26.1.2",
+    "imageID": "docker.redpanda.com/redpandadata/redpanda-operator@sha256:d5d1d9a5629d3e1a4bd8fe4b1120407074ad8fec83f075ad9b825364b6d9be25"
+  }
+]

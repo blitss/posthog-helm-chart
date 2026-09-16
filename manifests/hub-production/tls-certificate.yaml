@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+spec:
+  dnsNames:
+    - posthog.streamloop.app
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  secretName: posthog-tls
+metadata:
+  name: posthog-tls
+  namespace: posthog

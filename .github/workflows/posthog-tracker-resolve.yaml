@@ -27,6 +27,7 @@ permissions:
   contents: write # create branch + commit chart changes
   issues: write # comment on the issue
   pull-requests: write # open the draft PR
+  actions: write
   id-token: write
 
 jobs:
@@ -52,30 +53,34 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
 
-      # Give the agent the real upstream tree (not just gh-api diffs) so it can
-      # read bin/, docker/, docker-compose*, and Dockerfiles as context for the
-      # issue. Cloned OUTSIDE the repo working tree ($RUNNER_TEMP) so it can
-      # never be staged into the PR. Blobless partial clone: full commit graph
-      # (so any referenced SHA is reachable), blobs fetched lazily — keeps it light.
-      - name: Clone upstream PostHog (blobless)
+      - name: Check out the issue's immutable upstream revision
+        env:
+          GH_TOKEN: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
         run: |
           set -euo pipefail
-          git clone --filter=blob:none --single-branch --branch master \
-            https://github.com/PostHog/posthog.git "$RUNNER_TEMP/posthog-upstream"
-          echo "Upstream PostHog cloned to $RUNNER_TEMP/posthog-upstream (master HEAD: $(git -C "$RUNNER_TEMP/posthog-upstream" rev-parse --short HEAD))"
+          gh issue view "$ISSUE_NUMBER" --json body --jq .body > "$RUNNER_TEMP/tracker-issue.txt"
+          UPSTREAM_SHA="$(python3 -c 'import pathlib,re,sys; body=pathlib.Path(sys.argv[1]).read_text(); matches=re.findall(r"github\.com/PostHog/posthog/commit/([0-9a-f]{40})(?![0-9a-f])", body); assert matches, "Issue must link an immutable upstream commit"; print(matches[0])' "$RUNNER_TEMP/tracker-issue.txt")"
+          git init "$RUNNER_TEMP/posthog-upstream"
+          git -C "$RUNNER_TEMP/posthog-upstream" remote add origin https://github.com/PostHog/posthog.git
+          git -C "$RUNNER_TEMP/posthog-upstream" fetch --filter=blob:none origin "$UPSTREAM_SHA"
+          git -C "$RUNNER_TEMP/posthog-upstream" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/posthog-upstream" rev-parse HEAD)" = "$UPSTREAM_SHA"
 
       - name: Resolve issue (Claude Code)
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@bf38e86e58df9ebf3420326d019f955bb3be64dd # v1
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
           UPSTREAM_DIR: ${{ runner.temp }}/posthog-upstream
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
           show_full_output: true
           prompt: |
             You are resolving a `[posthog-tracker]` issue in THIS repository by
@@ -85,7 +90,7 @@ jobs:
             `gh issue view "$ISSUE_NUMBER" --json number,title,body,labels`.
 
             UPSTREAM SOURCE IS CHECKED OUT LOCALLY at the path in the env var
-            UPSTREAM_DIR — a clone of `PostHog/posthog` at master, OUTSIDE this
+            UPSTREAM_DIR — a clone of `PostHog/posthog` at the issue's exact commit, OUTSIDE this
             repo. Use it as your primary context:
             - Read the real upstream files the issue references (e.g.
               `$UPSTREAM_DIR/bin/start-rust-service`, `$UPSTREAM_DIR/docker-compose*.yml`,
@@ -113,7 +118,7 @@ jobs:
             - `charts/posthog/templates/external/clickhouse.yaml` — embedded ClickHouse
               config.xml + users.xml.
             - `charts/posthog/templates/_helpers.tpl` — shared template helpers.
-            - `images/posthog/Dockerfile.{web,worker,worker-exports,migrate,bootstrap-clickhouse}`
+            - `images/posthog/Dockerfile.{web,worker,worker-exports,migrate,cyclotron-migrate}`
               — custom images built from upstream.
             - `manifests/posthog/release.yaml` — Flux HelmRelease values used in production.
 
@@ -154,3 +159,9 @@ jobs:
             --model claude-opus-4-7
             --verbose
             --allowed-tools "Read,Edit,Write,Glob,Grep,Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh api:*),Bash(git:*),Bash(helm lint:*),Bash(helm template:*),Bash(jq:*)"
+      - name: Dispatch checks for owned resolver PR heads
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NATIVE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          if [[ -z "$NATIVE_TOKEN" ]]; then python3 scripts/verify-release-dispatch.py agent/tracker-; fi

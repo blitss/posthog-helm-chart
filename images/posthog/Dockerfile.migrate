@@ -1,4 +1,4 @@
-ARG POSTHOG_IMAGE=posthog/posthog:latest
+ARG POSTHOG_IMAGE=posthog/posthog@sha256:6ae0aa70bbd1ca299b472332e540eab2c829148a8c89b87b58221da260f580e4
 FROM ${POSTHOG_IMAGE} AS upstream
 
 FROM ${POSTHOG_IMAGE} AS python-runtime-slim
@@ -17,6 +17,7 @@ ENV PYTHONUNBUFFERED=1 \
     PATH=/python-runtime/bin:$PATH \
     PYTHONPATH=/python-runtime
 
+COPY images/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update && \
     apt-get install -y --no-install-recommends --allow-downgrades \
     ca-certificates \

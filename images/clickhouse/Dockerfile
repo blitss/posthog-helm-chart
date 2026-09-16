@@ -1,4 +1,4 @@
-FROM clickhouse/clickhouse-server:26.6.2.158
+FROM clickhouse/clickhouse-server:26.6.2.158@sha256:95f7cbf466dba734947775eb74808a13a3558e4398666ea6b1d992af85b9740d
 
 # PostHog UDF scripts must not live under /var/lib/clickhouse because the data
 # volume is mounted there and hides image-baked files at runtime.
