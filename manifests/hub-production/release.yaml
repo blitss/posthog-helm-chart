@@ -151,7 +151,7 @@ spec:
     hypercacheServer:
       image:
         repository: ghcr.io/posthog/posthog/hypercache-server
-        tag: master@sha256:2acd76fc8219a9156f6036251cdeb63746cca0cf20fbe62c4563e8654e25f889
+        tag: master@sha256:d5079fad7e60fa731a544419e15bdde846cb0fc3703842fc595ed7b3898baa9e
     ingress:
       enabled: true
       gateway:
