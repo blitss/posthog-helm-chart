@@ -209,7 +209,7 @@ spec:
       enabled: true
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/personhog-router
-        tag: master@sha256:da51c627e026f75b1da1eac9befaf618890070038c33bcfc971ba0e8113f7168
+        tag: master@sha256:2ee0ea16591a4d584411f878f455da0ef5610b227585181cec2f87ae8fcaf1b4
     plugins:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog-node
