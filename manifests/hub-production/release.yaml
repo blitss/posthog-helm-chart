@@ -76,7 +76,7 @@ spec:
     captureLogs:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture-logs
-        tag: master@sha256:e8ebc718503c27230403601b1036a7db106d347eccf0ee2714b4c0e245e033fa
+        tag: master@sha256:5c25e28ff0cc65fb09f78c5812c611994cbe155a29d628262485da6f738f13cc
       extraEnv:
         - name: CLICKHOUSE_LOGS_DATABASE
           value: posthog
