@@ -68,11 +68,11 @@ spec:
     capture:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: master@sha256:32ad1757122f0d74f16f856b692d58bdf12d0e9ce67198cde32e84b8d47a021b
     captureAi:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: master@sha256:32ad1757122f0d74f16f856b692d58bdf12d0e9ce67198cde32e84b8d47a021b
     captureLogs:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture-logs
@@ -240,7 +240,7 @@ spec:
     replayCapture:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: master@sha256:32ad1757122f0d74f16f856b692d58bdf12d0e9ce67198cde32e84b8d47a021b
     rustfs:
       enabled: false
     seaweedfs:
