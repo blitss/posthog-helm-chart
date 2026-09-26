@@ -178,7 +178,7 @@ spec:
       image:
         pullPolicy: Always
         repository: registry.streamloop.app/ghcr.io/posthog/posthog-mcp
-        tag: latest@sha256:a51e79eaf77ed02afd4c883da612a31191c6b2b31c45378cf28110659b4c03e4
+        tag: latest@sha256:f1ced07a165a4d86d707709c8c53c82833d7753ec3ed28495b646f9378ce4b23
     migrate:
       image:
         pullPolicy: IfNotPresent
