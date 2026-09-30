@@ -282,7 +282,7 @@ spec:
         spec:
           containers:
             - name: clickhouse
-              image: ghcr.io/blitss/posthog-clickhouse:26.6.2.158
+              image: ghcr.io/blitss/posthog-clickhouse:26.6.2.158@sha256:b02b9be95bfb8e1a508cd26af1a90b4c71fc092891229cfa0af0b3e9ed4f43f8
               imagePullPolicy: IfNotPresent
               env:
                 - name: CLICKHOUSE_DB
