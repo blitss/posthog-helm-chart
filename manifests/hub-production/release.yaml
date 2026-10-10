@@ -213,7 +213,7 @@ spec:
     plugins:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog-node
-        tag: master@sha256:a2e93efadd13b8e0b551ea6e23364ebae3caf6888109debb239caa1945a49e16
+        tag: master@sha256:185caba33067c775cf9cb5e9c3002eaf134d8f2daf612c2dfcd26d2b45cf6b9f
     postgresql:
       enabled: false
     posthog:
