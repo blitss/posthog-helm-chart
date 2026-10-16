@@ -64,7 +64,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/browserless/chromium
-        tag: v2.51.2@sha256:79a37927bdd235c8f5a299a8846c37e946c3505dff2562ece3922d4562d016a3
+        tag: v2.57.1@sha256:93dc614e2532ee66bac78f68b6229c33392309293c626d2a0899ccdf0c8aac67
     capture:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
