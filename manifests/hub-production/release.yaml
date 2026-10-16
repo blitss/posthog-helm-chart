@@ -139,7 +139,7 @@ spec:
     featureFlags:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/feature-flags
-        tag: master@sha256:65030502939f230ff7ba820e6a145a8598019c846383fb10fd9ec2ecba5c9048
+        tag: master@sha256:41665ed1349a66344e7a24279dff26227b7c34a6731264aba27de65c3c9efcc0
     geoip:
       brotli: false
       downloadUrl: https://r2.streamloop.app/GeoIP2-City.mmdb
