@@ -32,7 +32,7 @@ spec:
     crdHook:
       image:
         repository: docker.io/bitnami/kubectl
-        tag: latest
+        tag: latest@sha256:26837860fa038ce221416ee0fd211a0ee300f67e24e88faecca0423088400b99
         pullPolicy: IfNotPresent
     operator:
       image:
