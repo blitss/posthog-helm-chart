@@ -172,7 +172,7 @@ spec:
       enabled: true
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/livestream
-        tag: master@sha256:6926f340b72d609e43cee5aa8b75a85cfdc77d182e610dafafdd81d3b2ab53f5
+        tag: master@sha256:40813a36a60b00cd212d6a678b43b6cf7a95e8c1879968ffea4ce99883a2642b
     mcp:
       enabled: true
       image:
