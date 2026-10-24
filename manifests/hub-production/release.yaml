@@ -231,7 +231,7 @@ spec:
     propertyDefsRs:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/property-defs-rs
-        tag: master@sha256:66ccc059c4b7464ac19bf4ea6a4a0db9712c423779529baeb5e64afea4909f10
+        tag: master@sha256:6d5bfb1e6442791252ea37d0248ec2f76db29682fae426f4cd0b0db244ba36a6
     redis:
       enabled: true
       image:
