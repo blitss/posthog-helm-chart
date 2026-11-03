@@ -249,7 +249,7 @@ spec:
       adminTools:
         image:
           repository: registry.streamloop.app/docker.io/temporalio/admin-tools
-          tag: 1.31.0@sha256:3e68adcd54195a7c1222e99f2dbc32a4fdbf44ad69e3bb48e21e85c4bf417c2e
+          tag: 1.32.2@sha256:4a95866efba29d7e17ab012df5232795e8b0ad0f7d5f9d1ec4df321f7792a754
       enabled: true
       server:
         image:
