@@ -236,7 +236,7 @@ spec:
       enabled: true
       image:
         repository: redis
-        tag: 7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+        tag: 8.10-alpine@sha256:71885d8cc6e42f2bc0aa2eb853bfc4be200b5108a46ac50e117ae1df0531fb80
     replayCapture:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
