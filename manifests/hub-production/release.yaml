@@ -204,7 +204,7 @@ spec:
       enabled: true
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/personhog-replica
-        tag: master@sha256:9fb5f8238df3b5c5d11d2f3ed1f4bc3d13f0ec3b9453737b6df661aa786ecbf3
+        tag: master@sha256:ce5c7429c73608a9d8538fbba7c4500ea50d30e7e9d77943ae6f93b9b59532a2
     personhogRouter:
       enabled: true
       image:
