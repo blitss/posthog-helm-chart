@@ -10,6 +10,10 @@ metadata:
   name: {{ include "posthog.fullname" . }}-create-buckets
   labels:
     {{- include "posthog.componentLabels" (dict "root" . "component" "create-buckets") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
 spec:
   backoffLimit: 10
   template:
@@ -19,39 +23,5 @@ spec:
     spec:
       restartPolicy: OnFailure
       containers:
-        - name: create-buckets
-          image: "{{ .Values.rustfs.image.clientImage.repository }}:{{ .Values.rustfs.image.clientImage.tag }}"
-          imagePullPolicy: {{ .Values.rustfs.image.clientImage.pullPolicy | default "IfNotPresent" }}
-          env:
-            - name: MC_CONFIG_DIR
-              value: /tmp/.mc
-            - name: RUSTFS_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.secretName" . }}
-                  key: object-storage-access-key
-            - name: RUSTFS_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.secretName" . }}
-                  key: object-storage-secret-key
-            - name: AI_BLOB_S3_BUCKET
-              value: {{ .Values.objectStorage.aiBlobs.bucket | quote }}
-          command:
-            - sh
-            - -ec
-            - |
-              until mc alias set rustfs http://{{ include "posthog.fullname" . }}-rustfs-svc:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY" && mc ls rustfs >/dev/null; do
-                echo "rustfs not ready, retrying in 5s..."
-                sleep 5
-              done
-
-              mc mb --ignore-existing rustfs/posthog
-              if [ -n "$AI_BLOB_S3_BUCKET" ]; then
-                mc mb --ignore-existing "rustfs/$AI_BLOB_S3_BUCKET"
-                mc ls "rustfs/$AI_BLOB_S3_BUCKET" >/dev/null
-              fi
-              mc ls rustfs/posthog >/dev/null
-              mc ls rustfs/
-              echo "Buckets ready."
+        {{- include "posthog.ensureBucketsContainer" (dict "root" . "name" "create-buckets" "buckets" (list "posthog" .Values.objectStorage.aiBlobs.bucket)) | nindent 8 }}
 {{- end }}

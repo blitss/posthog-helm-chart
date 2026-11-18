@@ -463,30 +463,7 @@ spec:
         {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
         {{- end }}
         {{- if .Values.rustfs.enabled }}
-        - name: ensure-object-storage-bucket
-          image: "{{ .Values.rustfs.image.clientImage.repository }}:{{ .Values.rustfs.image.clientImage.tag }}"
-          imagePullPolicy: {{ .Values.rustfs.image.clientImage.pullPolicy | default "IfNotPresent" }}
-          env:
-            - name: MC_CONFIG_DIR
-              value: /tmp/.mc
-            - name: RUSTFS_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.secretName" . }}
-                  key: object-storage-access-key
-            - name: RUSTFS_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.secretName" . }}
-                  key: object-storage-secret-key
-          command:
-            - sh
-            - -ec
-            - |
-              until mc alias set rustfs http://{{ include "posthog.fullname" . }}-rustfs-svc:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY" && mc mb --ignore-existing rustfs/posthog && mc ls rustfs/posthog >/dev/null; do
-                echo "rustfs bucket not ready, retrying in 5s..."
-                sleep 5
-              done
+        {{- include "posthog.ensureBucketsContainer" (dict "root" . "name" "ensure-object-storage-bucket" "buckets" (list "posthog")) | nindent 8 }}
         {{- end }}
       containers:
         - name: cymbal
@@ -624,30 +601,7 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.cymbalResolution.terminationGracePeriodSeconds | default 30 }}
       {{- if .Values.rustfs.enabled }}
       initContainers:
-        - name: ensure-object-storage-bucket
-          image: "{{ .Values.rustfs.image.clientImage.repository }}:{{ .Values.rustfs.image.clientImage.tag }}"
-          imagePullPolicy: {{ .Values.rustfs.image.clientImage.pullPolicy | default "IfNotPresent" }}
-          env:
-            - name: MC_CONFIG_DIR
-              value: /tmp/.mc
-            - name: RUSTFS_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.secretName" . }}
-                  key: object-storage-access-key
-            - name: RUSTFS_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "posthog.secretName" . }}
-                  key: object-storage-secret-key
-          command:
-            - sh
-            - -ec
-            - |
-              until mc alias set rustfs http://{{ include "posthog.fullname" . }}-rustfs-svc:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY" && mc mb --ignore-existing rustfs/posthog && mc ls rustfs/posthog >/dev/null; do
-                echo "rustfs bucket not ready, retrying in 5s..."
-                sleep 5
-              done
+        {{- include "posthog.ensureBucketsContainer" (dict "root" . "name" "ensure-object-storage-bucket" "buckets" (list "posthog")) | nindent 8 }}
       {{- end }}
       containers:
         - name: cymbal-resolution
