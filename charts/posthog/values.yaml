@@ -682,8 +682,9 @@ rustfs:
       tag: "1.38"
       pullPolicy: IfNotPresent
     clientImage:
-      repository: quay.io/minio/mc
-      tag: latest
+      ## Any image with sh and curl >= 7.75 (SigV4); creates the buckets.
+      repository: curlimages/curl
+      tag: "8.23.0"
       pullPolicy: IfNotPresent
   replicaCount: 1
   mode:

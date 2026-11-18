@@ -1164,3 +1164,46 @@ Every CDP process requires a Valkey shadow pool, independent of Redis.
   value: {{ .Values.externalValkey.readerPort | quote }}
 {{- end }}
 {{- end }}
+
+{{/*
+  Container that creates the bundled RustFS buckets and waits until they are
+  listable. Plain curl with SigV4: no object-storage client image to go stale.
+  Usage: include "posthog.ensureBucketsContainer" (dict "root" . "name" "create-buckets" "buckets" (list "posthog"))
+*/}}
+{{- define "posthog.ensureBucketsContainer" -}}
+{{- $img := .root.Values.rustfs.image.clientImage -}}
+- name: {{ .name }}
+  image: "{{ $img.repository }}:{{ $img.tag }}"
+  imagePullPolicy: {{ $img.pullPolicy | default "IfNotPresent" }}
+  env:
+    - name: S3_ENDPOINT
+      value: http://{{ include "posthog.fullname" .root }}-rustfs-svc:9000
+    - name: S3_BUCKETS
+      value: {{ join " " (compact .buckets) | quote }}
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: {{ include "posthog.secretName" .root }}
+          key: object-storage-access-key
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: {{ include "posthog.secretName" .root }}
+          key: object-storage-secret-key
+  command:
+    - sh
+    - -ec
+    - |
+      s3() {
+        curl -sS -o /dev/null -w '%{http_code}' --aws-sigv4 "aws:amz:us-east-1:s3" \
+          --user "$S3_ACCESS_KEY:$S3_SECRET_KEY" -X "$1" "$S3_ENDPOINT/$2" || true
+      }
+      for bucket in $S3_BUCKETS; do
+        # PUT answers 409 when the bucket already exists; the GET proves it is usable.
+        until s3 PUT "$bucket" | grep -Eq '^(200|409)$' && [ "$(s3 GET "$bucket")" = 200 ]; do
+          echo "rustfs bucket $bucket not ready, retrying in 5s..."
+          sleep 5
+        done
+      done
+      echo "Buckets ready: $S3_BUCKETS"
+{{- end -}}
