@@ -46,8 +46,7 @@ spec:
       {{- end }}
       containers:
         - name: feature-flags
-          image: "{{ .Values.featureFlags.image.repository }}:{{ .Values.featureFlags.image.tag }}"
-          imagePullPolicy: {{ .Values.featureFlags.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "featureFlags") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "featureFlags") | nindent 10 }}
           ports:
             - containerPort: 3001
@@ -173,8 +172,7 @@ spec:
       {{- end }}
       containers:
         - name: hypercache-server
-          image: "{{ .Values.hypercacheServer.image.repository }}:{{ .Values.hypercacheServer.image.tag }}"
-          imagePullPolicy: {{ .Values.hypercacheServer.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "hypercacheServer") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "hypercacheServer") | nindent 10 }}
           ports:
             - containerPort: {{ .Values.hypercacheServer.port | default 3002 }}
@@ -234,8 +232,7 @@ spec:
       {{- end }}
       containers:
         - name: property-defs-rs
-          image: "{{ .Values.propertyDefsRs.image.repository }}:{{ .Values.propertyDefsRs.image.tag }}"
-          imagePullPolicy: {{ .Values.propertyDefsRs.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "propertyDefsRs") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "propertyDefsRs") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
@@ -300,8 +297,7 @@ spec:
       {{- end }}
       containers:
         - name: livestream
-          image: "{{ .Values.livestream.image.repository }}:{{ .Values.livestream.image.tag }}"
-          imagePullPolicy: {{ .Values.livestream.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "livestream") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "livestream") | nindent 10 }}
           ports:
             - containerPort: 8080
@@ -437,8 +433,7 @@ spec:
         {{- end }}
       containers:
         - name: cymbal
-          image: "{{ .Values.cymbal.image.repository }}:{{ .Values.cymbal.image.tag }}"
-          imagePullPolicy: {{ .Values.cymbal.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "cymbal") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cymbal") | nindent 10 }}
           ports:
             - containerPort: 3302
@@ -569,8 +564,7 @@ spec:
       {{- end }}
       containers:
         - name: cymbal-resolution
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "cymbalResolution" "fallbackComponent" "cymbal") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "cymbalResolution" "fallbackComponent" "cymbal") }}
+          {{- include "posthog.image" (dict "root" . "component" "cymbalResolution" "fallback" (list "cymbal")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cymbalResolution") | nindent 10 }}
           ports:
             - containerPort: {{ .Values.cymbalResolution.grpcPort | default 50061 }}
@@ -655,8 +649,7 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.personhogReplica.terminationGracePeriodSeconds | default 30 }}
       containers:
         - name: personhog-replica
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "personhogReplica" "fallbackComponent" "personhogReplica") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "personhogReplica" "fallbackComponent" "personhogReplica") }}
+          {{- include "posthog.image" (dict "root" . "component" "personhogReplica") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "personhogReplica") | nindent 10 }}
           ports:
             - containerPort: {{ .Values.personhogReplica.grpcPort | default 50051 }}
@@ -750,8 +743,7 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.personhogRouter.terminationGracePeriodSeconds | default 40 }}
       containers:
         - name: personhog-router
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "personhogRouter" "fallbackComponent" "personhogRouter") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "personhogRouter" "fallbackComponent" "personhogRouter") }}
+          {{- include "posthog.image" (dict "root" . "component" "personhogRouter") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "personhogRouter") | nindent 10 }}
           ports:
             - containerPort: {{ .Values.personhogRouter.grpcPort | default 50052 }}

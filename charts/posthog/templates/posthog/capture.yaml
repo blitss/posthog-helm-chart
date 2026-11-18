@@ -46,8 +46,7 @@ spec:
       {{- end }}
       containers:
         - name: capture
-          image: "{{ .Values.capture.image.repository }}:{{ .Values.capture.image.tag }}"
-          imagePullPolicy: {{ .Values.capture.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "capture") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "capture") | nindent 10 }}
           ports:
             - containerPort: 3000
@@ -128,8 +127,7 @@ spec:
       {{- end }}
       containers:
         - name: replay-capture
-          image: "{{ .Values.replayCapture.image.repository }}:{{ .Values.replayCapture.image.tag }}"
-          imagePullPolicy: {{ .Values.replayCapture.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "replayCapture") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "replayCapture") | nindent 10 }}
           ports:
             - containerPort: 3000
@@ -207,8 +205,7 @@ spec:
       {{- end }}
       containers:
         - name: capture-ai
-          image: "{{ .Values.captureAi.image.repository }}:{{ .Values.captureAi.image.tag }}"
-          imagePullPolicy: {{ .Values.captureAi.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "captureAi") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "captureAi") | nindent 10 }}
           ports:
             - containerPort: 3000
@@ -283,8 +280,7 @@ spec:
       {{- include "posthog.podSpec" (dict "root" . "component" "captureLogs") | nindent 6 }}
       containers:
         - name: capture-logs
-          image: "{{ .Values.captureLogs.image.repository }}:{{ .Values.captureLogs.image.tag }}"
-          imagePullPolicy: {{ .Values.captureLogs.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "captureLogs") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "captureLogs") | nindent 10 }}
           ports:
             - containerPort: 4318

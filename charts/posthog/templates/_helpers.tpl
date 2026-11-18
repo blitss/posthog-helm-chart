@@ -95,31 +95,23 @@ imagePullSecrets:
 {{- end }}
 
 {{/*
-Resolve an image reference for a component, falling back to another component's image
-configuration when the component-local image fields are empty.
-Call with dict "root" . "component" <values-key> "fallbackComponent" <values-key>
+image + imagePullPolicy for a PostHog-built container. The single place that
+resolves repository, tag and pull policy: each field comes from <component>.image,
+else from the first "fallback" values key that sets it; pull policy defaults to Always.
+Call with dict "root" . "component" <values-key> [ "fallback" (list <values-key>...) ]
 */}}
-{{- define "posthog.imageRef" -}}
-{{- $componentValues := (index .root.Values .component) | default dict -}}
-{{- $componentImage := $componentValues.image | default dict -}}
-{{- $fallbackValues := (index .root.Values .fallbackComponent) | default dict -}}
-{{- $fallbackImage := $fallbackValues.image | default dict -}}
-{{- $repository := default $fallbackImage.repository $componentImage.repository -}}
-{{- $tag := default $fallbackImage.tag $componentImage.tag -}}
-{{- printf "%s:%s" $repository $tag -}}
-{{- end }}
-
-{{/*
-Resolve image pull policy for a component, falling back to another component's image
-configuration when the component-local pullPolicy is empty.
-Call with dict "root" . "component" <values-key> "fallbackComponent" <values-key>
-*/}}
-{{- define "posthog.imagePullPolicy" -}}
-{{- $componentValues := (index .root.Values .component) | default dict -}}
-{{- $componentImage := $componentValues.image | default dict -}}
-{{- $fallbackValues := (index .root.Values .fallbackComponent) | default dict -}}
-{{- $fallbackImage := $fallbackValues.image | default dict -}}
-{{- default ($fallbackImage.pullPolicy | default "Always") $componentImage.pullPolicy -}}
+{{- define "posthog.image" -}}
+{{- $repository := "" -}}
+{{- $tag := "" -}}
+{{- $pullPolicy := "" -}}
+{{- range $key := prepend (.fallback | default list) .component -}}
+{{- $image := (index $.root.Values $key).image | default dict -}}
+{{- $repository = $repository | default $image.repository -}}
+{{- $tag = $tag | default $image.tag -}}
+{{- $pullPolicy = $pullPolicy | default $image.pullPolicy -}}
+{{- end -}}
+image: "{{ $repository }}:{{ $tag }}"
+imagePullPolicy: {{ $pullPolicy | default "Always" }}
 {{- end }}
 
 {{/*

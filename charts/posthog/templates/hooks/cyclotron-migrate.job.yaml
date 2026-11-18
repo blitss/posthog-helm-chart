@@ -31,8 +31,7 @@ spec:
       {{- include "posthog.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: cyclotron-migrate
-          image: "{{ .Values.cyclotronMigrate.image.repository }}:{{ .Values.cyclotronMigrate.image.tag }}"
-          imagePullPolicy: {{ .Values.cyclotronMigrate.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "cyclotronMigrate") | nindent 10 }}
           # The image entrypoint runs `sqlx database create` + `sqlx migrate run`
           # for $CYCLOTRON_NODE_DATABASE_URL provided by commonEnv below.
           env:

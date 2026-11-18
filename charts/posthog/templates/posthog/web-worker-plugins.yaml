@@ -56,8 +56,7 @@ spec:
       {{- end }}
       containers:
         - name: web
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "web" "fallbackComponent" "posthog") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "web" "fallbackComponent" "posthog") }}
+          {{- include "posthog.image" (dict "root" . "component" "web" "fallback" (list "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "web") | nindent 10 }}
           command:
             - bash
@@ -167,8 +166,7 @@ spec:
       {{- end }}
       containers:
         - name: worker
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "worker" "fallbackComponent" "posthog") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "worker" "fallbackComponent" "posthog") }}
+          {{- include "posthog.image" (dict "root" . "component" "worker" "fallback" (list "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "worker") | nindent 10 }}
           command:
             - sh
@@ -269,14 +267,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
         - name: worker-beat
-          {{- $beatImage := .Values.workerBeat.image | default dict }}
-          {{- $workerImage := .Values.worker.image | default dict }}
-          {{- $posthogImage := .Values.posthog.image | default dict }}
-          {{- $beatRepository := default (default $posthogImage.repository $workerImage.repository) $beatImage.repository }}
-          {{- $beatTag := default (default $posthogImage.tag $workerImage.tag) $beatImage.tag }}
-          {{- $beatPullPolicy := default (default ($posthogImage.pullPolicy | default "Always") $workerImage.pullPolicy) $beatImage.pullPolicy }}
-          image: "{{ $beatRepository }}:{{ $beatTag }}"
-          imagePullPolicy: {{ $beatPullPolicy }}
+          {{- include "posthog.image" (dict "root" . "component" "workerBeat" "fallback" (list "worker" "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "workerBeat") | nindent 10 }}
           command:
             - ./bin/docker-worker-beat
@@ -334,8 +325,7 @@ spec:
       {{- end }}
       containers:
         - name: worker-exports
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "workerExports" "fallbackComponent" "posthog") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "workerExports" "fallbackComponent" "posthog") }}
+          {{- include "posthog.image" (dict "root" . "component" "workerExports" "fallback" (list "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "workerExports") | nindent 10 }}
           command:
             - sh
@@ -442,8 +432,7 @@ spec:
       {{- end }}
       containers:
         - name: plugins
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "plugins") | nindent 10 }}
           ports:
             - containerPort: 6738

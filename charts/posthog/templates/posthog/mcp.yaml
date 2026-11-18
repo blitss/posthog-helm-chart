@@ -53,8 +53,7 @@ spec:
       {{- end }}
       containers:
         - name: mcp
-          image: "{{ .Values.mcp.image.repository }}:{{ .Values.mcp.image.tag }}"
-          imagePullPolicy: {{ .Values.mcp.image.pullPolicy }}
+          {{- include "posthog.image" (dict "root" . "component" "mcp") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "mcp") | nindent 10 }}
           ports:
             - containerPort: 3001

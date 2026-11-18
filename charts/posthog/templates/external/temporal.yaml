@@ -204,8 +204,7 @@ spec:
       {{- end }}
       containers:
         - name: temporal-django-worker
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "temporalDjangoWorker" "fallbackComponent" "posthog") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "temporalDjangoWorker" "fallbackComponent" "posthog") }}
+          {{- include "posthog.image" (dict "root" . "component" "temporalDjangoWorker" "fallback" (list "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "temporalDjangoWorker") | nindent 10 }}
           command:
             - ./bin/temporal-django-worker
