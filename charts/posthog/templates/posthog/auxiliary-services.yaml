@@ -410,7 +410,7 @@ spec:
       {{- include "posthog.podSpec" (dict "root" . "component" "cymbal" "spread" "cymbal") | nindent 6 }}
       initContainers:
         - name: wait-for-cymbal-resolution
-          image: busybox:1.37@sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
+          image: {{ .Values.utilityImage | quote }}
           imagePullPolicy: IfNotPresent
           command:
             - sh

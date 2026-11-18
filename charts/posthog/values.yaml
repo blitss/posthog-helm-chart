@@ -39,6 +39,10 @@ global:
   extraEnv: []
   # - name: MY_VAR
   #   value: "my-value"
+## Small shell image for init/wait containers (wait-for-redis, GeoIP download,
+## db-check, Elasticsearch sysctl, cymbal resolution wait, GeoIP server).
+## Needs busybox applets (sh, nc, wget, httpd, sysctl). Override to use a mirror.
+utilityImage: busybox:1.37@sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
 ## ------------------------------------------------------------------
 ## ServiceAccount
 ## ------------------------------------------------------------------
