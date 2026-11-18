@@ -1,125 +1,36 @@
 {{- if .Values.metrics.enabled }}
-## Web ServiceMonitor
+{{- $v := .Values }}
+{{- $sm := .Values.metrics.serviceMonitor }}
+{{- range $c := list
+  (dict "name" "web" "on" $v.web.enabled "port" "metrics" "path" "/metrics")
+  (dict "name" "plugins" "on" $v.plugins.enabled "port" "http" "path" "/preflight")
+  (dict "name" "capture" "on" $v.capture.enabled "port" "http" "path" "/_readiness")
+  (dict "name" "personhog-replica" "on" $v.personhogReplica.enabled "port" "metrics")
+  (dict "name" "personhog-router" "on" $v.personhogRouter.enabled "port" "metrics")
+  (dict "name" "cymbal-resolution" "on" $v.cymbalResolution.enabled "port" "metrics")
+}}
+{{- if $c.on }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "posthog.fullname" . }}-web
+  name: {{ include "posthog.fullname" $ }}-{{ $c.name }}
   labels:
-    {{- include "posthog.componentLabels" (dict "root" . "component" "web") | nindent 4 }}
-    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- include "posthog.componentLabels" (dict "root" $ "component" $c.name) | nindent 4 }}
+    {{- with $sm.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
   selector:
     matchLabels:
-      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+      {{- include "posthog.componentSelectorLabels" (dict "root" $ "component" $c.name) | nindent 6 }}
   endpoints:
-    - port: metrics
-      interval: {{ .Values.metrics.serviceMonitor.interval }}
-      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
-      path: /metrics
-## Plugins ServiceMonitor
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: {{ include "posthog.fullname" . }}-plugins
-  labels:
-    {{- include "posthog.componentLabels" (dict "root" . "component" "plugins") | nindent 4 }}
-    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-spec:
-  selector:
-    matchLabels:
-      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "plugins") | nindent 6 }}
-  endpoints:
-    - port: http
-      interval: {{ .Values.metrics.serviceMonitor.interval }}
-      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
-      path: /preflight
-## Capture ServiceMonitor
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: {{ include "posthog.fullname" . }}-capture
-  labels:
-    {{- include "posthog.componentLabels" (dict "root" . "component" "capture") | nindent 4 }}
-    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-spec:
-  selector:
-    matchLabels:
-      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "capture") | nindent 6 }}
-  endpoints:
-    - port: http
-      interval: {{ .Values.metrics.serviceMonitor.interval }}
-      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
-      path: /_readiness
+    - port: {{ $c.port }}
+      interval: {{ $sm.interval }}
+      scrapeTimeout: {{ $sm.scrapeTimeout }}
+      {{- with $c.path }}
+      path: {{ . }}
+      {{- end }}
 {{- end }}
-{{- if and .Values.metrics.enabled .Values.personhogReplica.enabled }}
-## Personhog Replica ServiceMonitor (Prometheus metrics on personhogReplica.metricsPort)
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: {{ include "posthog.fullname" . }}-personhog-replica
-  labels:
-    {{- include "posthog.componentLabels" (dict "root" . "component" "personhog-replica") | nindent 4 }}
-    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-spec:
-  selector:
-    matchLabels:
-      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "personhog-replica") | nindent 6 }}
-  endpoints:
-    - port: metrics
-      interval: {{ .Values.metrics.serviceMonitor.interval }}
-      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
 {{- end }}
-{{- if and .Values.metrics.enabled .Values.personhogRouter.enabled }}
-## Personhog Router ServiceMonitor
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: {{ include "posthog.fullname" . }}-personhog-router
-  labels:
-    {{- include "posthog.componentLabels" (dict "root" . "component" "personhog-router") | nindent 4 }}
-    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-spec:
-  selector:
-    matchLabels:
-      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "personhog-router") | nindent 6 }}
-  endpoints:
-    - port: metrics
-      interval: {{ .Values.metrics.serviceMonitor.interval }}
-      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
-{{- end }}
-{{- if and .Values.metrics.enabled .Values.cymbalResolution.enabled }}
-## Cymbal Resolution ServiceMonitor (Prometheus metrics on cymbalResolution.metricsPort)
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: {{ include "posthog.fullname" . }}-cymbal-resolution
-  labels:
-    {{- include "posthog.componentLabels" (dict "root" . "component" "cymbal-resolution") | nindent 4 }}
-    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-spec:
-  selector:
-    matchLabels:
-      {{- include "posthog.componentSelectorLabels" (dict "root" . "component" "cymbal-resolution") | nindent 6 }}
-  endpoints:
-    - port: metrics
-      interval: {{ .Values.metrics.serviceMonitor.interval }}
-      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
 {{- end }}
