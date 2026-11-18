@@ -44,7 +44,7 @@ fixed `ee.0058` (PostHog/posthog#101626), and the command only served databases
 older than the September 2026 squash. Upgrade such a database with chart 0.23.x
 (source `8471862b`) first.
 
-Use the [guarded setup/upgrade runner](../../charts/posthog/README.md#guarded-hub-production-setup-and-upgrade)
+Use the [guarded setup/upgrade runner](../../manifests/README.md#guarded-setup-and-upgrade-runner)
 for hub-production. The migration image's default CMD is not the complete
 production migration sequence: the runner executes the chart's real
 Django/product/persons/ClickHouse/async hooks and the separate Node SQLx image,

@@ -1,0 +1,24 @@
+# ingress-nginx with a cert-manager certificate.
+#
+#   helm install posthog ./charts/posthog -n posthog --create-namespace \
+#     -f charts/posthog/examples/images.yaml \
+#     -f charts/posthog/examples/ingress-nginx-tls.yaml --timeout 30m
+#
+# Point DNS for the hostname at the ingress-nginx controller. The chart always
+# sets the nginx.ingress.kubernetes.io/configuration-snippet annotation
+# (WebSocket upgrade headers); the controller must allow snippet annotations.
+
+ingress:
+  # SITE_URL defaults to https://<hostname>.
+  hostname: posthog.example.com
+  nginx:
+    enabled: true
+    className: nginx
+    annotations:
+      # Assumes cert-manager and a ClusterIssuer named letsencrypt-prod.
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    tls:
+      enabled: true
+      # cert-manager writes the certificate to this Secret. With an empty name
+      # the controller serves its default certificate.
+      secretName: posthog-tls

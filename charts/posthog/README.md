@@ -1,418 +1,392 @@
-# PostHog Helm Chart
+# PostHog Helm chart
 
-Deploys [PostHog](https://posthog.com) on Kubernetes with bundled infrastructure (ClickHouse, Kafka, Postgres, Redis, object storage). Use this path for **local dev, POCs, and quick self-host demos**. For a production-grade operator-based setup, use the manifests path in [`../../manifests`](../../manifests/README.md).
+Community chart that runs [PostHog](https://posthog.com) on Kubernetes. It is not published or supported by PostHog.
 
-For anything beyond dev/demo, **use external ClickHouse and Kafka** — the bundled ClickHouse is a single-node StatefulSet, and the `kafka` subchart is `bitnami/kafka` which pulls from the unmaintained `bitnamilegacy/*` mirrors. The [manifests path](../../manifests/README.md) wires up the Altinity ClickHouse Operator and the Redpanda operator for you.
+By default it deploys PostHog and every store it needs in one release: PostgreSQL, ClickHouse (with ZooKeeper), Kafka, Redis, Valkey, S3-compatible object storage (RustFS), Temporal and Elasticsearch. Each store is a single pod. That is fine for a trial or a small install. For production, switch the stores to external services (see [External stores](#external-stores)) or use the operator-based [Flux manifests](../../manifests/README.md).
+
+CI smoke-tests the chart through the Flux manifests (operator-managed stores, split images). The all-bundled defaults are render-tested only.
+
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Reach the UI](#reach-the-ui)
+- [Common configurations](#common-configurations)
+- [Values reference](#values-reference)
+- [Install hooks](#install-hooks)
+- [Troubleshooting](#troubleshooting)
+- [Uninstall](#uninstall)
+- [Upgrading](#upgrading)
 
 ## Prerequisites
 
-- Kubernetes 1.24+
-- Helm 3.x
-- Minimum ~10 GiB RAM available across nodes (everything bundled)
-- An Ingress controller *or* Gateway API implementation (NGINX, Traefik, Gateway API, Istio, and OpenShift routes all supported)
+| Requirement | Notes |
+|---|---|
+| Kubernetes 1.23 or newer | `kubeVersion: '>= 1.23.0-0'` in `Chart.yaml` (autoscaling/v2). |
+| Helm 3 | CI and `mise.toml` use Helm 3.22.1. Helm 4 is untested. |
+| CPU and memory | With the defaults, pod requests total about 18 GiB of memory and 8.5 CPUs (limits about 37 GiB). Lower `<component>.resources.requests` to fit a smaller node. |
+| Storage | A default StorageClass. Bundled volumes total about 130 GiB (ClickHouse 50Gi, PostgreSQL 20Gi, Kafka 20Gi, RustFS 20Gi, Elasticsearch 10Gi, Redis 5Gi, ZooKeeper 5Gi). |
+| CPU architecture | amd64. The split PostHog images from this repository are built for amd64 only. |
+| Routing (optional) | One of: ingress-nginx, Traefik CRDs, Gateway API, Istio, OpenShift Routes. Not needed for port-forward access. |
 
 ## Quick start
 
-```bash
-helm install posthog oci://ghcr.io/blitss/charts/posthog \
-  --namespace posthog --create-namespace \
-  --set ingress.hostname=posthog.example.com
-```
-
-Or from a local checkout:
+From a checkout of this repository. This installs everything bundled, with no ingress, and uses port-forward:
 
 ```bash
-helm dependency build ./charts/posthog
+git clone https://github.com/blitss/posthog-helm-chart
+cd posthog-helm-chart
 helm install posthog ./charts/posthog \
   --namespace posthog --create-namespace \
-  --set ingress.hostname=posthog.example.com
+  -f charts/posthog/examples/images.yaml \
+  -f charts/posthog/examples/local.yaml \
+  --timeout 30m
 ```
 
-Defaults deploy:
+What the flags do:
 
-| Component | How |
+- `examples/images.yaml` selects the split PostHog images that this repository builds and CI smoke-tests. The `migrate` hook runs `manage.py migrate_legacy_model_moves`, which exists only in the `posthog-migrate` image.
+- `examples/local.yaml` disables routing and sets `SITE_URL=http://localhost:8000` and `SECURE_COOKIES=false`.
+- `--timeout 30m`: `helm install` waits for the hook Jobs (database checks and migrations). The default 5 minutes is often too short.
+- Do not add `--wait` or `--atomic`. With `--wait`, Helm waits for all pods to be ready before it runs post-install hooks, but the web pod is not ready until the `migrate` hook has run. The install then times out.
+
+The chart is also published as an OCI artifact. Pass an explicit version; the newest published version can lag behind `main`:
+
+```bash
+helm show chart oci://ghcr.io/blitss/charts/posthog   # prints the newest published version
+helm install posthog oci://ghcr.io/blitss/charts/posthog --version <version> \
+  --namespace posthog --create-namespace -f my-values.yaml --timeout 30m
+```
+
+A kind cluster for local tests: `./scripts/kind-bootstrap.sh --recreate` (see `--help`).
+
+## Reach the UI
+
+Without ingress or DNS:
+
+```bash
+kubectl -n posthog port-forward svc/posthog-web 8000:8000
+```
+
+Open http://localhost:8000 and create the first user. Plain-http login needs `posthog.env.SITE_URL=http://localhost:8000` and `posthog.env.SECURE_COOKIES="false"` (both set by `examples/local.yaml`).
+
+Resource names are `<release>-<component>` (`posthog-web` for release `posthog`). If the release name contains `posthog`, the prefix is the release name alone.
+
+With routing enabled, PostHog is at `https://<ingress.hostname>`. Point DNS for that hostname at your ingress controller or gateway.
+
+The install notes (URL, routing, hook commands, a production checklist) can be printed again at any time:
+
+```bash
+helm get notes posthog -n posthog
+```
+
+## Common configurations
+
+All examples live in [`examples/`](examples/) and are render-tested by `scripts/test-chart-render.sh`. Combine them with `-f`; later files win.
+
+| File | Use |
 |---|---|
-| ClickHouse | Single-node StatefulSet, `ghcr.io/blitss/posthog-clickhouse` with PostHog UDFs |
-| Kafka | bitnami/kafka subchart in KRaft mode with topic auto-provisioning |
-| Postgres | Single StatefulSet with `postgres:15-alpine` |
-| Redis | Single StatefulSet with `redis:7-alpine` |
-| Object storage | rustfs subchart (S3-compatible) |
-| Temporal | Auto-setup server + UI |
-| Elasticsearch | Single node, for Temporal visibility |
+| [`images.yaml`](examples/images.yaml) | Split PostHog images. Include it in every install for now. |
+| [`local.yaml`](examples/local.yaml) | Local or kind cluster, no ingress, port-forward. |
+| [`ingress-nginx-tls.yaml`](examples/ingress-nginx-tls.yaml) | ingress-nginx with a cert-manager certificate. |
+| [`gateway-api.yaml`](examples/gateway-api.yaml) | Gateway API HTTPRoute. |
+| [`external-stores.yaml`](examples/external-stores.yaml) | External PostgreSQL, ClickHouse, Kafka, Redis, Valkey and S3 with `existingSecret`. |
+
+### Hostname and SITE_URL
+
+`ingress.hostname` (default `posthog.example.com`) sets the route host and these defaults:
+
+| Variable | Default |
+|---|---|
+| `SITE_URL` | `https://<ingress.hostname>` |
+| `OBJECT_STORAGE_PUBLIC_ENDPOINT` | `https://<ingress.hostname>` |
+| `LIVESTREAM_HOST` | `https://<ingress.hostname>/livestream` |
+
+Override `SITE_URL` with `posthog.env.SITE_URL`, for example when TLS is terminated somewhere else or for plain-http access.
+
+### Routing
+
+`ingress.enabled` (default `true`) is the master switch. Each mode has its own flag; only `ingress.nginx.enabled` is on by default. More than one mode can be enabled.
+
+| Mode | Flag | Renders | Settings |
+|---|---|---|---|
+| ingress-nginx | `ingress.nginx.enabled` | `networking.k8s.io/v1` Ingress | `className`, `annotations`, `tls.enabled`, `tls.secretName` |
+| Traefik | `ingress.traefik.enabled` | `traefik.io/v1alpha1` IngressRoute | `entryPoints`, `annotations`, `tls.certResolver`, `tls.secretName` |
+| Gateway API | `ingress.gateway.enabled` | `gateway.networking.k8s.io/v1` HTTPRoute | `gatewayName`, `gatewayNamespace`, `listenerName` |
+| Istio | `ingress.istio.enabled` | `networking.istio.io/v1` VirtualService | `gateway` (`namespace/name`), `annotations` |
+| OpenShift | `ingress.openshift.enabled` | `route.openshift.io/v1` Routes | `tls.termination`, `tls.insecureEdgeTerminationPolicy` |
+
+Every mode sends these paths to these Services (paths of disabled components are left out):
+
+| Path | Service |
+|---|---|
+| `/mcp`, `/sse`, `/ui-apps`, `/.well-known/oauth-protected-resource`, `/.well-known/openai-apps-challenge` | mcp (only with `mcp.enabled`) |
+| `/i/v0/ai`, `/i/v1/ai/events` | capture-ai |
+| `/i/v1/logs`, `/i/v1/traces` | capture-logs |
+| `/e`, `/i/v0`, `/i/v1/analytics/events`, `/batch`, `/capture` | capture |
+| `/s` | replay-capture |
+| `/flags` | feature-flags |
+| `/surveys`, `/api/surveys`, `/array` | hypercache-server |
+| `/livestream` | livestream (WebSocket) |
+| `/public/webhooks`, `/public/m` | plugins |
+| `/posthog` | rustfs (bundled object storage), else web |
+| everything else | web |
+
+ingress-nginx notes: TLS is on by default. With an empty `ingress.nginx.tls.secretName` the controller serves its default certificate; the chart adds no cert-manager annotation itself. The chart always sets the `nginx.ingress.kubernetes.io/configuration-snippet` annotation (WebSocket upgrade headers), so the controller must allow snippet annotations.
+
+### Secrets
+
+By default the chart creates `<release>-secrets`. It generates `posthog-secret`, `encryption-salt-keys`, `internal-api-secret`, `browserless-token`, `valkey-password` and `mcp-signed-state-key` on first install and keeps them on upgrade (Helm `lookup`). Back this Secret up: losing `posthog-secret` or `encryption-salt-keys` breaks sessions and encrypted data.
+
+`lookup` returns nothing under `helm template` and tools built on it (for example Argo CD). There, new random values are rendered on every sync. Use `existingSecret` in that case.
+
+Set `existingSecret: <name>` to manage the Secret yourself. The chart then creates no Secret. Required keys:
+
+| Condition | Keys |
+|---|---|
+| always | `posthog-secret`, `encryption-salt-keys`, `internal-api-secret`, `recording-api-jwt-secret`, `redis-url`, `object-storage-access-key`, `object-storage-secret-key`, `seaweedfs-access-key`, `seaweedfs-secret-key` |
+| `postgresql.enabled` (bundled) | `database-url`, `postgresql-password` |
+| `clickhouse.enabled` (bundled) | `clickhouse-api-password`, `clickhouse-app-password` |
+| `valkey.enabled` (bundled) | `valkey-password` (optional with external Valkey) |
+| `browserless.enabled` (bundled) | `browserless-token` |
+| `externalBrowserless.cdpUrl` / `heatmapUrl` | `browserless-token` / `heatmap-browserless-token` |
+| `mcp.enabled` | `mcp-signed-state-key` |
+
+With bundled RustFS, the object-storage and seaweedfs keys must equal `rustfs.secret.rustfs.access_key` and `secret_key`. The chart does not check the keys at render time; a missing key shows up as a pod in `CreateContainerConfigError`.
+
+Do not switch an existing release from the chart-managed Secret to `existingSecret` in one upgrade: Helm deletes `<release>-secrets` when it leaves the chart. Copy it under a new name first.
+
+Other secret-related values: `posthog.secretEnv` maps environment variables to keys in any Secret; `externalPostgresql.secretName`, `externalClickhouse.secretName` and `externalElasticsearch.secretName` hold store credentials.
+
+### External stores
+
+Disable the bundled store and fill its `external*` block. A disabled store without its endpoint fails at render time (see [Render-time errors](#render-time-errors)). [`examples/external-stores.yaml`](examples/external-stores.yaml) shows all of them together.
+
+| Store | Disable | Configure |
+|---|---|---|
+| PostgreSQL | `postgresql.enabled=false` | `externalPostgresql.host` plus `secretName` (keys `usernameKey`/`passwordKey`; URLs for the main, persons and `cyclotron_node` databases are built from them). Inline `url`/`personsUrl`/`cyclotronNodeUrl` also work. Always set `host`: the db-check hook waits for it. |
+| ClickHouse | `clickhouse.enabled=false` | `externalClickhouse.host`, `user`, `apiUser`, `appUser`, `cluster`, `secretName`, `secretPasswordKey` (one password for all users). Also set `zookeeper.enabled=false`. `externalClickhouse.logsDatabase` must equal `clickhouse.database`. |
+| Kafka | `kafka.enabled=false` | `externalKafka.brokers`. The `kafka-init` hook creates the topics in `kafkaInit.topics`. Use a single `host:port`: the db-check hook cannot parse a list. |
+| Redis | `redis.enabled=false` | `externalRedis.url` (`rediss://` for TLS), or the `redis-url` key of `existingSecret`, or `posthog.secretEnv.REDIS_URL`. |
+| Valkey | `valkey.enabled=false` | `externalValkey.host`, `port`, `tls`, `password`, `readerHost`. |
+| Object storage | `rustfs.enabled=false` | `externalObjectStorage.endpoint`, `accessKey`, `secretKey`; session recordings use `externalSeaweedfs.endpoint`, `accessKey`, `secretKey`. Path-style S3. The bucket `posthog` and `objectStorage.aiBlobs.bucket` (default `ai-blobs`) must already exist; the chart only creates buckets in bundled RustFS. |
+| Temporal | `temporal.enabled=false` | `externalTemporal.host`. The Temporal Django worker is then not deployed. |
+| Elasticsearch | `elasticsearch.enabled=false` | `externalElasticsearch.host`, `scheme`, `user`, `password` or `secretName`/`passwordKey`, `version`. Used only by the bundled Temporal. |
+| Browserless | `browserless.enabled=false` | `externalBrowserless.cdpUrl`, `token`, `heatmapUrl`, `heatmapToken`. |
+
+### Scaling, resources and availability
+
+Every workload block has `resources`. Most have `replicas`, `podSecurityContext`, `containerSecurityContext`, `nodeSelector`, `tolerations`, `affinity`, `podAnnotations` and `extraEnv`. `web`, `worker`, `workerBeat`, `workerExports` and `plugins` also have `extraVolumes`, `extraVolumeMounts` and `sidecarContainers`. `global.*` holds defaults that components override (security contexts and annotations are merged; `nodeSelector` is merged; `tolerations` and `affinity` are replaced).
+
+HPA (`<component>.autoscaling.enabled`, `minReplicas`, `maxReplicas`, `targetCPUUtilizationPercentage`, `targetMemoryUtilizationPercentage`) and PDB (`<component>.podDisruptionBudget.enabled`, `minAvailable` or `maxUnavailable`) exist for: `web`, `worker`, `workerExports`, `temporalDjangoWorker`, `plugins`, `capture`, `replayCapture`, `featureFlags`, `hypercacheServer`, `personhogReplica`, `personhogRouter`, `cymbalResolution`. `workerBeat` has a PDB only. An HPA or PDB renders only when its workload is enabled.
+
+The `ingestionGeneral`, `ingestionSessionReplay`, `recordingApi`, `ingestionErrorTracking`, `ingestionLogs` and `ingestionTraces` Deployments run `plugins.image` with one replica; only `resources` is configurable.
+
+Other tuning: `worker.concurrency` (Celery prefork, exported as `WEB_CONCURRENCY` and `CELERY_WORKER_CONCURRENCY`), `worker.queues`, `workerExports.concurrency`, `web.granian.workers`, `web.startupProbe.*`, `redis.maxmemory`, `valkey.maxmemory`. Volume size and class: `postgresql.persistence.*`, `clickhouse.persistence.*`, `redis.persistence.*`, `zookeeper.persistence.*`, `elasticsearch.persistence.*`, `kafka.controller.persistence.*`, `rustfs.storageclass.*`.
+
+### Images, mirrors and pull secrets
+
+| What | Values |
+|---|---|
+| Django images (web, workers, hooks) | `posthog.image` is the default; `web.image`, `worker.image`, `workerBeat.image` (then `worker.image`), `workerExports.image`, `temporalDjangoWorker.image`, `migrate.image`, `asyncMigrationsCheck.image` override it field by field. |
+| Other PostHog services | `<component>.image.repository`, `tag`, `pullPolicy` (`plugins`, `capture`, `featureFlags`, `cymbal`, ...). `cymbalResolution.image` falls back to `cymbal.image`. Defaults are pinned as `tag@digest` with pull policy `IfNotPresent`. |
+| Shell helpers | `utilityImage`: one busybox reference for db-check, wait-for-redis, GeoIP download and server, the Elasticsearch sysctl init container and the cymbal wait. Needs `sh`, `nc`, `wget`, `httpd`, `sysctl`. |
+| Third-party images | `postgresql.image`, `clickhouse.image`, `redis.image`, `valkey.image`, `zookeeper.image`, `elasticsearch.image`, `temporal.server.image`, `temporal.ui.image`, `browserless.image`, `geoip.image`, `kafkaInit.image`, `rustfs.image.clientImage` (create-buckets), `cyclotronMigrate.image`. |
+| Subcharts | Kafka: `kafka.image.registry`, `kafka.image.repository` (Bitnami chart values). RustFS: `rustfs.image.*`. |
+| Pull secrets | `global.imagePullSecrets` (also read by the Kafka subchart). RustFS reads `rustfs.imagePullSecrets`. The db-check, create-buckets, migrate and async-migrations-check Jobs get neither and run as the namespace's `default` ServiceAccount; add the secret there: `kubectl -n posthog patch serviceaccount default -p '{"imagePullSecrets":[{"name":"my-registry-secret"}]}'`. |
+
+### Network policies
+
+`networkPolicies.enabled=true` adds ingress-only NetworkPolicies: default-deny for chart pods, any source to the public HTTP services, and release pods to the stores and internal services. Egress is not restricted. The `geoip` and `recording-api` pods match no allow rule, so other pods cannot reach them while policies are on.
+
+### Metrics
+
+`metrics.enabled=true` creates ServiceMonitors (prometheus-operator CRDs required) for web (`/metrics` on the metrics port), plugins, capture, personhog-replica, personhog-router and cymbal-resolution. Set `metrics.serviceMonitor.additionalLabels` to match your Prometheus selector; `interval` and `scrapeTimeout` are also there.
+
+### Optional components
+
+| Component | Enable | Notes |
+|---|---|---|
+| MCP server | `mcp.enabled` | Served at `https://<ingress.hostname>/mcp`. `mcp.apiBaseUrl`, `publicUrl`, `appsBaseUrl` default to the ingress URL. |
+| Export worker | `workerExports.enabled` | Separate Celery worker for the `exports` queue. |
+| HogFlow scheduler | `cdpHogflowScheduler.enabled` | Scheduled Workflows. Needs a current `plugins.image`. |
+| Cyclotron v2 janitor | `cdpCyclotronV2Janitor.enabled` | Needs `cyclotronMigrate.enabled`. |
+| Cyclotron migration | `cyclotronMigrate.enabled` | Hook that creates and migrates the `cyclotron_node` database. |
+| Usage ingestion | `usageIngestion.enabled` | Reports nothing until `usageIngestion.reportTeams` is set. |
+| GeoIP | `geoip.enabled` (on) | `geoip.downloadUrl`, `brotli`, `filename`, or `geoip.existingPvc` with the MMDB file. |
+
+## Values reference
+
+[`values.yaml`](values.yaml) is the full reference and is commented. This section lists the top-level blocks and the settings people change most.
+
+### Components
+
+| Block | What it is | Default | Turned off by / external block |
+|---|---|---|---|
+| `web` | Django UI and API (Granian) | on | `web.enabled` |
+| `worker` | Celery worker | on | `worker.enabled` |
+| `workerBeat` | Celery beat (RedBeat), separate pod | on | `workerBeat.enabled`; also off when `worker.enabled=false` |
+| `workerExports` | Celery `exports` queue worker | off | `workerExports.enabled` |
+| `temporalDjangoWorker` | Django worker for Temporal workflows | on | follows `temporal.enabled` |
+| `plugins` | Node.js plugin server; also runs the `ingestion*` and `recordingApi` Deployments | on | `plugins.enabled` |
+| `cdpHogflowScheduler`, `cdpCyclotronV2Janitor` | Plugin-server singletons | off | `<block>.enabled` |
+| `capture`, `replayCapture`, `captureAi`, `captureLogs` | Rust capture endpoints | on | `<block>.enabled` |
+| `featureFlags`, `hypercacheServer`, `propertyDefsRs`, `livestream` | Rust services | on | `<block>.enabled` |
+| `cymbal` | Error-tracking processor | on | `cymbal.enabled` |
+| `cymbalResolution` | Symbol resolution for cymbal | on | `cymbalResolution.enabled`, then `cymbal.remoteResolution.host` is required |
+| `personhog`, `personhogRouter`, `personhogReplica` | Persons read service | on | `personhog.enabled`; with the router off, `personhog.addr` is required |
+| `usageIngestion` | Internal usage gateway | off | `usageIngestion.enabled` |
+| `mcp` | MCP server | off | `mcp.enabled` |
+| `browserless` | Remote Chromium for exports and heatmaps | on | `browserless.enabled` / `externalBrowserless` |
+| `geoip` | Serves the GeoIP database to other pods | on | `geoip.enabled` |
+| `postgresql` | PostgreSQL StatefulSet | on | `postgresql.enabled` / `externalPostgresql` |
+| `clickhouse` | ClickHouse StatefulSet, image with the PostHog UDFs | on | `clickhouse.enabled` / `externalClickhouse` |
+| `zookeeper` | Coordination for bundled ClickHouse | on | `zookeeper.enabled`; set false with external ClickHouse |
+| `redis` | Redis StatefulSet, primary cache | on | `redis.enabled` / `externalRedis` |
+| `valkey` | Valkey Deployment, CDP shadow store | on | `valkey.enabled` / `externalValkey` |
+| `kafka` | Bitnami Kafka subchart, KRaft | on | `kafka.enabled` / `externalKafka` |
+| `rustfs` | RustFS subchart, S3-compatible | on | `rustfs.enabled` / `externalObjectStorage`, `externalSeaweedfs` |
+| `elasticsearch` | Elasticsearch StatefulSet, Temporal visibility | on | `elasticsearch.enabled` / `externalElasticsearch` |
+| `temporal` | Temporal server (`temporal.server`) and UI (`temporal.ui.enabled`) | on | `temporal.enabled` / `externalTemporal` |
+| `migrate`, `asyncMigrationsCheck`, `cyclotronMigrate`, `kafkaInit` | Hook Jobs | see [Install hooks](#install-hooks) | `<block>.enabled` |
+| `objectStorage` | `OBJECT_STORAGE_ENABLED`, AI blob bucket and prefix | | |
+| `networkPolicies`, `metrics` | See above | off | |
+| `global`, `serviceAccount`, `utilityImage`, `nameOverride`, `fullnameOverride` | Shared settings | | |
+
+### Frequently changed settings
+
+| Key | Default | Effect |
+|---|---|---|
+| `ingress.hostname` | `posthog.example.com` | Route host; default for `SITE_URL`. |
+| `ingress.enabled`, `ingress.<mode>.enabled` | `true`, nginx only | Routing. |
+| `posthog.env` | `{}` | Extra environment for all PostHog containers, for example `SITE_URL`, `SECURE_COOKIES`, `ALLOWED_HOSTS`, `TRUSTED_PROXIES`. `values.yaml` lists common upstream settings. |
+| `posthog.secretEnv` | `{}` | Same, from Secrets: `NAME: {name: <secret>, key: <key>}`. Wins over `posthog.env`. |
+| `global.extraEnv`, `<component>.extraEnv` | `[]` | Plain env lists. |
+| `existingSecret` | `''` | See [Secrets](#secrets). |
+| `posthog.secret`, `posthog.encryptionSaltKeys`, `posthog.internalApiSecret` | generated | Fixed values instead of generated ones. |
+| `postgresql.auth.password`, `clickhouse.apiPassword`, `clickhouse.appPassword` | `posthog`, `apipass`, `apppass` | Bundled store passwords. Change them. |
+| `rustfs.secret.rustfs.access_key`, `secret_key` | placeholders | Bundled RustFS credentials. |
+| `posthog.optOutCapture` | `'false'` | `'true'` disables PostHog's anonymous telemetry. |
+| `serviceAccount.annotations` | `{}` | For IRSA or Workload Identity. |
+| `objectStorage.aiBlobs.bucket`, `prefix`, `offloadTeams` | `ai-blobs`, `aio/`, `*` | AI payload offload. |
+| `migrate.persons.enabled`, `migrate.persons.skipPartitioning` | `true`, `true` | Persons SQL migrations; `--hobby` (nonpartitioned) mode. |
+| `migrate.resources`, `cyclotronMigrate.resources` | `{}` | Hook Job resources. |
+
+### Render-time errors
+
+The chart refuses to render these configurations. The first five come from `templates/validate.yaml`:
+
+| Message | Fix |
+|---|---|
+| `kafka.enabled=false requires externalKafka.brokers` | Set `externalKafka.brokers`. |
+| `redis.enabled=false requires externalRedis.url (or existingSecret / posthog.secretEnv.REDIS_URL)` | Provide the Redis URL in one of those places. |
+| `rustfs.enabled=false requires externalObjectStorage.endpoint` | Set `externalObjectStorage.endpoint`. |
+| `temporal.enabled=false requires externalTemporal.host` | Set `externalTemporal.host`. |
+| `elasticsearch.enabled=false with the bundled Temporal requires externalElasticsearch.host` | Set `externalElasticsearch.host`. |
+| `externalClickhouse.host is required when clickhouse.enabled=false` | Set `externalClickhouse.host`. |
+| `externalValkey.host is required when valkey.enabled=false` | Set `externalValkey.host`. |
+| `externalClickhouse.logsDatabase must match clickhouse.database: ...` | Remove the override or make the two equal. |
+| `cymbal requires cymbalResolution.enabled=true or cymbal.remoteResolution.host ...` | Keep `cymbalResolution` on or point at an external resolver. |
+| `personhog.enabled=true requires either personhogRouter.enabled=true ... or personhog.addr ...` | Keep the router on or set `personhog.addr`. |
+| `externalBrowserless.token is required with externalBrowserless.cdpUrl (or use existingSecret)` | Same for `heatmapToken` with `heatmapUrl`. |
+| `externalPostgresql.cyclotronNodeUrl is required when using a URI-key secret for cyclotron` | Set it, or set `externalPostgresql.host` so URLs are built from the Secret. |
 
 ## Install hooks
 
-The chart runs ordered Helm hook Jobs:
+`helm install` and `helm upgrade` run the pre-install hook first, then the post-install hooks in weight order. Each Job is deleted when it succeeds; a failed Job stays so you can read its logs.
 
-| Weight | Hook | Runs at | Purpose |
-|---:|---|---|---|
-| `-1` | `db-check` | `post-install,post-upgrade` | `nc -z` probe against Redis, Kafka, Postgres, ClickHouse, ZooKeeper — waits until everything is reachable before the other hooks run |
-| `0` | `kafka-init` | `pre-install,pre-upgrade` | Only when using **external** Kafka (`kafka.enabled=false`). Creates topics via `kafka-topics.sh` against `externalKafka.brokers`. Skipped for bundled Kafka because the subchart has its own `provisioning.topics`. |
-| `1` | `create-buckets` | `post-install,post-upgrade` | When `rustfs.enabled=true`, provisions application and AI blob buckets. External buckets must already exist. |
-| `7` | `migrate` | `post-install,post-upgrade` | Runs Django/product, persons SQL, ClickHouse and async migrations. |
-| `10` | `async-migrations-check` | `post-install,post-upgrade` | Runs `python manage.py run_async_migrations`. |
+| Weight | Job | Hook | Runs when | What it does |
+|---:|---|---|---|---|
+| 0 | `kafka-init` | pre-install, pre-upgrade | `kafkaInit.enabled` and `kafka.enabled=false` | Creates `kafkaInit.topics` on `externalKafka.brokers` with `kafka-topics.sh`. |
+| -1 | `db-check` | post-install, post-upgrade | always | Waits (`nc -z`) for bundled Redis, the first Kafka broker, bundled ZooKeeper (if `zookeeper.enabled`), external ClickHouse on 8123 and external PostgreSQL. It does not probe bundled ClickHouse or PostgreSQL. No timeout. |
+| 0 | `kafka-provisioning` | post-install, post-upgrade | `kafka.enabled` | Bitnami subchart Job; creates `kafka.provisioning.topics`. |
+| 1 | `create-buckets` | post-install, post-upgrade | `rustfs.enabled` | Creates the `posthog` and `objectStorage.aiBlobs.bucket` buckets in RustFS with curl (SigV4, `rustfs.image.clientImage`). |
+| 6 | `cyclotron-migrate` | post-install, post-upgrade | `cyclotronMigrate.enabled` | Creates and migrates the `cyclotron_node` database with SQLx. |
+| 7 | `migrate` | post-install, post-upgrade | `migrate.enabled` | Legacy model moves, Django and product migrations, persons SQL migrations, then ClickHouse migrations. |
+| 10 | `async-migrations-check` | post-install, post-upgrade | `asyncMigrationsCheck.enabled` | `manage.py run_async_migrations --check`. |
 
-The hook container for `migrate`/`async-migrations-check` is the `posthog-migrate` slim image (`ghcr.io/blitss/posthog-migrate` by default) — no Node, no Chromium, no Playwright.
+Application pods start at the same time as the hooks and wait for them:
 
-## Upgrading to 0.22
+- `web` loops on `bin/migrate-check` and logs `Waiting for migrations to complete before starting web...` until `migrate` finishes. Its startup probe allows 20 minutes (`web.startupProbe`).
+- `cymbal` and `cymbal-resolution` have an `ensure-object-storage-bucket` init container (bundled RustFS) and `cymbal` waits for `cymbal-resolution`.
+- Pods that use Redis wait for bundled Redis; pods that use GeoIP download it from the `geoip` pod first.
 
-This release targets September 2026 PostHog. Back up PostgreSQL and ClickHouse before upgrading; use matching immutable application images. ClickHouse must be **26.6.2 or newer**. Complete the new migration job before admitting new application traffic: post-upgrade hooks alone are not a pre-rollout barrier.
+## Troubleshooting
 
-For legacy installations, the `migrate` hook requires this release's rebuilt `posthog-migrate` image. Its guarded preparation command runs original product model moves before September squash selection, without faking migrations or skipping data operations. It preserves original migration records; any repaired squash-summary marker must have all original operations recorded and a demonstrably unmet dependency. See [the legacy upgrade issue](https://github.com/blitss/posthog-helm-chart/issues/65). The image also [backports the SCIM migration's historical-field lookup](https://github.com/blitss/posthog-helm-chart/issues/66), retaining its database column, dependencies, and data-selection behavior.
-
-Logs, traces, and metrics must use the same database as `clickhouse.database`. A divergent `externalClickhouse.logsDatabase` now fails rendering. If older chart versions created tables in `default`, reconcile their storage and derived objects before removing that override; preserve Kafka offsets and Distributed queues. See [issue #70](https://github.com/blitss/posthog-helm-chart/issues/70).
-
-- **PersonHog** router/replica and clients are enabled by default. Keep the existing persons database; do not redirect existing persons to a new empty database. `migrate.persons.skipPartitioning=true` runs the supported nonpartitioned `--hobby` migration. Identity/leader mode is not required.
-- **Cymbal resolution** is mandatory and enabled by default, inheriting the Cymbal image. It uses a headless gRPC Service on 50061 and HTTP health endpoints on 9106. Replace any existing non-headless resolver Service before upgrading. For an external resolver, disable `cymbalResolution` and set `cymbal.remoteResolution.host`.
-- **Valkey** is an independent, disposable CDP shadow store; Redis remains the primary cache. Bundled Valkey is authenticated. An `existingSecret` must gain `valkey-password`; external settings are under `externalValkey`.
-- **Browserless** replaces local Chromium. An `existingSecret` must gain `browserless-token`. External CDP/heatmap endpoints use `externalBrowserless` and separate `browserless-token` / `heatmap-browserless-token` keys. Browserless must reach `SITE_URL` and screenshot targets. Disable cloud-only consent-modal blocking on saved heatmaps when using Browserless OSS.
-- **AI ingestion** uses `events_plugin_ingestion_ai` and the combined worker. External storage must provision `objectStorage.aiBlobs.bucket` (default `ai-blobs`), with HEAD/GET/PUT/self-copy permissions. Keep bucket/prefix stable and retention at least 31 days.
-- **Granian** is the only web server; it runs as the configured UID and exposes Prometheus on 8001. Remove `web.granian.enabled`, `USE_GRANIAN`, Unit-specific overrides, `personhog.rolloutPercentage`, `cyclotronJanitor`, and legacy `externalPostgresql.cyclotron*` keys except the retained `cyclotronNode*` settings.
-- **Usage ingestion** is optional (`usageIngestion.enabled=false`). Before enabling reporting, migrate ClickHouse, provision `clickhouse_billing_usage_records`, pin its image and set `reportTeams` deliberately. Keep its unauthenticated gRPC service internal. Flags-consumer remains upstream opt-in and is not required.
-
-External ClickHouse operators may set `externalClickhouse.dictReaderUser=dict_reader` after provisioning that local-only SELECT user with the existing ClickHouse password. Endpoint overrides remain under `posthog.env` / `posthog.secretEnv`; empty dedicated Node Redis hosts intentionally reuse `REDIS_URL`, including authentication and TLS.
-
-### Guarded hub-production setup and upgrade
-
-The committed runner [`scripts/deploy-hub-production.py`](../../scripts/deploy-hub-production.py)
-consumes [`manifests/hub-production`](../../manifests/hub-production). It supports
-only the dedicated `posthog` namespace/release, one CNPG primary, single-node
-Atomic ClickHouse, Redpanda, and the reviewed `8471862` migration image. Other
-topologies must not use the logs repair.
-
-Prerequisites: Python 3.11+ with PyYAML, Helm 3, kubectl, explicit cluster access,
-Flux, the profile's already-installed operator CRDs/controllers, ingress/TLS/DNS
-and external S3 buckets. Keep cluster-shared operator versions aligned with the
-production profile; the runner does not install or upgrade shared controllers.
-Fresh Secret bootstrap needs `POSTHOG_R2_ACCESS_KEY_ID` and
-`POSTHOG_R2_SECRET_ACCESS_KEY` only when the existing Secret lacks storage keys.
-Secrets are resolved in memory; generated keys and old database credentials are
-preserved. Review/publish the production profile in the parent Flux source
-**before rollout**, or the parent reconciler could reapply an older configuration.
-
-Every invocation defaults to an **offline plan**. `--apply` authorizes only its
-named stage. Use a private state directory outside the repository and keep it,
-the database backups and recovery checkpoints until recovery is independently
-verified. The examples below use an explicit target; choose `fresh` only when no
-PostHog HelmRelease exists, otherwise `upgrade`.
+Start here:
 
 ```bash
-python3 scripts/deploy-hub-production.py prepare \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade
-
-# First stop external/direct ClickHouse writers. Application downtime is intentional.
-python3 scripts/deploy-hub-production.py prepare \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade \
-  --writers-quiesced --apply
-
-python3 scripts/deploy-hub-production.py backup \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade \
-  --writers-quiesced --apply
-
-python3 scripts/deploy-hub-production.py infrastructure \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade \
-  --writers-quiesced --apply
-
-python3 scripts/deploy-hub-production.py migrate \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade \
-  --writers-quiesced --apply
-
-python3 scripts/deploy-hub-production.py rollout \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade --apply
-
-# Set POSTHOG_PROJECT_API_KEY in your environment, not as a CLI argument.
-python3 scripts/deploy-hub-production.py verify \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade \
-  --url https://YOUR-POSTHOG-HOST --apply
+kubectl -n posthog get jobs,pods -l app.kubernetes.io/instance=posthog
+kubectl -n posthog logs -f job/posthog-db-check
+kubectl -n posthog logs -f job/posthog-migrate
+helm get notes posthog -n posthog
 ```
 
-For fresh installation use `--mode fresh` and omit the explicit `infrastructure`
-invocation: fresh `prepare` provisions dependencies and completes that stage.
-Before any cluster mutation, `prepare` pulls the profile's exact OCI digest and
-verifies its recorded chart version and supported application revision. For
-upgrades it also rejects PostgreSQL major-version changes before holding
-workloads. It suspends Flux, locks the namespace, removes HPAs, stops application
-writers, bootstraps Secrets and creates the pinned migration pod. **Upgrade
-prepare does not apply target CNPG, ClickHouse, Redpanda or Elasticsearch specs.**
-It checks the existing databases; their verified backup must come first.
-The initial fresh Helm installation holds application Deployments at zero.
-`backup` runs `pg_dumpall` into a private server-side file and freezes every
-ClickHouse MergeTree in `default` and `posthog` with a unique alphanumeric
-snapshot name. It retains SHOW CREATE/engine/UUID metadata and compresses the
-frozen shadow directory server-side. Both files are transferred to local mode
-0600 files in bounded 64 MiB chunks streamed directly to disk, verifying each
-chunk length and the remote size/SHA-256 without an in-memory archive copy.
-This catches the observed successful-exit-but-truncated `kubectl` stream failure.
-Omni exec uses `GODEBUG=http2client=0` and
-`KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false`, never a TLS bypass.
-The PostgreSQL completion marker and local gzip integrity are
-also required. Only after verification does the runner release each table with
-`ALTER TABLE ... UNFREEZE WITH NAME`; it never enables `SYSTEM UNFREEZE`.
-Allow enough free space in each database pod's `/tmp` and locally for these
-private backups. No CSI snapshots, ClickHouse backup disk, or application R2
-bucket is assumed. This is a verified backup transfer, not a restore drill:
-retain an independently tested recovery procedure and secure off-cluster copies.
-
-After backup, `infrastructure` first patches only the ClickHouse container image
-in the live CHI, retaining the old configuration. It requires completed operator
-reconciliation and a Ready pod using the target image before applying new
-ClickHouse configuration, then the remaining target dependency resources.
-This prevents an older ClickHouse binary from loading newer settings. The
-operator's `taskID` is required to distinguish a completed new reconciliation
-from stale readiness. CNPG major-version migrations are deliberately unsupported.
-Required database names come from the configured main/persons/Node URLs; an
-unused separate `posthog_persons` database is not required.
-
-`migrate` refuses unreconciled legacy logs, verifies required system log tables
-and runs actual chart hook Jobs in weight order, including Node SQLx, original
-legacy model moves, Django/product, persons, ClickHouse/schema sync and async
-migrations. Guarded Jobs use `restartPolicy: Never` and zero retries. The Node
-database must already exist; its SQLx migration is not replaced with a fake or
-an ignored database-create error. Only then can `rollout` release workloads and
-resume Flux. `verify` requires web preflight, real HTTPS capture, the matching
-event UUID persisted in ClickHouse and the profile alignment checker. It does
-not claim success from HTTP acceptance alone.
-
-#### Legacy logs database reconciliation
-
-After `infrastructure` and before `migrate`, installations affected by #70 run:
-
-```bash
-python3 scripts/deploy-hub-production.py logs --logs-phase snapshot \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade --writers-quiesced --apply
-python3 scripts/deploy-hub-production.py logs --logs-phase reconcile \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade --writers-quiesced --apply
-python3 scripts/deploy-hub-production.py logs --logs-phase consumers \
-  --context TARGET --mode upgrade --state-dir /secure/posthog-upgrade --writers-quiesced --apply
-```
-
-After `migrate`, run the same command with `--logs-phase drain`, then `verify`,
-then `finalize`, before `rollout`. All phases copy their private journal back
-out of the migration pod, even on a failed phase. `reconcile` preserves table
-UUIDs and Keeper replica paths by renaming storage; only explicit `TO`-owned
-materialized views are dropped. It executes reviewed CREATE/ALTER operations
-(including legitimate `TTL ... DELETE`) without changing migration history.
-`consumers` recreates canonical consumers; old Kafka metadata stays detached,
-so it cannot advance offsets. `drain` flushes old Distributed queues only when
-their existing destination already targets `posthog`; foreign destinations fail
-closed. `finalize` drops only verified empty Distributed aliases. Detached
-legacy Kafka metadata is deliberately retained, never reattached or dropped.
-
-For direct execution in the pinned migration image, the standalone interface is
-`python /path/to/reconcile-clickhouse-logs.py PHASE /private/logs-repair.json
-[--apply --writers-quiesced]`; `PHASE` is `snapshot`, `reconcile`, `consumers`,
-`drain`, `verify` or `finalize`. The script adds `/code` and `/python-runtime` to
-its import path, and the runner explicitly sets `PYTHONPATH=/code:/python-runtime`
-for remote Python execution. Snapshot is database-read-only; mutations
-require `--apply`. Verification only updates the private checkpoint.
-
-#### Interrupted runs
-
-The runner records `started` **before** each stage. Any attempted stage refuses
-blind replay; failure leaves Flux suspended and the lock and migration pod in
-place. Keep `/secure/posthog-upgrade/state.json`, `logs-repair.json`, dumps and
-failed Jobs. Inspect with explicit-context commands:
-
-```bash
-kubectl --context TARGET -n posthog get jobs,pods
-kubectl --context TARGET -n posthog logs job/EXACT-FAILED-GUARDED-JOB
-kubectl --context TARGET -n posthog exec posthog-upgrade-runner -- \
-  python manage.py showmigrations --plan
-```
-
-Do not remove a `started` marker, delete a Job, recreate an invalid concurrent
-index, or resume Flux until its actual database effects are understood.
-Successfully completed stages are not rerun. A specialist must reconcile a
-partial stage's journal against real migration records/UUIDs/queues before
-authorizing continuation; there is intentionally no `--force`, automatic
-snapshot rollback or migration-history rewrite.
-Additional runner options are `--kubeconfig PATH`, `--profile PATH` and
-`--timeout SECONDS` (default 2700). `--help` documents the complete CLI.
-
-## Two ClickHouse modes
-
-The chart supports two installation methods for ClickHouse:
-
-### Bundled (default)
-
-```yaml
-clickhouse:
-  enabled: true
-  database: posthog
-  apiPassword: "change-me"
-  appPassword: "change-me"
-```
-
-Deploys a single-node ClickHouse StatefulSet as part of the chart. Good for dev and small demos. Zero external dependencies.
-
-### External (production)
-
-```yaml
-clickhouse:
-  enabled: false
-
-externalClickhouse:
-  host: clickhouse-posthog.posthog.svc.cluster.local
-  user: default
-  apiUser: api
-  appUser: app
-  cluster: posthog
-  secretName: posthog-clickhouse-password
-  secretPasswordKey: password
-```
-
-Points the chart at an externally-managed ClickHouse (operator-managed, managed service, etc.). Passwords come from a Kubernetes Secret you own. The manifests path in `../../manifests` sets this up with the Altinity ClickHouse Operator.
-
-## Using external infrastructure
-
-Every bundled dependency can be disabled and replaced with an external endpoint:
-
-```yaml
-postgresql:
-  enabled: false
-externalPostgresql:
-  host: my-cnpg-cluster-rw
-  port: 5432
-  database: posthog
-  personsDatabase: posthog_persons
-  secretName: posthog-pg-app
-  usernameKey: username
-  passwordKey: password
-
-kafka:
-  enabled: false
-externalKafka:
-  brokers: "kafka-1:9092,kafka-2:9092"
-
-redis:
-  enabled: false
-externalRedis:
-  url: "redis://dragonfly:6379/"
-
-rustfs:
-  enabled: false
-externalObjectStorage:
-  endpoint: https://my-account.r2.cloudflarestorage.com
-  accessKey: "…"
-  secretKey: "…"
-```
-
-When `clickhouse.enabled=false`, the bundled `zookeeper` is also automatically skipped — external ClickHouse brings its own coordinator.
-
-## Ingress routing
-
-The chart supports five ingress implementations, enabled via `ingress.<type>.enabled`:
-
-| Type | Values key | When to use |
-|---|---|---|
-| NGINX Ingress | `ingress.nginx.enabled` | Standard NGINX Ingress Controller |
-| Traefik IngressRoute | `ingress.traefik.enabled` | Traefik v2/v3 CRDs |
-| Gateway API | `ingress.gateway.enabled` | Kubernetes Gateway API (v1) |
-| Istio VirtualService | `ingress.istio.enabled` | Istio service mesh |
-| OpenShift Route | `ingress.openshift.enabled` | OpenShift clusters |
-
-All five produce path-based routing that mirrors PostHog's upstream Caddy config:
-
-| Path | Backend |
+| Symptom | Cause and fix |
 |---|---|
-| `/e/*`, `/i/v0/*`, `/batch/*`, `/capture/*`, `/i/v1/analytics/events` | capture |
-| `/i/v0/ai/*`, `/i/v1/ai/events` | capture-ai |
-| `/s/*` | replay-capture |
-| `/flags/*` | feature-flags |
-| `/livestream/*` | livestream (WebSocket) |
-| `/public/webhooks/*` | plugins |
-| `/*` | web (Django) |
-
-Set `ingress.hostname` before installing — the default `posthog.example.com` won't resolve.
-
-## Production checklist
-
-- [ ] Override `posthog.secret` and `posthog.encryptionSaltKeys`, or set `existingSecret` to point at a pre-created Secret
-- [ ] Set a real `ingress.hostname`
-- [ ] Enable TLS: `ingress.nginx.tls.enabled=true` with cert-manager or a pre-populated secret
-- [ ] Switch at least Postgres and ClickHouse to external managed services
-- [ ] Enable `podDisruptionBudget.enabled=true` on `web`, `worker`, `capture`
-- [ ] Enable `autoscaling.enabled=true` on horizontally scalable services such as `web`, `capture`, `feature-flags`, `workerExports`, and `temporalDjangoWorker`
-- [ ] Pin storage classes via `persistence.storageClass`
-- [ ] Enable `networkPolicies.enabled=true` for network-level isolation
-- [ ] Enable `metrics.enabled=true` if you run `prometheus-operator`
+| `helm install` times out, release `failed` | The hooks took longer than `--timeout`, or `--wait` was used (see [Quick start](#quick-start)). Check the Job logs. When the cause is fixed, run `helm upgrade` with the same values; it re-runs the hooks. |
+| `db-check` never finishes, logs `<host>:<port> not ready` | It retries forever. The named endpoint is unreachable or wrong. Known traps: `zookeeper.enabled` left on with external ClickHouse; `externalPostgresql.host` empty (it then logs `:5432 not ready`); a comma-separated `externalKafka.brokers`. |
+| `migrate` fails with `Unknown command: 'migrate_legacy_model_moves'` | The hook image is not `posthog-migrate`. Set `migrate.image` (see `examples/images.yaml`). |
+| `web` not Ready, logs `Waiting for migrations to complete` | Normal until `migrate` succeeds. If `migrate` failed, fix it and run `helm upgrade`. |
+| `cymbal*` pods stuck in `Init` (`rustfs bucket posthog not ready`) | RustFS is not up or the object-storage keys do not match `rustfs.secret.rustfs.*`. Check `kubectl -n posthog logs deploy/posthog-rustfs`. |
+| Pods in `CreateContainerConfigError`, `couldn't find key ... in Secret` | `existingSecret` (or another referenced Secret) lacks a key. See the key table in [Secrets](#secrets). |
+| Temporal fails with a missing `<release>-app` Secret | External PostgreSQL without `externalPostgresql.secretName`. The bundled Temporal reads credentials from `secretName`, else from the CloudNativePG Secret `<release>-app`. |
+| `Error: execution error ...` at install | A render-time check failed. See [Render-time errors](#render-time-errors). |
+| Pods `Pending` | Not enough CPU or memory for the requests (about 18 GiB and 8.5 CPUs by default), or no default StorageClass. |
+| Ingress rejected by the ingress-nginx admission webhook | Snippet annotations are disabled on the controller. Allow them, or use another routing mode. |
+| Login loops or cookies are not set over http | Set `posthog.env.SITE_URL` to the URL you use and `posthog.env.SECURE_COOKIES: "false"` for plain http. |
+| Image pull errors only on hook Jobs | Hooks do not get `global.imagePullSecrets`. Add the pull secret to the namespace's `default` ServiceAccount (see [Images](#images-mirrors-and-pull-secrets)). |
 
 ## Uninstall
 
 ```bash
 helm uninstall posthog -n posthog
-kubectl delete pvc -n posthog -l app.kubernetes.io/instance=posthog
+kubectl -n posthog get pvc            # data volumes remain after uninstall
+kubectl delete namespace posthog      # deletes everything left, including all data
 ```
 
-PersistentVolumeClaims are not deleted automatically.
+StatefulSet volumes and the RustFS volumes (`helm.sh/resource-policy: keep`) are not deleted by `helm uninstall`.
 
-## Configuration reference
+## Upgrading
 
-All configuration is in [`values.yaml`](values.yaml), organized by top-level section:
+Back up PostgreSQL and ClickHouse before every upgrade. Migrations are forward-only: `helm rollback` does not undo them. Read every section between your version and the target.
 
-| Section | What it configures |
-|---|---|
-| `global` | Default security contexts, scheduling, image pull secrets |
-| `posthog` | PostHog app image and env var overrides |
-| `ingress` | Ingress/Gateway routing (five backends) |
-| `postgresql` / `externalPostgresql` | Primary Postgres (Django + Cyclotron) |
-| `clickhouse` / `externalClickhouse` | Analytics database |
-| `redis` / `externalRedis` | Cache and Celery broker |
-| `kafka` / `externalKafka` | Event streaming (bitnami subchart) |
-| `zookeeper` | Bundled CH coordinator — auto-disabled when `clickhouse.enabled=false` |
-| `rustfs` / `externalObjectStorage` | S3-compatible blob storage |
-| `externalSeaweedfs` | Session recording v2 storage (defaults to RustFS when bundled) |
-| `elasticsearch` | Temporal visibility backend |
-| `temporal` | Workflow orchestrator |
-| `geoip` | MaxMind GeoIP sidecar |
-| `web` / `worker` / `workerBeat` / `workerExports` | Django app, Celery workers, and Celery scheduler |
-| `mcp` | Model Context Protocol server for agent access |
-| `plugins` | Node.js CDP / ingestion service |
-| `capture` / `replayCapture` / `captureAi` / `captureLogs` | Rust capture services |
-| `featureFlags` / `propertyDefsRs` / `livestream` / `cymbal` / `cymbalResolution` | Auxiliary Rust services |
-| `personhog` / `personhogRouter` / `personhogReplica` | Required persons read services |
-| `valkey` / `externalValkey` | CDP shadow cache |
-| `browserless` / `externalBrowserless` | Remote export and heatmap rendering |
-| `usageIngestion` | Optional internal usage-reporting gateway |
-| `temporalDjangoWorker` | Django worker processing Temporal workflows |
-| `migrate` / `asyncMigrationsCheck` / `kafkaInit` | Install hook settings |
-| `networkPolicies` | Default-deny ingress + explicit allow rules |
-| `metrics` | Prometheus ServiceMonitor CRs |
+### Upgrading to 0.24
 
-Each application component supports `replicas`, `image`, `resources`, `podSecurityContext`, `containerSecurityContext`, `nodeSelector`, `tolerations`, `affinity`, `podAnnotations`, `extraEnv`, and (where relevant) `autoscaling`, `podDisruptionBudget`, `extraVolumes`, `extraVolumeMounts`, `sidecarContainers`.
+This release targets the PostHog build of 2026-11-17 (`f9239c1`). Databases created before the September 2026 squash must go through 0.23.x first.
 
-Worker scaling is controlled with `worker.replicas`, `worker.concurrency`, `worker.autoscaling`, `workerExports.replicas`, `workerExports.concurrency`, and `temporalDjangoWorker.autoscaling`. The chart maps worker concurrency to `WEB_CONCURRENCY`, which is the value consumed by PostHog's Celery entrypoint, and also emits `CELERY_WORKER_CONCURRENCY` for compatibility/visibility. `workerBeat.enabled=true` runs RedBeat as a separate scheduler pod, so scheduler restarts do not restart the main Celery worker.
+- `existingSecret` needs a new key, `recording-api-jwt-secret`. Without it every application pod fails to start. With the chart-managed Secret the value is generated and kept; set `posthog.recordingApiJwtSecret` to choose it.
+- Every upstream image default is now pinned as `tag@digest` and the pull policy changed from `Always` to `IfNotPresent`. If you override only `tag`, override the whole tag string, digest included.
+- Capture reads `CAPTURE_OUTPUT_*`. Move any `KAFKA_TOPIC` or `CAPTURE_V1_*` set through `extraEnv` to the new names.
+- External ClickHouse needs the four new default-profile settings and the `signals` profile and user that the bundled ClickHouse template now defines. Django fails without signals credentials.
+- Bundled stores move: Temporal 1.20 to 1.29.7 (skips minors; schema auto-setup on an existing database is not verified), RustFS alpha.91 to beta.12 (on-disk compatibility is not verified), Kafka 3.7 to 3.9, PostgreSQL 15.20, ZooKeeper 3.9.7. Back up first, and test the upgrade on a copy if you run bundled Temporal or RustFS with data you cannot lose.
+- The split Django images run Python 3.14.
+- flags-consumer stays opt-in, as upstream does not start it by default.
 
-### MCP server
+### Upgrading to 0.23
 
-The MCP server is disabled by default. Enable it on the existing PostHog hostname:
+- Fail-fast validation: a disabled bundled store without its external endpoint now fails at render time with one of the five `templates/validate.yaml` messages in [Render-time errors](#render-time-errors). Before, such configurations rendered and pointed at Services that did not exist.
+- HPAs, PDBs and ServiceMonitors render only for enabled workloads. Objects that targeted a disabled Deployment (for example the `worker-exports` HPA and PDB with `workerExports.enabled=false`) are removed on upgrade.
+- New `utilityImage` value: the busybox image for init, wait and helper containers. The default is the same pinned image as before; set it to use a mirror.
+- `create-buckets` is a post-install/post-upgrade hook (weight 1) that uses curl instead of `minio/mc`. The cymbal bucket init containers use the same curl image (`rustfs.image.clientImage`).
+- Removed values keys. No template read them, so setting them had no effect before either; delete them from your values: `bootstrapClickhouse`, `temporal.adminTools`, `externalClickhouse.createDatabase`, `objectStorage.containerSecurityContext`, `objectStorage.nodeSelector`, `objectStorage.tolerations`, `objectStorage.affinity`, `objectStorage.podAnnotations`.
+- `NOTES.txt` now shows every routing mode, the effective `SITE_URL`, the hook commands and the port-forward command.
 
-```yaml
-mcp:
-  enabled: true
-```
+### Upgrading to 0.22
 
-MCP clients connect to `https://<ingress.hostname>/mcp`. The chart routes the
-protocol, legacy SSE, UI apps, and OAuth metadata paths to the MCP service while
-PostHog web continues to serve the OAuth authorization endpoints.
+This release targets the September 2026 PostHog. ClickHouse must be 26.6.2 or newer. Use matching, immutable application images, and let the new migration Job finish before new application pods take traffic: post-upgrade hooks alone do not hold back the rollout.
 
-`mcp.apiBaseUrl`, `mcp.publicUrl`, and `mcp.appsBaseUrl` default to
-`https://<ingress.hostname>` and can be overridden independently. The chart
-generates and preserves `mcp-signed-state-key`; when `existingSecret` is used,
-that Secret must provide both `redis-url` and `mcp-signed-state-key`.
+- Legacy installations need this release's rebuilt `posthog-migrate` image. It runs the original product model moves before the September squash and backports the SCIM migration lookup ([#65](https://github.com/blitss/posthog-helm-chart/issues/65), [#66](https://github.com/blitss/posthog-helm-chart/issues/66)).
+- Logs, traces and metrics must use `clickhouse.database`; a different `externalClickhouse.logsDatabase` fails rendering. If older versions created logs tables in `default`, reconcile them first ([#70](https://github.com/blitss/posthog-helm-chart/issues/70)).
+- PersonHog router, replica and clients are on by default and use the existing persons database. `migrate.persons.skipPartitioning=true` keeps the nonpartitioned table.
+- Cymbal resolution is required and on by default: headless gRPC Service on 50061, health and metrics on 9106. Replace an existing non-headless resolver Service before upgrading. For an external resolver, disable `cymbalResolution` and set `cymbal.remoteResolution.host`.
+- Valkey is a new, authenticated CDP shadow store; Redis stays the primary cache. `existingSecret` needs `valkey-password`. External settings are under `externalValkey`.
+- Browserless replaces local Chromium. `existingSecret` needs `browserless-token`. External endpoints use `externalBrowserless` with `browserless-token` / `heatmap-browserless-token`. Browserless must reach `SITE_URL`. Disable consent-modal blocking on saved heatmaps with Browserless OSS.
+- AI ingestion uses `events_plugin_ingestion_ai`. External storage must provide `objectStorage.aiBlobs.bucket` (default `ai-blobs`) with HEAD, GET, PUT and self-copy permissions. Keep bucket and prefix stable and retain objects at least 31 days.
+- Granian is the only web server; it exposes Prometheus metrics on 8001. Remove `web.granian.enabled`, `USE_GRANIAN`, Unit-specific overrides, `personhog.rolloutPercentage`, `cyclotronJanitor` and the `externalPostgresql.cyclotron*` keys except `cyclotronNode*`.
+- Usage ingestion is optional (`usageIngestion.enabled=false`). Before enabling reporting, migrate ClickHouse, provision `clickhouse_billing_usage_records`, pin its image and set `reportTeams`. Keep its unauthenticated gRPC Service internal.
+- External ClickHouse may set `externalClickhouse.dictReaderUser=dict_reader` after creating that SELECT-only user with the shared password. Empty `CDP_REDIS_HOST`, `LOGS_REDIS_HOST` and `TRACES_REDIS_HOST` reuse `REDIS_URL`.
 
-## Chart dependencies
+The guarded procedure used to upgrade the `hub-production` deployment to 0.22 is in [manifests/README.md](../../manifests/README.md#guarded-setup-and-upgrade-runner).
 
-```yaml
-dependencies:
-  - name: kafka
-    repository: oci://registry-1.docker.io/bitnamicharts
-  - name: rustfs
-    repository: https://charts.rustfs.com
-```
+## Development
 
-Build them before packaging:
-
-```bash
-helm dependency build ./charts/posthog
-```
+See the [root README](../../README.md#contributing). Before sending a chart change, run `bash scripts/test-chart-render.sh`.

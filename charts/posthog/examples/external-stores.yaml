@@ -1,0 +1,92 @@
+# External PostgreSQL, ClickHouse, Kafka, Redis, Valkey and S3, with every
+# chart secret in one Secret you manage (existingSecret). Temporal and its
+# Elasticsearch stay bundled; Temporal uses the external PostgreSQL.
+#
+# Create the Secrets first (names and keys must match the values below):
+#
+#   kubectl create namespace posthog
+#   kubectl -n posthog create secret generic posthog-app-secrets \
+#     --from-literal=posthog-secret="$(openssl rand -hex 32)" \
+#     --from-literal=encryption-salt-keys="$(openssl rand -hex 16)" \
+#     --from-literal=internal-api-secret="$(openssl rand -hex 24)" \
+#     --from-literal=recording-api-jwt-secret="$(openssl rand -hex 32)" \
+#     --from-literal=browserless-token="$(openssl rand -hex 32)" \
+#     --from-literal=redis-url='rediss://:PASSWORD@redis.example.internal:6379/0' \
+#     --from-literal=valkey-password='PASSWORD' \
+#     --from-literal=object-storage-access-key='KEY' \
+#     --from-literal=object-storage-secret-key='SECRET' \
+#     --from-literal=seaweedfs-access-key='KEY' \
+#     --from-literal=seaweedfs-secret-key='SECRET'
+#   kubectl -n posthog create secret generic posthog-pg \
+#     --from-literal=username=posthog --from-literal=password='PASSWORD'
+#   kubectl -n posthog create secret generic posthog-clickhouse \
+#     --from-literal=password='PASSWORD'
+#
+# Keep posthog-secret and encryption-salt-keys backed up: losing them breaks
+# sessions and encrypted data. Then:
+#
+#   helm install posthog ./charts/posthog -n posthog \
+#     -f charts/posthog/examples/images.yaml \
+#     -f charts/posthog/examples/external-stores.yaml --timeout 30m
+#
+# Add a routing example (ingress-nginx-tls.yaml or gateway-api.yaml).
+
+existingSecret: posthog-app-secrets
+
+postgresql:
+  enabled: false
+externalPostgresql:
+  # host + secretName: the chart builds every connection URL from the
+  # username/password keys of this Secret (main, persons, cyclotron_node).
+  host: postgres.example.internal
+  port: 5432
+  secretName: posthog-pg
+  database: posthog
+  # Databases that must exist. personsDatabase defaults to `database`.
+  cyclotronNodeDatabase: cyclotron_node
+
+clickhouse:
+  enabled: false
+  database: posthog
+externalClickhouse:
+  host: clickhouse.example.internal
+  user: default
+  apiUser: api
+  appUser: app
+  cluster: posthog
+  # One password, shared by all ClickHouse users above.
+  secretName: posthog-clickhouse
+  secretPasswordKey: password
+
+# Only used for the bundled ClickHouse. Disable it, or the db-check hook
+# waits for a ZooKeeper that is not deployed.
+zookeeper:
+  enabled: false
+
+kafka:
+  enabled: false
+externalKafka:
+  # One bootstrap address. A comma-separated list renders, but the db-check
+  # hook only handles a single host:port.
+  brokers: kafka.example.internal:9092
+
+redis:
+  enabled: false
+# externalRedis.url is not needed: redis-url comes from existingSecret.
+
+valkey:
+  enabled: false
+externalValkey:
+  host: valkey.example.internal
+  port: 6379
+  tls: true
+
+rustfs:
+  enabled: false
+externalObjectStorage:
+  # S3 API endpoint, path-style. Buckets must exist: `posthog` and
+  # objectStorage.aiBlobs.bucket (default ai-blobs).
+  endpoint: https://s3.eu-west-1.amazonaws.com
+externalSeaweedfs:
+  # Session recordings (bucket `posthog`). Any S3-compatible endpoint.
+  endpoint: https://s3.eu-west-1.amazonaws.com

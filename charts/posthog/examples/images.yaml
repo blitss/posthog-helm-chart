@@ -1,0 +1,27 @@
+# The split Python images built and smoke-tested by this repository. Combine
+# with any other example: -f examples/images.yaml -f examples/<other>.yaml
+#
+# The migrate hook runs `manage.py migrate_legacy_model_moves`, which only
+# exists in posthog-migrate. `latest` is the last bundle that passed CI on main;
+# pin `sha-<commit>` tags or digests for reproducible installs. amd64 only.
+
+posthog:
+  image:
+    repository: ghcr.io/blitss/posthog-worker
+    tag: latest
+web:
+  image:
+    repository: ghcr.io/blitss/posthog-web
+    tag: latest
+workerExports:
+  image:
+    repository: ghcr.io/blitss/posthog-worker-exports
+    tag: latest
+migrate:
+  image:
+    repository: ghcr.io/blitss/posthog-migrate
+    tag: latest
+asyncMigrationsCheck:
+  image:
+    repository: ghcr.io/blitss/posthog-migrate
+    tag: latest

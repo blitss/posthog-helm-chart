@@ -2,11 +2,16 @@
 ## PostHog Helm Chart - values.yaml
 ## ------------------------------------------------------------------
 
-## Global overrides
+## ------------------------------------------------------------------
+## Resource names
+## ------------------------------------------------------------------
 nameOverride: ''
 fullnameOverride: ''
 ## ------------------------------------------------------------------
-## Global production settings
+## Global defaults for chart-owned pods
+## Scheduling defaults (nodeSelector, tolerations, affinity) are not applied
+## to the ingestion-*/recording-api, geoip and temporal-ui Deployments, the
+## hook Jobs, or the kafka/rustfs subcharts.
 ## ------------------------------------------------------------------
 global:
   ## Image pull secrets for private registries
@@ -39,6 +44,9 @@ global:
   extraEnv: []
   # - name: MY_VAR
   #   value: "my-value"
+## ------------------------------------------------------------------
+## Utility image
+## ------------------------------------------------------------------
 ## Small shell image for init/wait containers (wait-for-redis, GeoIP download,
 ## db-check, Elasticsearch sysctl, cymbal resolution wait, GeoIP server).
 ## Needs busybox applets (sh, nc, wget, httpd, sysctl). Override to use a mirror.
@@ -183,20 +191,22 @@ posthog:
   env: {}
   secretEnv: {}
 ## ------------------------------------------------------------------
-## Existing Secrets support
-## When set, the chart will NOT create its own Secret and will instead
-## reference this existing Kubernetes Secret for all secret values.
-## The Secret must contain these keys:
-##   posthog-secret, encryption-salt-keys, internal-api-secret,
-##   recording-api-jwt-secret, database-url,
-##   redis-url, clickhouse-api-password, clickhouse-app-password,
-##   object-storage-access-key, object-storage-secret-key,
-##   seaweedfs-access-key, seaweedfs-secret-key, postgresql-password
-## Bundled Valkey also requires valkey-password; external Valkey uses the same
-## key when authentication is enabled (it may be omitted for unauthenticated servers).
-## When browserless.enabled: browserless-token.
-## For externalBrowserless endpoints: browserless-token and/or
-## heatmap-browserless-token for the configured CDP and heatmap endpoints.
+## Existing Secret
+## When set, the chart does NOT create <release>-secrets and reads every
+## chart secret from this Secret instead. Required keys:
+##   always: posthog-secret, encryption-salt-keys, internal-api-secret,
+##     recording-api-jwt-secret,
+##     redis-url, object-storage-access-key, object-storage-secret-key,
+##     seaweedfs-access-key, seaweedfs-secret-key
+##   postgresql.enabled: database-url, postgresql-password
+##   clickhouse.enabled: clickhouse-api-password, clickhouse-app-password
+##   valkey.enabled: valkey-password (external Valkey: optional, used when set)
+##   browserless.enabled: browserless-token
+##   externalBrowserless.cdpUrl / heatmapUrl: browserless-token /
+##     heatmap-browserless-token
+##   mcp.enabled: mcp-signed-state-key
+## With bundled RustFS the object-storage-*/seaweedfs-* keys must equal
+## rustfs.secret.rustfs.access_key / secret_key.
 ## ------------------------------------------------------------------
 existingSecret: ''
 ## ------------------------------------------------------------------
@@ -261,7 +271,7 @@ ingress:
     annotations: {}
     tls:
       enabled: true
-      secretName: '' # leave empty to use default cluster issuer
+      secretName: '' # empty: the controller's default certificate
   ## Traefik IngressRoute (traefik.io/v1alpha1 CRD)
   traefik:
     enabled: false
@@ -332,6 +342,13 @@ postgresql:
   affinity: {}
   podAnnotations: {}
 ## External PostgreSQL (used when postgresql.enabled=false)
+## Always set host: the db-check hook waits for host:port. Then pick a mode:
+##   host + secretName (recommended): every URL is built from the Secret's
+##     usernameKey/passwordKey. The bundled Temporal uses the same Secret.
+##   url: inline URL, visible in pod specs. Also set cyclotronNodeUrl. The
+##     bundled Temporal still reads Secret <release>-app (username, password).
+##   neither: CloudNativePG defaults, Secret <release>-app (uri, username,
+##     password) and cyclotron_node on host <release>-rw.
 externalPostgresql:
   ## Full connection URL: postgres://user:pass@host:port/db
   url: ''
@@ -339,9 +356,9 @@ externalPostgresql:
   personsUrl: ''
   ## Optional override for the Node/v2 Cyclotron DB URL.
   cyclotronNodeUrl: ''
-  ## Secret-backed alternative to inline URLs for external Postgres.
-  ## When `host` is set, the chart will build connection URLs from this
-  ## credential secret instead of expecting prebuilt URI keys.
+  ## Credential Secret. With host set, connection URLs are built from
+  ## usernameKey/passwordKey. Without host, URLs are read from uriKey and
+  ## personsUriKey, and cyclotronNodeUrl is required.
   secretName: ''
   host: ''
   port: 5432
@@ -353,8 +370,9 @@ externalPostgresql:
   personsUriKey: persons-uri
   usernameKey: username
   passwordKey: password
-  ## Password for external PostgreSQL (used by Temporal and other consumers
-  ## that need the password separately from the full URL)
+  ## Written to the chart Secret's postgresql-password key only. With
+  ## postgresql.enabled=false nothing reads that key; the bundled Temporal
+  ## reads secretName (or <release>-app) instead.
   password: ''
 ## ------------------------------------------------------------------
 ## ClickHouse
@@ -653,8 +671,8 @@ externalKafka:
   brokers: '' # e.g. "kafka-1:9092,kafka-2:9092"
 ## ------------------------------------------------------------------
 ## ZooKeeper (for bundled ClickHouse coordination)
-## Ignored when clickhouse.enabled=false — external ClickHouse brings
-## its own keeper/zookeeper.
+## Not deployed when clickhouse.enabled=false, but the db-check hook still
+## waits for it: set zookeeper.enabled=false with external ClickHouse.
 ## ------------------------------------------------------------------
 zookeeper:
   enabled: true
@@ -687,7 +705,7 @@ zookeeper:
 ## RustFS (S3-compatible object storage)
 ## ------------------------------------------------------------------
 rustfs:
-  ## Set to false to use external object storage (e.g. Azure Blob, AWS S3, GCS)
+  ## Set to false to use external S3-compatible storage (externalObjectStorage)
   enabled: true
   ## RustFS subchart values — override as needed.
   ## https://github.com/rustfs/helm
@@ -728,7 +746,9 @@ rustfs:
       memory: 1Gi
 ## External object storage (used when rustfs.enabled=false)
 externalObjectStorage:
-  ## S3-compatible endpoint: https://my-bucket.s3.amazonaws.com
+  ## S3 API endpoint, used path-style (no bucket in the URL), e.g.
+  ## https://s3.eu-west-1.amazonaws.com. The bucket name is fixed to "posthog";
+  ## it and objectStorage.aiBlobs.bucket must already exist.
   endpoint: ''
   accessKey: ''
   secretKey: ''
@@ -843,7 +863,7 @@ geoip:
   ## The PVC must contain the MMDB file at its root.
   # existingPvc: geoip-db
 ## ------------------------------------------------------------------
-## PostHog Core Services
+## PostHog application workloads (Django, plugin server, Rust services)
 ## ------------------------------------------------------------------
 web:
   enabled: true
@@ -990,10 +1010,10 @@ workerExports:
   enabled: false
   image: {}
   replicas: 1
-  ## Dedicated Celery queue list for browser/media-heavy export tasks.
-  ## Requires Chromium — needs more memory than regular workers.
+  ## Dedicated Celery queue list for export tasks. Rendering goes through
+  ## Browserless (browserless / externalBrowserless), not a local browser.
   queue: exports
-  ## Keep low — each prefork worker spawns Chromium (~500MB RSS).
+  ## Celery prefork concurrency for the exports worker.
   concurrency: 2
   resources:
     requests:
@@ -1055,6 +1075,8 @@ plugins:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
+## Resources for the single-replica Deployments that also run plugins.image
+## (rendered when plugins.enabled=true).
 ingestionGeneral:
   resources:
     requests:
@@ -1502,6 +1524,8 @@ personhogRouter:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
+## Django worker for PostHog's Temporal workflows. Rendered only when
+## temporal.enabled=true (it is not deployed with externalTemporal).
 temporalDjangoWorker:
   image: {}
   replicas: 1
@@ -1528,7 +1552,8 @@ temporalDjangoWorker:
     enabled: false
     minAvailable: 1
 ## ------------------------------------------------------------------
-## Init Jobs
+## Helm hook Jobs (post-install/post-upgrade; kafkaInit is pre-install/
+## pre-upgrade). db-check (weight -1) always runs and has no values block.
 ## ------------------------------------------------------------------
 migrate:
   ## Run Django migrations on install/upgrade
@@ -1670,6 +1695,9 @@ asyncMigrationsCheck:
   image: {}
 ## ------------------------------------------------------------------
 ## Network Policies
+## Ingress rules only: default-deny for chart pods, then any source to the
+## public HTTP services and release pods to stores/internal services. The
+## geoip and recording-api pods match no allow rule, so they are unreachable.
 ## ------------------------------------------------------------------
 networkPolicies:
   enabled: false
@@ -1677,7 +1705,8 @@ networkPolicies:
 ## Prometheus Monitoring
 ## ------------------------------------------------------------------
 metrics:
-  ## Enable ServiceMonitor/PodMonitor creation (requires prometheus-operator CRDs)
+  ## Create ServiceMonitors (requires prometheus-operator CRDs) for web,
+  ## plugins, capture, personhog-replica/router and cymbal-resolution
   enabled: false
   serviceMonitor:
     ## Additional labels for ServiceMonitor (e.g. release: kube-prometheus-stack)

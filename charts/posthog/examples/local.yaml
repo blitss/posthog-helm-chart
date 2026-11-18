@@ -1,0 +1,23 @@
+# Local or kind cluster: everything bundled, no ingress, reach the UI with
+# kubectl port-forward. Not for production.
+#
+#   helm install posthog ./charts/posthog -n posthog --create-namespace \
+#     -f charts/posthog/examples/images.yaml \
+#     -f charts/posthog/examples/local.yaml --timeout 30m
+#   kubectl -n posthog port-forward svc/posthog-web 8000:8000
+#
+# Then open http://localhost:8000.
+
+ingress:
+  enabled: false
+
+posthog:
+  env:
+    # Log in over plain http through the port-forward.
+    SITE_URL: http://localhost:8000
+    SECURE_COOKIES: 'false'
+
+# Creates and migrates the cyclotron_node database. The CI-tested profile
+# enables it.
+cyclotronMigrate:
+  enabled: true

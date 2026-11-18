@@ -1,96 +1,67 @@
-# PostHog Bundle
+# PostHog on Kubernetes
 
-Kubernetes deployment of [PostHog](https://posthog.com) with two install paths:
+Community Helm chart and Flux manifests for self-hosting [PostHog](https://posthog.com). Not affiliated with PostHog.
 
-1. **Chart** (`helm install`) — self-contained, bundled infrastructure, one command to get running.
-2. **Manifests** (GitOps / Flux + operators) — operator-managed databases, with an explicit `hub-production` profile matching the observed live configuration.
+There are two ways to install. Both deploy the same chart.
 
-The generic chart/manifests examples and production profile have different images, resources, ingress and storage settings. Use the production profile, not the generic example, to reproduce hub-production.
+| | Helm chart | Flux manifests |
+|---|---|---|
+| Start here | [charts/posthog/README.md](charts/posthog/README.md) | [manifests/README.md](manifests/README.md) |
+| Install with | `helm install` | Flux `HelmRelease` + Kustomize |
+| Stores | Bundled single pods by default; each can be switched to an external service | Operators: CloudNativePG, Altinity ClickHouse + Keeper, Redpanda, ECK Elasticsearch |
+| Object storage | Bundled RustFS or external S3 | Generic profile: RustFS. `hub-production`: Cloudflare R2 |
+| Good for | Trying PostHog, small installs, or production with your own managed stores | Clusters that already run Flux and these operators |
+| Tested | Bundled-store defaults: render tests only (`scripts/test-chart-render.sh`, run locally) | Fresh-cluster smoke test on kind in CI for every runtime PR |
 
-## What's in the repo
+Which do I want? Use the chart unless you already run Flux and want operator-managed databases. To try PostHog, follow the chart [Quick start](charts/posthog/README.md#quick-start).
+
+`manifests/hub-production` is the recorded configuration of one production deployment, not a template. Use `manifests/posthog` as the generic example.
+
+## Repository layout
 
 ```
-charts/posthog/              # Helm chart (both paths use this)
-  templates/hooks/           # Install hooks: db-check, kafka-init, create-buckets, migrate, async-migrations
-  templates/external/        # Bundled infra deployments (used only when enabled=true)
-  templates/posthog/         # PostHog application Deployments
-  templates/routing/         # Ingress / Gateway API / Traefik / Istio / OpenShift route options
-  charts/                    # Subchart dependencies: bitnami/kafka, rustfs  (gitignored)
+charts/posthog/              Helm chart
+  templates/hooks/           Hook Jobs: db-check, kafka-init, create-buckets, cyclotron-migrate, migrate, async-migrations-check
+  templates/external/        Bundled stores (rendered only when enabled)
+  templates/posthog/         PostHog workloads, HPA/PDB, ServiceMonitors
+  templates/routing/         nginx, Traefik, Gateway API, Istio, OpenShift
+  templates/validate.yaml    Fail-fast checks for disabled stores
+  examples/                  Render-tested values files
+  charts/                    Vendored subcharts (bitnami/kafka, rustfs), committed
 
-manifests/                   # GitOps path — Flux-managed operators and CRs
-  infra/                     # cert-manager, CNPG, CRDs — cluster-wide prerequisites
-  posthog/                   # Generic namespace example: operator CRs + Flux HelmRelease
-  hub-production/            # Explicit live production profile; existing cluster operators required
+manifests/
+  infra/                     Cluster-wide operators for a new test cluster
+  posthog/                   Generic Flux profile (namespace CRs + HelmRelease)
+  posthog-ci/                CI overlay of the generic profile (smaller requests)
+  hub-production/            Recorded production profile and its evidence files
 
 images/
-  clickhouse/                # Custom ClickHouse image with PostHog UDF scripts
-  posthog/                   # Split Python-slim images: web, worker, worker-exports, migrate
+  clickhouse/                ClickHouse with PostHog UDF scripts
+  posthog/                   Split Python images: web, worker, worker-exports, migrate, cyclotron-migrate
+
+vendor/posthog/              Upstream PostHog ClickHouse UDF scripts (synced daily)
 
 scripts/
-  kind-bootstrap.sh          # Create a local kind cluster with registry mirrors + loaded images
-  update-topics.sh           # Sync Kafka topic list from upstream PostHog
-
-.github/workflows/
-  build-posthog-images.yaml  # Build immutable test artifacts; no publication
-  kind-happy-path.yaml       # Fresh-cluster smoke tests and required release-ready gate
-  publish-posthog-artifacts.yaml  # Publish the tested artifacts without rebuilding
-  sync-posthog-topics.yaml   # Daily PR to sync Kafka topics with upstream
-  sync-posthog-user-scripts.yaml  # Daily sync of ClickHouse UDF scripts
-
-vendor/posthog/              # Upstream PostHog UDFs (auto-synced from github.com/PostHog/posthog)
+  test-chart-render.sh       helm lint + helm template over a value-set matrix
+  kind-bootstrap.sh          Local kind cluster, optional registry mirror, local images
+  update-topics.sh           Sync Kafka topic lists in values.yaml from upstream
+  deploy-hub-production.py, check-hub-production.py, bootstrap-hub-production-secrets.py,
+  reconcile-clickhouse-logs.py
+                             hub-production runner, alignment check, secrets, logs repair
+  verify-release-*.py        CI helpers
+  test-*                     Tests for the scripts above
 ```
 
-## Which path to use
+## Images
 
-For production use external ClickHouse and Kafka — the bundled ClickHouse is single-node and the `kafka` subchart is `bitnami/kafka` (now `bitnamilegacy`, unmaintained). The manifests path sets both up via operators.
+The chart and manifests use images built here and published to `ghcr.io/blitss/`:
 
-| | Chart | Manifests |
-|---|---|---|
-| **Use when** | Local dev, quick demo, POC | Operator-managed stateful dependencies; explicit production profile |
-| **ClickHouse** | Single-node StatefulSet | Altinity Clickhouse Operator + CHI + CHK (keeper) |
-| **Kafka** | bitnami/kafka subchart | Redpanda Operator + `Redpanda` CR |
-| **Postgres** | StatefulSet in chart | CloudNativePG (`Cluster` CR) |
-| **Object storage** | rustfs subchart | Generic: RustFS; hub-production: external Cloudflare R2 |
-| **Deployment tooling** | `helm install` | Flux HelmRelease + Kustomize |
-| **Hook order resolution** | Chart hooks; normal Helm wait policy | Staged dependencies/migrations, Flux `disableWait: true`; hooks still wait |
+- `posthog-web`, `posthog-worker`, `posthog-worker-exports`, `posthog-migrate`, `posthog-cyclotron-migrate`: slim images that copy runtime files out of an upstream `posthog/posthog` digest. See [images/posthog/README.md](images/posthog/README.md). amd64 only.
+- `posthog-clickhouse`: ClickHouse plus the PostHog UDF scripts. amd64 and arm64.
 
-See [charts/posthog/README.md](charts/posthog/README.md) for the chart path, and [manifests/README.md](manifests/README.md) for the GitOps path.
+Tags: `sha-<commit>` for each published build, and `latest` for the last build that passed CI on `main`.
 
-`manifests/hub-production` records the working production configuration and verified image digests. The worker repository-name correction preserves those exact digests while making fresh pulls possible. Start with the [production prerequisites, secret bootstrap and read-only alignment check](manifests/README.md#hub-production). The deployment runner defaults to a plan; reproducibility checks do not implicitly redeploy production.
-
-Install the pinned CLI tools with `mise install`, then create an operations environment:
-
-```sh
-python3 -m venv .venv-ops
-.venv-ops/bin/pip install -r requirements-ops.txt
-```
-
-Use `.venv-ops/bin/python` for the deployment and alignment scripts.
-
-## Local testing with kind
-
-Both paths can be tested on a single-node kind cluster. The bootstrap script creates the cluster, installs container registry mirrors, and loads locally-built images:
-
-```bash
-./scripts/kind-bootstrap.sh --recreate
-```
-
-What it does:
-
-- Creates a single-node cluster from `kind-config.local.yaml`
-- Configures containerd mirrors so `docker.io/*` and `ghcr.io/*` pulls go through an internal Harbor proxy (configurable via `MIRROR_HOST`)
-- Loads any local `local/posthog-*:test` images into the cluster so you don't need to push them
-
-After that, follow either install path below.
-
-## Custom images
-
-The chart and manifests reference pre-built images on `ghcr.io/blitss/`:
-
-- `posthog-web`, `posthog-worker`, `posthog-worker-exports`, `posthog-migrate` — split Python-slim images, with source evidence in `manifests/hub-production/image-provenance.json`
-- `posthog-clickhouse` — stock ClickHouse plus PostHog UDF scripts baked in
-
-`.github/workflows/kind-happy-path.yaml` builds and tests exact artifacts before allowing publication. Builds pin their upstream/base images, Debian package snapshot, and SQLx Cargo dependencies. To build locally:
+To build locally (from the repository root):
 
 ```bash
 docker build -f images/posthog/Dockerfile.web -t local/posthog-web:test .
@@ -100,18 +71,55 @@ docker build -f images/posthog/Dockerfile.migrate -t local/posthog-migrate:test 
 docker build -f images/clickhouse/Dockerfile -t local/posthog-clickhouse:test .
 ```
 
-The chart and manifests work with either `ghcr.io/blitss/*` or `local/*:test` — override via `--set` / `values.yaml`.
+## Local testing with kind
 
-## Release verification
+```bash
+./scripts/kind-bootstrap.sh --recreate
+```
 
-Require the GitHub Actions `release-ready` status check on `main`, with the branch up to date before merging. Runtime PRs test three fresh kind environments: declared images, production-profile images, and same-run candidate artifacts. The smoke check verifies ingestion as well as readiness; publication on `main` uses those tested artifacts rather than rebuilding them.
+This creates a single-node cluster from `kind-config.local.yaml` and loads any local `local/posthog-*:test` images. With `MIRROR_HOST` (or `--mirror-host`) set, it also routes `docker.io`, `ghcr.io` and `docker.redpanda.com` pulls through that Harbor-style mirror. Then install with the chart [Quick start](charts/posthog/README.md#quick-start), or apply the manifests.
 
-Bot workflows explicitly dispatch verification when using `GITHUB_TOKEN`, whose pushes do not trigger ordinary PR workflows. Renovate rebases behind-base branches and never automerges dependency updates. Stateful major upgrades still need a separate migration decision; a fresh-install smoke test does not prove an in-place data migration.
+## Contributing
 
-To recover an unpublished release after fixing CI, run `gh workflow run kind-happy-path.yaml --ref main -f publish=true` without `base_sha`. This rebuilds and verifies the full release before publication; it does not promote artifacts from a failed run. Manual publication is restricted to `main`; ordinary manual/bot verification never publishes.
+Tools are pinned in `mise.toml` (Helm 3.22.1, kubectl, kind, Flux 2.6, yq, Python, actionlint):
+
+```bash
+mise trust && mise install
+bash scripts/test-chart-render.sh
+```
+
+`test-chart-render.sh` runs `helm lint`, renders the chart for a matrix of value sets (defaults, external stores, every routing mode, all HPA/PDB toggles, optional workloads, every file in `charts/posthog/examples/`, both Flux releases), and checks that each fail-fast validation still rejects a disabled store without its endpoint. CI does not run it; run it before you push a chart change.
+
+For the hub-production scripts, create a separate environment:
+
+```bash
+python3 -m venv .venv-ops
+.venv-ops/bin/pip install -r requirements-ops.txt
+```
+
+### How CI gates merges
+
+`.github/workflows/kind-happy-path.yaml` runs on pull requests, the merge queue and pushes to `main`:
+
+1. Classify the change. A change limited to `*.md` files (and other paths outside charts, images, manifests, scripts, workflows and tool pins) skips the build and smoke test.
+2. Build the images (`build-posthog-images.yaml`; nothing is pushed).
+3. Smoke-test the Flux manifests on three fresh kind clusters: declared images, the hub-production images and the images just built. The test checks ingestion, not only readiness.
+4. `release-ready` passes only if the build and all three smoke tests passed, or were skipped for a docs-only change. Make it a required status check on `main`.
+5. On `main`, `publish-posthog-artifacts.yaml` pushes the tested images (when image inputs such as `images/` or `vendor/` changed) and the chart (when `version` in `Chart.yaml` changed) to GHCR. It does not rebuild.
+
+To retry a failed publication after fixing CI: `gh workflow run kind-happy-path.yaml --ref main -f publish=true`. This rebuilds and re-tests before publishing.
+
+### Upstream tracking and Renovate
+
+- `posthog-tracker.yaml` (daily): reads upstream PostHog commits since the SHA in `.github/posthog-tracker.last-sha`, has Claude file `posthog-tracker` issues for changes the chart may need, and opens a PR that moves the cursor.
+- `posthog-tracker-resolve.yaml`: on a `posthog-tracker` label, a `/resolve` issue comment or manual dispatch, Claude implements the issue on a branch and opens a draft PR.
+- `sync-posthog-topics.yaml` and `sync-posthog-user-scripts.yaml` (daily): PRs that sync the Kafka topic lists (`scripts/update-topics.sh`) and the ClickHouse UDF scripts in `vendor/posthog/`.
+- Renovate (`.github/renovate.json5`, weekly): updates image tags and digests in `manifests/` (except `manifests/hub-production/`, which is recorded state), GitHub Actions and `mise.toml`. Updates are grouped; major updates get their own PR; stateful-store majors (PostgreSQL, Redis, Valkey, Kafka, Elasticsearch) are disabled; nothing auto-merges. Renovate does not update `charts/posthog/values.yaml`.
+- `claude.yml` and `claude-code-review.yml`: Claude on `@claude` mentions and PR review.
+
+Bot PRs created with `GITHUB_TOKEN` do not trigger PR workflows, so these workflows dispatch `kind-happy-path` themselves (`scripts/verify-release-dispatch.py`).
 
 ## Publish targets
 
-- Chart OCI: `oci://ghcr.io/blitss/charts/posthog`
-- ClickHouse image: `ghcr.io/blitss/posthog-clickhouse`
-- Split PostHog images: `ghcr.io/blitss/posthog-{web,worker,worker-exports,migrate}`
+- Chart (OCI): `oci://ghcr.io/blitss/charts/posthog`
+- Images: `ghcr.io/blitss/posthog-{web,worker,worker-exports,migrate,cyclotron-migrate,clickhouse}`
