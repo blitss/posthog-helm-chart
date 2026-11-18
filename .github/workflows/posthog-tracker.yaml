@@ -35,10 +35,10 @@ permissions:
 jobs:
   track:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
       - name: Record this scan's start
@@ -47,7 +47,6 @@ jobs:
       - name: Fetch and pre-filter PostHog upstream commits
         id: commits
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SINCE_HOURS: ${{ github.event.inputs.since_hours || '24' }}
           SINCE_SHA_INPUT: ${{ github.event.inputs.since_sha || '' }}
         run: |
@@ -64,78 +63,43 @@ jobs:
             echo "Using state file SHA: $SINCE_SHA"
           fi
 
-          # Get current upstream HEAD — this becomes the new cursor on success.
-          NEW_HEAD=$(gh api repos/PostHog/posthog/commits/master --jq '.sha')
+          # Trees only: path filtering any gap is local and takes about a minute.
+          git clone --filter=blob:none --no-checkout --single-branch -b master https://github.com/PostHog/posthog /tmp/posthog
+          # Upstream HEAD becomes the new cursor on success.
+          NEW_HEAD=$(git -C /tmp/posthog rev-parse HEAD)
           echo "Upstream master HEAD: $NEW_HEAD"
 
           [[ "$NEW_HEAD" =~ ^[0-9a-f]{40}$ ]]
           if [ -n "$SINCE_SHA" ]; then
             [[ "$SINCE_SHA" =~ ^[0-9a-f]{40}$ ]]
-            # Paginate every commit. A failed API request must fail this run,
-            # never turn into an empty success that advances the cursor.
-            gh api --paginate --slurp \
-              "repos/PostHog/posthog/compare/${SINCE_SHA}...${NEW_HEAD}?per_page=100" \
-              > /tmp/posthog-compare.json
-            jq -e '.[0].status == "ahead" or .[0].status == "identical"' /tmp/posthog-compare.json >/dev/null
-            jq '[.[].commits[]] | unique_by(.sha)' /tmp/posthog-compare.json > /tmp/posthog-commits-list.json
-            test "$(jq length /tmp/posthog-commits-list.json)" = "$(jq '.[0].total_commits' /tmp/posthog-compare.json)"
+            # A rewritten or unknown cursor must fail, never scan a wrong range.
+            git -C /tmp/posthog merge-base --is-ancestor "$SINCE_SHA" "$NEW_HEAD"
+            RANGE=("$SINCE_SHA..$NEW_HEAD")
           else
             [[ "$SINCE_HOURS" =~ ^[0-9]+$ ]]
-            SINCE=$(date -u -d "${SINCE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)
-            # Freeze the listing at NEW_HEAD; master may move while paginating.
-            gh api --paginate --slurp \
-              "repos/PostHog/posthog/commits?sha=${NEW_HEAD}&since=${SINCE}&per_page=100" \
-              | jq 'add' > /tmp/posthog-commits-list.json
+            SINCE_SHA=$(git -C /tmp/posthog rev-list -1 --before="${SINCE_HOURS} hours ago" "$NEW_HEAD")
+            RANGE=(--since="${SINCE_HOURS} hours ago" "$NEW_HEAD")
           fi
-          jq '[.[] | {sha, message: .commit.message, author: .commit.author.name, date: .commit.author.date, url: .html_url}]' \
-            /tmp/posthog-commits-list.json > /tmp/posthog-commits-raw.json
-          RAW_COUNT=$(jq length /tmp/posthog-commits-raw.json)
+          RAW_COUNT=$(git -C /tmp/posthog rev-list --count "${RANGE[@]}")
           echo "Total commits to scan: $RAW_COUNT"
           echo "new_head=$NEW_HEAD" >> "$GITHUB_OUTPUT"
 
-          if [ "$RAW_COUNT" -eq 0 ]; then
-            echo "has_commits=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Path-based pre-filter. Watched paths in upstream PostHog/posthog:
-          #   - docker-compose*.yml
-          #   - production.Dockerfile, *.Dockerfile, Dockerfile
-          #   - docker/** (clickhouse XMLs, etc.)
-          #   - bin/** (entrypoints)
-          #   - charts/** (their reference helm chart)
-          #   - .github/workflows/build-* (image build pipeline)
-          # We filter server-side here so Claude only sees commits that touch
-          # these paths — message-first triage was missing infra changes with
-          # generic commit messages.
-          WATCHED_REGEX='^(docker-compose|production\.Dockerfile|Dockerfile|.*\.Dockerfile$|.*\.dockerignore$|docker/|bin/|charts/|\.github/workflows/build-)'
-
-          echo "Pre-filtering commits by changed paths…"
-          : > /tmp/posthog-commits-filtered.ndjson
-          fetched=0
-          while IFS= read -r commit; do
-            sha=$(echo "$commit" | jq -r .sha)
-            gh api --paginate --slurp "repos/PostHog/posthog/commits/${sha}?per_page=100" > /tmp/posthog-commit-pages.json
-            # GitHub caps this endpoint at 3000 files. Refuse to advance rather
-            # than silently miss paths when the cap is reached.
-            test "$(jq '[.[].files[]] | length' /tmp/posthog-commit-pages.json)" -lt 3000
-            files_json=$(jq '[.[].files[] | .filename, .previous_filename // empty] | unique' /tmp/posthog-commit-pages.json)
-            watched=$(echo "$files_json" | jq --arg re "$WATCHED_REGEX" \
-              '[.[] | select(test($re))]')
-            watched_count=$(echo "$watched" | jq 'length')
-            if [ "$watched_count" -gt 0 ]; then
-              echo "$commit" | jq --argjson files "$watched" \
-                '. + {watchedFiles: $files}' >> /tmp/posthog-commits-filtered.ndjson
-            fi
-            fetched=$((fetched + 1))
-            if [ $((fetched % 25)) -eq 0 ]; then
-              echo "  …$fetched/$RAW_COUNT processed"
-            fi
-          done < <(jq -c '.[]' /tmp/posthog-commits-raw.json)
-
-          jq -s . /tmp/posthog-commits-filtered.ndjson > /tmp/posthog-commits.json
+          # Path pre-filter, so Claude only sees commits that touch upstream's
+          # deploy contract: compose files, Dockerfiles at any depth, docker/**
+          # (clickhouse XMLs, etc.), bin/** (entrypoints), charts/**, and the
+          # image build workflows. Message-first triage missed infra changes.
+          WATCHED=(':(glob)docker-compose*' ':(glob)**/Dockerfile' ':(glob)**/Dockerfile.*' ':(glob)**/*.Dockerfile'
+            ':(glob)**/*.dockerignore' docker bin charts ':(glob).github/workflows/build-*')
+          # --no-renames lists both sides of a rename and never fetches blobs.
+          git -C /tmp/posthog log --no-renames --name-only --format='%x1e%H%x1f%an%x1f%aI%x1f%s%x1f' "${RANGE[@]}" -- "${WATCHED[@]}" \
+            | jq -Rs 'split("\u001e")[1:] | map(split("\u001f") | {sha: .[0], message: .[3], author: .[1], date: .[2],
+                url: "https://github.com/PostHog/posthog/commit/\(.[0])", watchedFiles: (.[4] | split("\n") | map(select(. != "")) | unique)})' \
+            > /tmp/posthog-commits.json
           KEPT=$(jq length /tmp/posthog-commits.json)
           echo "Surviving commits after path filter: $KEPT/$RAW_COUNT"
+          git -C /tmp/posthog diff --no-renames --name-only "$SINCE_SHA" "$NEW_HEAD" -- "${WATCHED[@]}" > /tmp/posthog-net-files.txt
+          echo "since_sha=$SINCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "kept=$KEPT" >> "$GITHUB_OUTPUT"
 
           if [ "$KEPT" -eq 0 ]; then
             echo "has_commits=false" >> "$GITHUB_OUTPUT"
@@ -148,9 +112,21 @@ jobs:
         if: steps.commits.outputs.has_commits == 'true'
         env:
           DRY_RUN_INPUT: ${{ github.event.inputs.dry_run || 'false' }}
+          KEPT: ${{ steps.commits.outputs.kept }}
+          SINCE_SHA: ${{ steps.commits.outputs.since_sha }}
+          NEW_HEAD: ${{ steps.commits.outputs.new_head }}
         run: |
           set -euo pipefail
-          COMMITS=$(cat /tmp/posthog-commits.json)
+          if [ "$KEPT" -le 60 ]; then
+            COMMITS="Commits; each \`watchedFiles\` lists the watched paths it touches:
+          $(cat /tmp/posthog-commits.json)"
+            FETCH_STEP="For each commit, fetch the diff for its watched files only: \`gh api repos/PostHog/posthog/commits/<sha>\` and inspect the relevant patches."
+          else
+            # Catch-up mode: one run triages any gap through the net diff.
+            COMMITS="${KEPT} commits touch watched paths, too many to triage one by one. Triage the NET change of \`${SINCE_SHA}..${NEW_HEAD}\` instead. Watched files that differ across that range:
+          $(cat /tmp/posthog-net-files.txt)"
+            FETCH_STEP="For each listed file, read the net change with \`git -C /tmp/posthog diff ${SINCE_SHA} ${NEW_HEAD} -- <file>\`. To cite upstream commits, run \`git -C /tmp/posthog log --format='%h %s' ${SINCE_SHA}..${NEW_HEAD} -- <file>\`."
+          fi
 
           if [ "$DRY_RUN_INPUT" = "true" ]; then
             MODE_INSTRUCTION="You are running in DRY RUN mode. DO NOT call \`gh issue create\`. Print a structured report to stdout only."
@@ -224,19 +200,15 @@ jobs:
 
           ${MODE_INSTRUCTION}
 
-          COMMITS TO TRIAGE (already fetched, do not re-list):
+          WHAT TO TRIAGE (already fetched, do not re-list):
           ${COMMITS}
 
-          IMPORTANT: The commit list below has ALREADY been path-filtered. Every
-          commit here touches at least one watched path (listed in its
-          \`watchedFiles\` field). You do NOT need to re-filter by path — that's
-          done. Your job is the second-stage filter: is the change structural,
-          or is it just a version/tag/digest bump?
+          IMPORTANT: The above has ALREADY been path-filtered. You do NOT need
+          to re-filter by path — that's done. Your job is the second-stage
+          filter: is the change structural, or is it just a version/tag/digest bump?
 
           STEPS:
-          1. For each commit, fetch the diff for its watched files only:
-             \`gh api repos/PostHog/posthog/commits/<sha>\` and inspect the
-             relevant patches.
+          1. ${FETCH_STEP}
           2. If the change inside watched files is purely a version bump (image
              tag, dependency version, base image SHA), drop it — Renovate
              handles those.
@@ -258,18 +230,30 @@ jobs:
 
       - name: Run posthog-tracker (Claude Code)
         if: steps.commits.outputs.has_commits == 'true'
-        uses: anthropics/claude-code-action@bf38e86e58df9ebf3420326d019f955bb3be64dd # v1
+        uses: anthropics/claude-code-action@e5812cd75691ca7bbfc57c0ecf4441db3a1ab7dd # v1.0.281
         env:
+          # LLM gateway behind Cloudflare Access; the action still wants a key input.
+          ANTHROPIC_BASE_URL: https://pm-llm.swiftend.day
+          ANTHROPIC_AUTH_TOKEN: cloudflare-access
+          ANTHROPIC_MODEL: claude-opus-5-5
+          ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-5-5
+          ANTHROPIC_DEFAULT_SONNET_MODEL: claude-opus-5-5
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: claude-opus-5-5
+          CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-5-5
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+          ANTHROPIC_CUSTOM_HEADERS: |
+            CF-Access-Client-Id: ${{ secrets.PM_LLM_CI_CLIENT_ID }}
+            CF-Access-Client-Secret: ${{ secrets.PM_LLM_CI_CLIENT_SECRET }}
           GH_TOKEN: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: cloudflare-access
           github_token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
           prompt: ${{ steps.build_prompt.outputs.prompt }}
           show_full_output: true
           claude_args: |
-            --model claude-opus-4-7
+            --model claude-opus-5-5
             --verbose
-            --allowed-tools "Bash(gh api:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(jq:*)"
+            --allowed-tools "Bash(gh api:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(jq:*),Bash(git -C /tmp/posthog diff:*),Bash(git -C /tmp/posthog log:*)"
 
       - name: Dispatch resolver for newly filed bot issues
         if: github.event.inputs.dry_run != 'true'
@@ -307,7 +291,7 @@ jobs:
 
       - name: Propose cursor update
         if: success() && github.event.inputs.dry_run != 'true' && steps.commits.outputs.new_head != ''
-        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         with:
           token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
           add-paths: .github/posthog-tracker.last-sha

@@ -32,8 +32,6 @@ env:
   KIND_CLUSTER_NAME: posthog-ci
   LOCAL_REGISTRY_NAME: kind-registry
   LOCAL_REGISTRY_PORT: "5001"
-  HELM_VERSION: v3.18.4
-  FLUX_VERSION: 2.6.4
 
 jobs:
   plan:
@@ -44,13 +42,16 @@ jobs:
       publish-images: ${{ steps.changes.outputs.publish-images }}
       publish-chart: ${{ steps.changes.outputs.publish-chart }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          install_args: actionlint
       - name: Validate reproducibility tooling
         run: |
           set -euo pipefail
-          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          actionlint
           python3 -m venv /tmp/posthog-ops-venv
           /tmp/posthog-ops-venv/bin/pip install -r requirements-ops.txt
           /tmp/posthog-ops-venv/bin/python scripts/test-reconcile-clickhouse-logs.py
@@ -136,39 +137,30 @@ jobs:
           docker builder prune --all --force
           df -h
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
 
-      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
-          version: v3.18.4
+          install_args: helm kubectl kind flux2 yq
 
-      - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
-        with:
-          version: v1.33.1
-
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: chart
           path: /tmp/chart
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: matrix.images == 'candidate'
         with:
           pattern: image-*-amd64
           path: /tmp/images
 
-      - name: Install kind and Flux
+      - name: Show tool versions
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64 -o /tmp/kind
-          sudo install -m 0755 /tmp/kind /usr/local/bin/kind
-          curl -fsSL "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz" | tar -xz -C /tmp flux
-          sudo install -m 0755 /tmp/flux /usr/local/bin/flux
-          curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_linux_amd64 -o /tmp/yq
-          sudo install -m 0755 /tmp/yq /usr/local/bin/yq
           kind version
+          yq --version
           flux --version
           kubectl version --client=true
           helm version
@@ -197,7 +189,7 @@ jobs:
             - role: control-plane
           EOF
 
-          kind create cluster --name "${KIND_CLUSTER_NAME}" --image kindest/node:v1.33.1@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f --config /tmp/kind-ci.yaml
+          kind create cluster --name "${KIND_CLUSTER_NAME}" --image kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d --config /tmp/kind-ci.yaml
           docker network connect kind "${LOCAL_REGISTRY_NAME}" || true
           kubectl get nodes -o wide
 
@@ -228,7 +220,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          flux install --version="v${FLUX_VERSION}"
+          flux install
           kubectl -n flux-system rollout status deploy/source-controller --timeout=5m
           kubectl -n flux-system rollout status deploy/helm-controller --timeout=5m
 

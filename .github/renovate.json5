@@ -6,31 +6,68 @@
     ":disableRateLimiting",
     "helpers:pinGitHubActionDigests"
   ],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {"enabled": true},
   "rebaseWhen": "behind-base-branch",
+  "separateMultipleMajor": true,
   "enabledManagers": ["helm-values", "flux", "kubernetes", "github-actions", "mise"],
   "helm-values": {
-    "fileMatch": ["^manifests/.+\\.ya?ml$"]
+    "managerFilePatterns": ["/^manifests/.+\\.ya?ml$/"]
   },
   "flux": {
-    "fileMatch": ["^manifests/.+\\.ya?ml$"]
+    "managerFilePatterns": ["/^manifests/.+\\.ya?ml$/"]
   },
   "kubernetes": {
-    "fileMatch": ["^manifests/.+\\.ya?ml$"]
+    "managerFilePatterns": ["/^manifests/.+\\.ya?ml$/"]
   },
   "ignorePaths": [
-    "manifests/posthog/kind-values.local.yaml"
+    "manifests/posthog/kind-values.local.yaml",
+    // Records the observed production runtime; changed only deliberately (manifests/README.md).
+    "manifests/hub-production/**"
   ],
+  // Every open PR costs a full three-cluster smoke run, so batch non-major updates.
   "packageRules": [
     {
+      "description": "One PR for all digest pins and digest refreshes.",
+      "matchUpdateTypes": ["digest", "pin", "pinDigest"],
+      "groupName": "image and action digests",
+      "groupSlug": "digests"
+    },
+    {
+      "description": "One PR for third-party image tag bumps.",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "third-party images",
+      "groupSlug": "third-party-images"
+    },
+    {
+      "description": "One PR for CLI tools pinned in mise.toml.",
+      "matchManagers": ["mise"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "mise tools",
+      "groupSlug": "mise-tools"
+    },
+    {
+      "description": "Production runs Flux 2.6.4; keep the CLI and the CI-installed controllers on 2.6.",
+      "matchManagers": ["mise"],
+      "matchDepNames": ["flux2"],
+      "allowedVersions": "<2.7.0"
+    },
+    {
+      "description": "One PR for infra operator charts (cnpg, cert-manager, eck, redpanda, altinity).",
+      "matchDatasources": ["helm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "infra charts",
+      "groupSlug": "infra-charts",
+      "addLabels": ["renovate/helm"]
+    },
+    {
       "description": "Keep compatible PostHog application and split-role images in one tested bundle.",
-      "matchFileNames": ["manifests/posthog/release.yaml", "manifests/hub-production/**"],
+      "matchFileNames": ["manifests/posthog/release.yaml"],
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/blitss/posthog-*", "ghcr.io/posthog/**", "posthog/posthog"],
       "matchUpdateTypes": ["digest", "pin", "pinDigest", "patch", "minor"],
       "groupName": "posthog images",
       "groupSlug": "posthog-images",
-      "separateMajorMinor": true,
       "commitMessageTopic": "posthog images",
       "addLabels": ["renovate/posthog-images"]
     },
@@ -44,13 +81,13 @@
       "description": "Major database, operator and image upgrades need independent review.",
       "matchUpdateTypes": ["major"],
       "groupName": null,
-      "separateMultipleMajor": true,
       "addLabels": ["renovate/major"]
     },
     {
-      "description": "Helm chart bumps (cnpg, cert-manager, redpanda-operator, altinity-clickhouse-operator, …) get one PR per chart.",
-      "matchDatasources": ["helm"],
-      "addLabels": ["renovate/helm"]
+      "description": "A fresh-install smoke test cannot prove an in-place data migration, so stateful-store majors are manual.",
+      "matchPackageNames": ["/(^|/)(elasticsearch|redis|valkey|kafka|postgres|postgresql)$/"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     },
     {
       "description": "No auto-merge anywhere.",
