@@ -1,0 +1,19 @@
+# Gateway API: the chart renders one HTTPRoute (gateway.networking.k8s.io/v1).
+# The Gateway, its HTTPS listener and the certificate are yours to create, and
+# the listener's allowedRoutes must admit routes from the release namespace.
+#
+#   helm install posthog ./charts/posthog -n posthog --create-namespace \
+#     -f charts/posthog/examples/images.yaml \
+#     -f charts/posthog/examples/gateway-api.yaml --timeout 30m
+
+ingress:
+  hostname: posthog.example.com
+  nginx:
+    enabled: false
+  gateway:
+    enabled: true
+    # parentRef of the HTTPRoute.
+    gatewayName: my-gateway
+    gatewayNamespace: gateway-system
+    # sectionName: the listener that terminates TLS for the hostname.
+    listenerName: https

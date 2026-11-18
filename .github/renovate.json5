@@ -90,6 +90,23 @@
       "enabled": false
     },
     {
+      "description": "ignorePaths did not stop grouped branches from editing these files; disable by file name too.",
+      "matchFileNames": ["manifests/hub-production/**"],
+      "enabled": false
+    },
+    {
+      "description": "kubectl tracks the cluster minor and Python the ops scripts' runtime; move them by hand.",
+      "matchManagers": ["mise"],
+      "matchDepNames": ["kubectl", "python"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    },
+    {
+      "description": "admin-tools must not run ahead of the Temporal server (1.29.x).",
+      "matchPackageNames": ["/temporalio/admin-tools$/"],
+      "allowedVersions": "<=1.31.0"
+    },
+    {
       "description": "No auto-merge anywhere.",
       "matchPackageNames": ["*"],
       "automerge": false,

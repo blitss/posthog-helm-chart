@@ -41,6 +41,11 @@ for s in "${sets[@]}"; do
   helm template posthog "$chart" -n posthog ${s:+--set "$s"} > /dev/null
 done
 
+for example in "$chart"/examples/*.yaml; do
+  echo "template: $example"
+  helm template posthog "$chart" -n posthog -f "$chart/examples/images.yaml" -f "$example" > /dev/null
+done
+
 for release in manifests/posthog/release.yaml manifests/hub-production/release.yaml; do
   echo "template: $release"
   yq '.spec.values' "$release" > "$work/values.yaml"
