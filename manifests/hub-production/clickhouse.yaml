@@ -271,7 +271,7 @@ spec:
                     secretKeyRef:
                       key: password
                       name: posthog-clickhouse-password
-              image: registry.streamloop.app/ghcr.io/blitss/posthog-clickhouse:26.6.2.158@sha256:be4787940c45b37a220bd67a067fc4a524e3a06da47c21bba083185605aaa8ba
+              image: registry.streamloop.app/ghcr.io/blitss/posthog-clickhouse:26.6.2.158@sha256:b02b9be95bfb8e1a508cd26af1a90b4c71fc092891229cfa0af0b3e9ed4f43f8
               imagePullPolicy: Always
               name: clickhouse
               resources:
