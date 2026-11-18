@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 env:
-  POSTHOG_IMAGE: posthog/posthog@sha256:6ae0aa70bbd1ca299b472332e540eab2c829148a8c89b87b58221da260f580e4
+  POSTHOG_IMAGE: posthog/posthog@sha256:51b5d173a563840a7f58defdb75827b4670c9c2cac7a109d94fcf8f8776eaee1
 
 jobs:
   build:

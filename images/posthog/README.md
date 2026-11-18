@@ -25,8 +25,8 @@ docker build -f images/posthog/Dockerfile.worker-exports -t posthog-worker-expor
 docker build -f images/posthog/Dockerfile.migrate -t posthog-migrate .
 ```
 
-The split Python images require the September 2026 upstream Python 3.13.13
-runtime layout. Build all roles from the same immutable `POSTHOG_IMAGE` digest:
+The split Python images require the upstream Python 3.14.7 runtime layout
+(November 2026, `f9239c187fe37db3755b9abfebfbcf46e288b32b`). Build all roles from the same immutable `POSTHOG_IMAGE` digest:
 
 ```bash
 docker build \
@@ -38,11 +38,11 @@ docker build \
 The image workflow accepts `posthog_image` (the full immutable upstream reference)
 and `image_tag` (the published tag). All roles use the same pinned source.
 
-The migration image includes the legacy model-move preparation command required
-by the chart. Its build guard currently requires upstream commit
-`8471862b083b25d3a11b97eb7730f21aa0cb4c7f`; review
-[issue #65](https://github.com/blitss/posthog-helm-chart/issues/65) before changing
-that pin, including the [SCIM historical-field backport](https://github.com/blitss/posthog-helm-chart/issues/66). An unmodified upstream monolith cannot replace this migration role.
+The migration image runs the unmodified upstream migrations. The legacy
+model-move command (#65) and the SCIM `ee.0058` backport (#66) are gone: upstream
+fixed `ee.0058` (PostHog/posthog#101626), and the command only served databases
+older than the September 2026 squash. Upgrade such a database with chart 0.23.x
+(source `8471862b`) first.
 
 Use the [guarded setup/upgrade runner](../../charts/posthog/README.md#guarded-hub-production-setup-and-upgrade)
 for hub-production. The migration image's default CMD is not the complete

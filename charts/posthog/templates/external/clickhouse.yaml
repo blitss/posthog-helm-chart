@@ -460,6 +460,11 @@ stringData:
           <insert_distributed_sync>1</insert_distributed_sync>
           <throw_on_max_partitions_per_insert_block>false</throw_on_max_partitions_per_insert_block>
           <number_of_mutations_to_throw>1</number_of_mutations_to_throw>
+          <!-- The native events_json table relies on these for every write. -->
+          <input_format_try_infer_dates>0</input_format_try_infer_dates>
+          <input_format_try_infer_datetimes>0</input_format_try_infer_datetimes>
+          <type_json_skip_duplicated_paths>1</type_json_skip_duplicated_paths>
+          <json_type_escape_dots_in_keys>1</json_type_escape_dots_in_keys>
           <!-- Disable sampling profiler: trace_log can fill disk under heavy load and PostHog never reads it. -->
           <query_profiler_real_time_period_ns>0</query_profiler_real_time_period_ns>
           <query_profiler_cpu_time_period_ns>0</query_profiler_cpu_time_period_ns>
@@ -473,6 +478,10 @@ stringData:
         <app>
           <profile>default</profile>
         </app>
+        <signals>
+          <profile>default</profile>
+          <readonly>2</readonly>
+        </signals>
       </profiles>
 
       <users>
@@ -512,6 +521,12 @@ stringData:
             {{- end }}
           </grants>
         </dict_reader>
+        <signals>
+          <password>{{ .Values.clickhouse.appPassword | html }}</password>
+          <networks><ip>::/0</ip></networks>
+          <profile>signals</profile>
+          <quota>default</quota>
+        </signals>
       </users>
 
       <quotas>

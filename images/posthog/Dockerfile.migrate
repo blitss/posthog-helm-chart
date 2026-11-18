@@ -1,4 +1,4 @@
-ARG POSTHOG_IMAGE=posthog/posthog@sha256:6ae0aa70bbd1ca299b472332e540eab2c829148a8c89b87b58221da260f580e4
+ARG POSTHOG_IMAGE=posthog/posthog@sha256:51b5d173a563840a7f58defdb75827b4670c9c2cac7a109d94fcf8f8776eaee1
 FROM ${POSTHOG_IMAGE} AS upstream
 
 FROM ${POSTHOG_IMAGE} AS python-runtime-slim
@@ -8,7 +8,7 @@ RUN find /python-runtime -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete &&
     find /python-runtime -type d -name __pycache__ -prune -exec rm -rf {} +
 
 # Match the interpreter ABI used by upstream's /python-runtime virtualenv.
-FROM python:3.13.13-slim-bookworm@sha256:355bfa66770995d7e9a0da4b3473b44d0cb451f6b56f5615ad9c39e3c4eca03f
+FROM python:3.14.7-slim-bookworm@sha256:9ab8d9c8514b44f90cf0029dd42fdd7e9e211e639c8b995304cc04568dee900f
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -28,6 +28,10 @@ RUN apt-get update && \
     libxmlsec1=1.2.37-2 \
     libxmlsec1-openssl=1.2.37-2 \
     libssl3=3.0.* \
+    libatomic1 \
+    libgomp1 \
+    media-types \
+    tzdata \
     && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -g 1000 posthog && \
@@ -46,14 +50,9 @@ COPY --from=upstream --chown=posthog:posthog /code/products /code/products
 COPY --from=upstream --chown=posthog:posthog /code/frontend/src/products.json /code/frontend/src/products.json
 COPY --from=upstream --chown=posthog:posthog /code/services/mcp/schema /code/services/mcp/schema
 COPY --from=upstream --chown=posthog:posthog /code/rust/persons_migrations /code/rust/persons_migrations
-
-# Re-review the legacy model moves and SCIM backfill before accepting another upstream revision.
-# https://github.com/blitss/posthog-helm-chart/issues/65 and /issues/66
-RUN test "$(cat /code/commit.txt)" = "8471862b083b25d3a11b97eb7730f21aa0cb4c7f" || \
-    { echo "Upstream revision changed: review migration compatibility (#65/#66)" >&2; exit 1; }
-COPY --chown=posthog:posthog images/posthog/migrate_legacy_model_moves.py /code/posthog/management/commands/migrate_legacy_model_moves.py
-COPY --chown=posthog:posthog images/posthog/migrations/0058_backfill_scim_provisioned_user_config.py /code/ee/migrations/0058_backfill_scim_provisioned_user_config.py
+# apply_persons_migrations --hobby (the chart default) also applies these.
+COPY --from=upstream --chown=posthog:posthog /code/rust/persons_migrations_hobby /code/rust/persons_migrations_hobby
 
 USER posthog
 
-CMD ["sh", "-c", "python manage.py migrate_legacy_model_moves && python manage.py migrate --noinput --production && python manage.py migrate_clickhouse"]
+CMD ["sh", "-c", "python manage.py migrate --noinput --production && python manage.py migrate_product_databases && python manage.py migrate_clickhouse"]

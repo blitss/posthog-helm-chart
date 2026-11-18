@@ -51,6 +51,15 @@ spec:
         - ::1
       dict_reader/profile: readonly
       dict_reader/quota: default
+      signals/password:
+        valueFrom:
+          secretKeyRef:
+            name: posthog-clickhouse-password
+            key: password
+      signals/default_database: default
+      signals/networks/ip: ::/0
+      signals/profile: signals
+      signals/quota: default
       dict_reader/grants/query:
         - GRANT SELECT ON default.*
         - GRANT SELECT ON posthog.*
@@ -72,9 +81,16 @@ spec:
       default/insert_distributed_sync: "1"
       default/throw_on_max_partitions_per_insert_block: "false"
       default/number_of_mutations_to_throw: "1"
+      # The native events_json table relies on these for every write.
+      default/input_format_try_infer_dates: "0"
+      default/input_format_try_infer_datetimes: "0"
+      default/type_json_skip_duplicated_paths: "1"
+      default/json_type_escape_dots_in_keys: "1"
       readonly/readonly: "1"
       api/profile: default
       app/profile: default
+      signals/profile: default
+      signals/readonly: "2"
     quotas:
       default/interval/duration: "3600"
       default/interval/queries: "0"

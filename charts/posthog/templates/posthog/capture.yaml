@@ -56,10 +56,13 @@ spec:
               value: "0.0.0.0:3000"
             - name: CAPTURE_MODE
               value: events
-            - name: KAFKA_TOPIC
+            # commonEnv sets the INGESTION producer's broker list
+            # (KAFKA_INGESTION_PRODUCER_METADATA_BROKER_LIST).
+            - name: CAPTURE_OUTPUT_ANALYTICS_MAIN_TOPIC
               value: "events_plugin_ingestion"
+            - name: CAPTURE_OUTPUT_ERROR_TRACKING_TOPIC
+              value: "ingestion-errortracking-main"
             {{- include "posthog.commonEnv" . | nindent 12 }}
-            {{- include "posthog.captureV1Env" (dict "root" .) | nindent 12 }}
             {{- with .Values.capture.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -137,7 +140,7 @@ spec:
               value: "0.0.0.0:3000"
             - name: CAPTURE_MODE
               value: recordings
-            - name: KAFKA_TOPIC
+            - name: CAPTURE_OUTPUT_SESSION_REPLAY_MAIN_TOPIC
               value: "session_recording_snapshot_item_events"
             {{- include "posthog.commonEnv" . | nindent 12 }}
             {{- with .Values.replayCapture.extraEnv }}
@@ -215,10 +218,14 @@ spec:
               value: "0.0.0.0:3000"
             - name: CAPTURE_MODE
               value: ai
-            - name: KAFKA_TOPIC
+            - name: CAPTURE_OUTPUT_ANALYTICS_MAIN_TOPIC
               value: "events_plugin_ingestion_ai"
+            # Below the bundled Kafka's ~1 MB message limit, so an oversized AI
+            # event gets ai_event_too_big instead of a producer error. Raise it
+            # through extraEnv together with the broker and producer limits.
+            - name: AI_MAX_EVENT_BYTES
+              value: "900000"
             {{- include "posthog.commonEnv" . | nindent 12 }}
-            {{- include "posthog.captureV1Env" (dict "root" . "mainTopic" "events_plugin_ingestion_ai") | nindent 12 }}
             {{- with .Values.captureAi.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
