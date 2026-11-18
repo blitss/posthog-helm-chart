@@ -1,4 +1,4 @@
-{{- $kafkaBrokers := .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) }}
+{{- $kafkaBrokers := include "posthog.kafkaBrokers" . }}
 {{- $redisHost := .Values.externalRedis.url | default (printf "%s-redis" (include "posthog.fullname" .)) }}
 
 {{- if .Values.plugins.enabled }}

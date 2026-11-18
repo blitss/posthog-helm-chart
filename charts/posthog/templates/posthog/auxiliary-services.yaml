@@ -309,7 +309,7 @@ spec:
               value: {{ printf "/share/%s" .Values.geoip.filename | quote }}
             {{- end }}
             - name: LIVESTREAM_CONSUMERS_EVENT_BROKERS
-              value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
+              value: {{ include "posthog.kafkaBrokers" . | quote }}
             - name: LIVESTREAM_CONSUMERS_EVENT_TOPIC
               value: "events_plugin_ingestion"
             - name: LIVESTREAM_CONSUMERS_EVENT_GROUP_ID

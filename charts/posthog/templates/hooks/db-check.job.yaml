@@ -41,7 +41,7 @@ spec:
               check {{ include "posthog.fullname" . }}-redis 6379
               {{- end }}
 
-              {{- $kafkaBrokers := .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) }}
+              {{- $kafkaBrokers := include "posthog.kafkaBrokers" . }}
               {{- $kafkaParts := split ":" $kafkaBrokers }}
               check {{ $kafkaParts._0 }} {{ $kafkaParts._1 }}
 

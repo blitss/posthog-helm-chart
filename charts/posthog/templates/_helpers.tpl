@@ -249,13 +249,20 @@ Call with a path string such as "/s".
 {{- end }}
 
 {{/*
+Kafka bootstrap servers: externalKafka.brokers, else the bundled subchart.
+*/}}
+{{- define "posthog.kafkaBrokers" -}}
+{{- .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) -}}
+{{- end }}
+
+{{/*
 Capture v1's named Kafka sink. Call with root and an optional mainTopic.
 */}}
 {{- define "posthog.captureV1Env" -}}
 - name: CAPTURE_V1_SINKS
   value: "msk"
 - name: CAPTURE_V1_SINK_MSK_KAFKA_HOSTS
-  value: {{ .root.Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .root)) | quote }}
+  value: {{ include "posthog.kafkaBrokers" .root | quote }}
 - name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_MAIN
   value: {{ .mainTopic | default "events_plugin_ingestion" | quote }}
 - name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_HISTORICAL
@@ -466,50 +473,20 @@ Common environment variables shared across PostHog application services
       key: encryption-salt-keys
 {{- end }}
 {{- include "posthog.externalPostgresqlCredentialEnv" . }}
-{{- if .Values.postgresql.enabled }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
-{{- else }}
-- name: DATABASE_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "posthog.secretName" . }}
-      key: database-url
-{{- end }}
-{{- else if .Values.externalPostgresql.url }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
-{{- else }}
+{{- else if and (not .Values.postgresql.enabled) .Values.externalPostgresql.url }}
 - name: DATABASE_URL
   value: {{ .Values.externalPostgresql.url | quote }}
-{{- end }}
 {{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
-{{- else }}
 - name: DATABASE_URL
   value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.database | default "posthog")) | quote }}
-{{- end }}
-{{- else if .Values.externalPostgresql.secretName }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
 {{- else }}
 - name: DATABASE_URL
   valueFrom:
     secretKeyRef:
-      name: {{ .Values.externalPostgresql.secretName | quote }}
-      key: {{ .Values.externalPostgresql.uriKey | default "uri" | quote }}
-{{- end }}
-{{- else }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "DATABASE_URL") }}
-{{- else }}
-- name: DATABASE_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "posthog.fullname" . }}-app
-      key: uri
-{{- end }}
+      name: {{ include "posthog.databaseSecretName" . }}
+      key: {{ include "posthog.databaseSecretKey" . }}
 {{- end }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "REDIS_URL") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "REDIS_URL") }}
@@ -661,30 +638,16 @@ Common environment variables shared across PostHog application services
 - name: CLICKHOUSE_SATELLITE_CLUSTERS
   value: {{ .Values.externalClickhouse.satelliteClusters | default "" | quote }}
 {{- end }}
-- name: KAFKA_HOSTS
-  value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
-- name: KAFKA_PRODUCER_METADATA_BROKER_LIST
-  value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
-- name: KAFKA_CONSUMER_METADATA_BROKER_LIST
-  value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
-- name: KAFKA_CDP_PRODUCER_METADATA_BROKER_LIST
-  value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
-- name: KAFKA_WARPSTREAM_PRODUCER_METADATA_BROKER_LIST
-  value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
-- name: KAFKA_METRICS_PRODUCER_METADATA_BROKER_LIST
-  value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
-- name: KAFKA_WAREHOUSE_PRODUCER_METADATA_BROKER_LIST
-  value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
 {{- /*
   Current plugin-server (master) split its Kafka producers into per-purpose
   producers, each reading its own KAFKA_<NAME>_METADATA_BROKER_LIST and
   defaulting to "kafka:9092" when unset. Without these, the default-mode CDP
   pod and the cdp-hogflow-scheduler crash with "Failed to resolve 'kafka:9092'".
-  Point them all at the same broker as the other producers above.
+  Point them all at the same broker.
 */}}
-{{- range tuple "KAFKA_DEFAULT_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_UPSTREAM_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_DOWNSTREAM_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_SESSIONREPLAY_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_INGESTION_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_CALCULATED_EVENTS_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_CYCLOTRON_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_LOGS_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_METRICS_PRODUCER_METADATA_BROKER_LIST" }}
+{{- range tuple "KAFKA_HOSTS" "KAFKA_PRODUCER_METADATA_BROKER_LIST" "KAFKA_CONSUMER_METADATA_BROKER_LIST" "KAFKA_CDP_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_PRODUCER_METADATA_BROKER_LIST" "KAFKA_METRICS_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WAREHOUSE_PRODUCER_METADATA_BROKER_LIST" "KAFKA_DEFAULT_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_UPSTREAM_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_DOWNSTREAM_PRODUCER_METADATA_BROKER_LIST" "KAFKA_INGESTION_SESSIONREPLAY_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_INGESTION_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_CALCULATED_EVENTS_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_CYCLOTRON_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_LOGS_PRODUCER_METADATA_BROKER_LIST" "KAFKA_WARPSTREAM_METRICS_PRODUCER_METADATA_BROKER_LIST" }}
 - name: {{ . }}
-  value: {{ $.Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" $)) | quote }}
+  value: {{ include "posthog.kafkaBrokers" $ | quote }}
 {{- end }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "SITE_URL") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "SITE_URL") }}
@@ -1053,57 +1016,32 @@ Persons database configuration shared by application services and PersonHog.
 Credential-secret users must include externalPostgresqlCredentialEnv first.
 */}}
 {{- define "posthog.personsDatabaseEnv" -}}
-{{- if .Values.postgresql.enabled }}
 {{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
 {{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
+{{- else if .Values.postgresql.enabled }}
 - name: PERSONS_DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: database-url
-{{- end }}
-{{- else if .Values.externalPostgresql.personsUrl }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
+{{- else if or .Values.externalPostgresql.personsUrl .Values.externalPostgresql.url }}
 - name: PERSONS_DATABASE_URL
-  value: {{ .Values.externalPostgresql.personsUrl | quote }}
-{{- end }}
-{{- else if .Values.externalPostgresql.url }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
-- name: PERSONS_DATABASE_URL
-  value: {{ .Values.externalPostgresql.url | quote }}
-{{- end }}
+  value: {{ .Values.externalPostgresql.personsUrl | default .Values.externalPostgresql.url | quote }}
 {{- else if include "posthog.externalPostgresqlUseCredentialSecret" . }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
 - name: PERSONS_DATABASE_URL
   value: {{ include "posthog.externalPostgresqlUrlValue" (dict "root" . "database" (.Values.externalPostgresql.personsDatabase | default .Values.externalPostgresql.database | default "posthog")) | quote }}
-{{- end }}
 {{- else if .Values.externalPostgresql.secretName }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{- else }}
 - name: PERSONS_DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ .Values.externalPostgresql.secretName | quote }}
       key: {{ .Values.externalPostgresql.personsUriKey | default "persons-uri" | quote }}
-{{- end }}
-{{- else }}
-{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
-{{ include "posthog.renderEnvOverride" (dict "root" . "name" "PERSONS_DATABASE_URL") }}
 {{- else }}
 - name: PERSONS_DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.fullname" . }}-app
       key: uri
-{{- end }}
 {{- end }}
 {{- end }}
 

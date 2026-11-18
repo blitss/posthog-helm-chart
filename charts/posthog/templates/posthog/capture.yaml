@@ -291,7 +291,7 @@ spec:
             - name: BIND_PORT
               value: "4318"
             - name: KAFKA_HOSTS
-              value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
+              value: {{ include "posthog.kafkaBrokers" . | quote }}
             - name: KAFKA_TOPIC
               value: "logs_ingestion"
             - name: JWT_SECRET

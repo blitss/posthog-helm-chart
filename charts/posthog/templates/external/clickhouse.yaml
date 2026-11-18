@@ -1,6 +1,6 @@
 {{- if .Values.clickhouse.enabled }}
 {{- $fullname := include "posthog.fullname" . -}}
-{{- $kafkaBrokers := .Values.externalKafka.brokers | default (printf "%s-kafka:9092" $fullname) -}}
+{{- $kafkaBrokers := include "posthog.kafkaBrokers" . -}}
 ---
 apiVersion: v1
 kind: Service
