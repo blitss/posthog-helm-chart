@@ -1,0 +1,21 @@
+{{- /*
+Fail fast on configurations that otherwise render endpoints pointing at
+in-chart Services that were not rendered (or at an empty endpoint).
+Renders no manifests.
+*/}}
+{{- $v := .Values }}
+{{- if and (not $v.kafka.enabled) (not $v.externalKafka.brokers) }}
+{{- fail "kafka.enabled=false requires externalKafka.brokers" }}
+{{- end }}
+{{- if and (not $v.redis.enabled) (not $v.externalRedis.url) }}
+{{- fail "redis.enabled=false requires externalRedis.url" }}
+{{- end }}
+{{- if and (not $v.rustfs.enabled) (not $v.externalObjectStorage.endpoint) }}
+{{- fail "rustfs.enabled=false requires externalObjectStorage.endpoint" }}
+{{- end }}
+{{- if and (not $v.temporal.enabled) (not $v.externalTemporal.host) }}
+{{- fail "temporal.enabled=false requires externalTemporal.host" }}
+{{- end }}
+{{- if and $v.temporal.enabled (not $v.elasticsearch.enabled) (not $v.externalElasticsearch.host) }}
+{{- fail "elasticsearch.enabled=false with the bundled Temporal requires externalElasticsearch.host" }}
+{{- end }}
