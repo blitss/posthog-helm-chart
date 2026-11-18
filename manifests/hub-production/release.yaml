@@ -96,7 +96,7 @@ spec:
     cymbal:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/cymbal
-        tag: master@sha256:939d140ae9632eabce36286edacab9aa38bba34ce9e8818856b876f08e3671a9
+        tag: master@sha256:a557def255e9b736542ddaa6b9b03f36a6d3dda03e83cc3e02085733826c39b9
     cymbalResolution:
       enabled: true
     elasticsearch:
