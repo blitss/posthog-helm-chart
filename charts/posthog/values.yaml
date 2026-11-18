@@ -59,9 +59,9 @@ serviceAccount:
 posthog:
   ## Default image for Python-based PostHog workloads.
   ## Component-specific image overrides (web.image, worker.image,
-  ## workerExports.image, temporalDjangoWorker.image, migrate.image,
-  ## asyncMigrationsCheck.image, bootstrapClickhouse.image) fall back here when
-  ## left empty.
+  ## workerBeat.image (then worker.image), workerExports.image,
+  ## temporalDjangoWorker.image, migrate.image, asyncMigrationsCheck.image)
+  ## fall back here field by field when left empty.
   ## PostHog does not publish versioned Docker tags — they use continuous
   ## deployment. "latest" tracks the main branch. Set pullPolicy: Always to pick
   ## up new versions.
@@ -414,7 +414,6 @@ externalClickhouse:
   satelliteClusters: ''
   secretName: ''
   secretPasswordKey: password
-  createDatabase: true
 ## ------------------------------------------------------------------
 ## Redis
 ## ------------------------------------------------------------------
@@ -496,7 +495,7 @@ externalValkey:
   readerHost: ''
   readerPort: 6379
 ## ------------------------------------------------------------------
-## Kafka (Redpanda)
+## Kafka (Bitnami subchart, KRaft)
 ## ------------------------------------------------------------------
 kafka:
   ## Set to false to use an external Kafka
@@ -668,9 +667,6 @@ zookeeper:
   affinity: {}
   podAnnotations: {}
 ## ------------------------------------------------------------------
-## MinIO (S3-compatible object storage)
-## ------------------------------------------------------------------
-## ------------------------------------------------------------------
 ## RustFS (S3-compatible object storage)
 ## ------------------------------------------------------------------
 rustfs:
@@ -728,14 +724,8 @@ objectStorage:
     prefix: aio/
     ## "*" enables every team; empty disables new blob offloads.
     offloadTeams: '*'
-  ## External SeaweedFS / session recording S3 (used when rustfs.enabled=false)
-  ## When rustfs.enabled=true, session recordings also go to RustFS.
-  containerSecurityContext: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  podAnnotations: {}
-## External SeaweedFS / S3-compatible storage (used when seaweedfs.enabled=false)
+## Session recording S3 endpoint, used when rustfs.enabled=false (with RustFS
+## enabled, recordings go to RustFS). The name is historical: any S3-compatible store.
 externalSeaweedfs:
   endpoint: ''
   accessKey: ''
@@ -794,10 +784,6 @@ temporal:
         memory: 512Mi
       limits:
         memory: 1Gi
-  adminTools:
-    image:
-      repository: temporalio/admin-tools
-      tag: 1.20.0
   ui:
     enabled: true
     image:
@@ -1651,8 +1637,6 @@ kafkaInit:
     - warehouse_person_property_updates_dlq
 asyncMigrationsCheck:
   enabled: true
-  image: {}
-bootstrapClickhouse:
   image: {}
 ## ------------------------------------------------------------------
 ## Network Policies
