@@ -31,6 +31,8 @@ sets=(
   'ingress.nginx.enabled=false,ingress.istio.enabled=true,mcp.enabled=true'
   'ingress.nginx.enabled=false,ingress.openshift.enabled=true,mcp.enabled=true'
   'ingress.enabled=false,existingSecret=my-secret'
+  'redis.enabled=false,existingSecret=my-secret'
+  'redis.enabled=false,posthog.secretEnv.REDIS_URL.name=r,posthog.secretEnv.REDIS_URL.key=url'
   "${toggles}workerExports.enabled=true,metrics.enabled=true,networkPolicies.enabled=true"
   'mcp.enabled=true,usageIngestion.enabled=true,cyclotronMigrate.enabled=true,cdpHogflowScheduler.enabled=true,cdpCyclotronV2Janitor.enabled=true'
 )

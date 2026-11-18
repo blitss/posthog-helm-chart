@@ -7,8 +7,9 @@ Renders no manifests.
 {{- if and (not $v.kafka.enabled) (not $v.externalKafka.brokers) }}
 {{- fail "kafka.enabled=false requires externalKafka.brokers" }}
 {{- end }}
-{{- if and (not $v.redis.enabled) (not $v.externalRedis.url) }}
-{{- fail "redis.enabled=false requires externalRedis.url" }}
+{{- /* existingSecret and a REDIS_URL override both supply redis-url themselves */}}
+{{- if and (not $v.redis.enabled) (not $v.externalRedis.url) (not $v.existingSecret) (not (include "posthog.hasEnvOverride" (dict "root" . "name" "REDIS_URL"))) }}
+{{- fail "redis.enabled=false requires externalRedis.url (or existingSecret / posthog.secretEnv.REDIS_URL)" }}
 {{- end }}
 {{- if and (not $v.rustfs.enabled) (not $v.externalObjectStorage.endpoint) }}
 {{- fail "rustfs.enabled=false requires externalObjectStorage.endpoint" }}
