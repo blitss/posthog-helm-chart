@@ -1,7 +1,9 @@
 {{/*
-  Hook weight 20: Create S3 buckets on the bundled RustFS instance.
-  Runs after the migration hooks: RustFS can take minutes to start, and
-  workloads crash-loop until the schema exists.
+  Create S3 buckets on the bundled RustFS instance.
+  A plain Job, not a hook: ingestion exits until the AI blob bucket exists, so
+  bucket creation must not queue behind (or hold back) the migration hooks.
+  Jobs are immutable; the revision in the name gives every upgrade a new one
+  and lets Helm delete the previous one.
   Skipped when using external object storage (rustfs.enabled=false).
 */}}
 {{- if .Values.rustfs.enabled }}
@@ -9,13 +11,9 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "posthog.fullname" . }}-create-buckets
+  name: {{ include "posthog.fullname" . }}-create-buckets-{{ .Release.Revision }}
   labels:
     {{- include "posthog.componentLabels" (dict "root" . "component" "create-buckets") | nindent 4 }}
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "20"
-    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
 spec:
   backoffLimit: 10
   template:

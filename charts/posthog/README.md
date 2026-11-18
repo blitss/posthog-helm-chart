@@ -298,7 +298,6 @@ The chart refuses to render these configurations. The first five come from `temp
 | 0 | `kafka-init` | pre-install, pre-upgrade | `kafkaInit.enabled` and `kafka.enabled=false` | Creates `kafkaInit.topics` on `externalKafka.brokers` with `kafka-topics.sh`. |
 | -1 | `db-check` | post-install, post-upgrade | always | Waits (`nc -z`) for bundled Redis, the first Kafka broker, bundled ZooKeeper (if `zookeeper.enabled`), external ClickHouse on 8123 and external PostgreSQL. It does not probe bundled ClickHouse or PostgreSQL. No timeout. |
 | 0 | `kafka-provisioning` | post-install, post-upgrade | `kafka.enabled` | Bitnami subchart Job; creates `kafka.provisioning.topics`. |
-| 1 | `create-buckets` | post-install, post-upgrade | `rustfs.enabled` | Creates the `posthog` and `objectStorage.aiBlobs.bucket` buckets in RustFS with curl (SigV4, `rustfs.image.clientImage`). |
 | 6 | `cyclotron-migrate` | post-install, post-upgrade | `cyclotronMigrate.enabled` | Creates and migrates the `cyclotron_node` database with SQLx. |
 | 7 | `migrate` | post-install, post-upgrade | `migrate.enabled` | Legacy model moves, Django and product migrations, persons SQL migrations, then ClickHouse migrations. |
 | 10 | `async-migrations-check` | post-install, post-upgrade | `asyncMigrationsCheck.enabled` | `manage.py run_async_migrations --check`. |
@@ -360,13 +359,15 @@ This release targets the PostHog build of 2026-11-17 (`f9239c1`). Databases crea
 - Bundled stores move: Temporal 1.20 to 1.29.7 (skips minors; schema auto-setup on an existing database is not verified), RustFS alpha.91 to beta.12 (on-disk compatibility is not verified), Kafka 3.7 to 3.9, PostgreSQL 15.20, ZooKeeper 3.9.7. Back up first, and test the upgrade on a copy if you run bundled Temporal or RustFS with data you cannot lose.
 - The split Django images run Python 3.14.
 - flags-consumer stays opt-in, as upstream does not start it by default.
+- `create-buckets` is a plain Job named `<release>-create-buckets-<revision>`, created with the release, so buckets exist before the migration hooks finish.
+- On a fresh install the ingestion and CDP pods restart until the `migrate` hook finishes (about 25 minutes): the Node services now exit when their tables are missing. This is expected; watch `kubectl -n posthog logs -f job/posthog-migrate`.
 
 ### Upgrading to 0.23
 
 - Fail-fast validation: a disabled bundled store without its external endpoint now fails at render time with one of the five `templates/validate.yaml` messages in [Render-time errors](#render-time-errors). Before, such configurations rendered and pointed at Services that did not exist.
 - HPAs, PDBs and ServiceMonitors render only for enabled workloads. Objects that targeted a disabled Deployment (for example the `worker-exports` HPA and PDB with `workerExports.enabled=false`) are removed on upgrade.
 - New `utilityImage` value: the busybox image for init, wait and helper containers. The default is the same pinned image as before; set it to use a mirror.
-- `create-buckets` is a post-install/post-upgrade hook that runs after the migration hooks (weight 20) that uses curl instead of `minio/mc`. The cymbal bucket init containers use the same curl image (`rustfs.image.clientImage`).
+- `create-buckets` uses curl instead of `minio/mc`. The cymbal bucket init containers use the same curl image (`rustfs.image.clientImage`).
 - Removed values keys. No template read them, so setting them had no effect before either; delete them from your values: `bootstrapClickhouse`, `temporal.adminTools`, `externalClickhouse.createDatabase`, `objectStorage.containerSecurityContext`, `objectStorage.nodeSelector`, `objectStorage.tolerations`, `objectStorage.affinity`, `objectStorage.podAnnotations`.
 - `NOTES.txt` now shows every routing mode, the effective `SITE_URL`, the hook commands and the port-forward command.
 
