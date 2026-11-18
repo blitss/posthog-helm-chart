@@ -40,7 +40,7 @@ spec:
       optOutCapture: true
       image:
         repository: ghcr.io/blitss/posthog-web
-        tag: latest@sha256:f53afd0fbb4227c49f790db7ad88f3644aaf6ca9fc36c02150ed39de3f9c164c
+        tag: latest@sha256:40ec356993db6b165dc107a10217163bd0bfd805001aef4ebd297cc9fec3c7e3
         pullPolicy: Always
       env:
         MULTI_ORG_ENABLED: "0"
@@ -56,7 +56,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-web
-        tag: latest@sha256:f53afd0fbb4227c49f790db7ad88f3644aaf6ca9fc36c02150ed39de3f9c164c
+        tag: latest@sha256:40ec356993db6b165dc107a10217163bd0bfd805001aef4ebd297cc9fec3c7e3
         pullPolicy: Always
       replicas: 1
       resources:
@@ -157,7 +157,7 @@ spec:
     worker:
       image:
         repository: ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        tag: latest@sha256:e2b18b0c01cba771df226c954299f8119cf5e3204ee08e8f643e4a0d65dd17d0
         pullPolicy: Always
       replicas: 1
       concurrency: 2
@@ -177,7 +177,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        tag: latest@sha256:e2b18b0c01cba771df226c954299f8119cf5e3204ee08e8f643e4a0d65dd17d0
         pullPolicy: Always
       replicas: 1
       resources:
@@ -190,7 +190,7 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-worker-exports
-        tag: latest@sha256:4170448235d851652ec6a933b18a293b42170beabbc9569486d7efd4e43c72ec
+        tag: latest@sha256:05732ee4ef24b02d868627bf939d92dccbcfbe4f0f56a2593e719482c40b31d9
         pullPolicy: Always
       replicas: 1
       queue: exports
@@ -210,7 +210,7 @@ spec:
     temporalDjangoWorker:
       image:
         repository: ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:0980bfe95bccd57390c44afb1c5a5918c4f0cc8165fbd0f2f41f6c9d02cd3fe7
+        tag: latest@sha256:e2b18b0c01cba771df226c954299f8119cf5e3204ee08e8f643e4a0d65dd17d0
         pullPolicy: Always
       replicas: 1
       autoscaling:
@@ -228,12 +228,12 @@ spec:
     migrate:
       image:
         repository: ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+        tag: latest@sha256:6054548223af8e38c474f77d84e4a16deb9182237f2fc400cce15ff30995ff6a
         pullPolicy: Always
     asyncMigrationsCheck:
       image:
         repository: ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+        tag: latest@sha256:6054548223af8e38c474f77d84e4a16deb9182237f2fc400cce15ff30995ff6a
         pullPolicy: Always
     plugins:
       image:
@@ -418,5 +418,5 @@ spec:
       enabled: true
       image:
         repository: ghcr.io/blitss/posthog-cyclotron-migrate
-        tag: latest@sha256:ac726ab397f131d530cd22c8d8addc5854e6942f780d6479f89ea9c3797193c5
+        tag: latest@sha256:820db5701bd4fe5e888f3710c2343558bb137c539a05d27918b958fd135e6931
         pullPolicy: IfNotPresent
