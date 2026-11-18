@@ -362,7 +362,8 @@ jobs:
               echo "${fatal_pods}" >&2
               while read -r pod _; do
                 echo "### previous logs: ${pod}" >&2
-                kubectl logs -n posthog "${pod}" --all-containers --previous --tail=60 >&2 || true
+                kubectl logs -n posthog "${pod}" --previous --tail=80 >&2 \
+                  || kubectl logs -n posthog "${pod}" --tail=80 >&2 || true
               done <<< "${fatal_pods}"
               return 1
             fi
