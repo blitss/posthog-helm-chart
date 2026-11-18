@@ -40,12 +40,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "zookeeper") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "zookeeper") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "zookeeper") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "zookeeper") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "zookeeper") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "zookeeper") | nindent 6 }}
       containers:
         - name: zookeeper
           image: "{{ .Values.zookeeper.image.repository }}:{{ .Values.zookeeper.image.tag }}"

@@ -35,12 +35,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "postgresql") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "postgresql") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "postgresql") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "postgresql") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "postgresql") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "postgresql") | nindent 6 }}
       containers:
         - name: postgresql
           image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"

@@ -48,13 +48,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "web") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "web") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "web") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "web") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "web") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "web") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "web" "spread" "web") | nindent 6 }}
       terminationGracePeriodSeconds: 120
       {{- if .Values.geoip.enabled }}
       initContainers:
@@ -165,13 +159,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "worker") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "worker") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "worker") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "worker") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "worker") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "worker" "spread" "worker") | nindent 6 }}
       terminationGracePeriodSeconds: 300
       {{- if .Values.geoip.enabled }}
       initContainers:
@@ -277,13 +265,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "workerBeat") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "workerBeat") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "workerBeat") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "workerBeat") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "workerBeat") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker-beat") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "workerBeat" "spread" "worker-beat") | nindent 6 }}
       terminationGracePeriodSeconds: 120
       containers:
         - name: worker-beat
@@ -344,13 +326,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "workerExports") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "workerExports") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "workerExports") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "workerExports") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "workerExports") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker-exports") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "workerExports" "spread" "worker-exports") | nindent 6 }}
       terminationGracePeriodSeconds: 300
       {{- if .Values.geoip.enabled }}
       initContainers:
@@ -458,13 +434,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "plugins") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "plugins") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "plugins") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "plugins") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "plugins" "spread" "plugins") | nindent 6 }}
       terminationGracePeriodSeconds: 60
       {{- if .Values.geoip.enabled }}
       initContainers:

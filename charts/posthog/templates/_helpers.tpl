@@ -1136,6 +1136,23 @@ topologySpreadConstraints:
 {{- end }}
 
 {{/*
+Pod spec preamble: service account, pull secrets, security context, scheduling.
+Call with dict "root" . "component" <values-key> [ "spread" <component label> ];
+"spread" adds the topology spread constraints for that label.
+*/}}
+{{- define "posthog.podSpec" -}}
+serviceAccountName: {{ include "posthog.serviceAccountName" .root }}
+{{- include "posthog.imagePullSecrets" .root | nindent 0 }}
+{{- include "posthog.podSecurityContext" . | nindent 0 }}
+{{- include "posthog.nodeSelector" . | nindent 0 }}
+{{- include "posthog.tolerations" . | nindent 0 }}
+{{- include "posthog.affinity" . | nindent 0 }}
+{{- with .spread }}
+{{- include "posthog.topologySpreadConstraints" (dict "root" $.root "component" .) | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{/*
 Every CDP process requires a Valkey shadow pool, independent of Redis.
 */}}
 {{- define "posthog.valkeyEnv" -}}

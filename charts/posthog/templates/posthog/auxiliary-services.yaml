@@ -39,13 +39,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "featureFlags") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "featureFlags") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "featureFlags") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "featureFlags") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "featureFlags") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "feature-flags") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "featureFlags" "spread" "feature-flags") | nindent 6 }}
       {{- if .Values.geoip.enabled }}
       initContainers:
         {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
@@ -172,13 +166,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "hypercacheServer") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "hypercacheServer") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "hypercacheServer") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "hypercacheServer") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "hypercacheServer") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "hypercache-server") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "hypercacheServer" "spread" "hypercache-server") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
@@ -239,13 +227,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "propertyDefsRs") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "property-defs-rs") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "propertyDefsRs" "spread" "property-defs-rs") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
@@ -311,13 +293,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "livestream") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "livestream") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "livestream") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "livestream") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "livestream") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "livestream") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "livestream" "spread" "livestream") | nindent 6 }}
       {{- if .Values.geoip.enabled }}
       initContainers:
         {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
@@ -435,13 +411,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "cymbal") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "cymbal") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "cymbal" "spread" "cymbal") | nindent 6 }}
       initContainers:
         - name: wait-for-cymbal-resolution
           image: busybox:1.37@sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
@@ -591,13 +561,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "cymbalResolution") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "cymbalResolution") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "cymbalResolution") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "cymbalResolution") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "cymbalResolution") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "cymbal-resolution") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "cymbalResolution" "spread" "cymbal-resolution") | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.cymbalResolution.terminationGracePeriodSeconds | default 30 }}
       {{- if .Values.rustfs.enabled }}
       initContainers:
@@ -687,13 +651,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "personhogReplica") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "personhogReplica") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "personhogReplica") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "personhogReplica") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "personhogReplica") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "personhog-replica") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "personhogReplica" "spread" "personhog-replica") | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.personhogReplica.terminationGracePeriodSeconds | default 30 }}
       containers:
         - name: personhog-replica
@@ -788,13 +746,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "personhogRouter") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "personhogRouter") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "personhogRouter") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "personhogRouter") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "personhogRouter") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "personhog-router") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "personhogRouter" "spread" "personhog-router") | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.personhogRouter.terminationGracePeriodSeconds | default 40 }}
       containers:
         - name: personhog-router

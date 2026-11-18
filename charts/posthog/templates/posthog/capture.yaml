@@ -39,13 +39,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "capture") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "capture") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "capture") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "capture") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "capture") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "capture") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "capture" "spread" "capture") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
@@ -127,13 +121,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "replayCapture") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "replayCapture") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "replayCapture") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "replayCapture") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "replayCapture") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "replay-capture") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "replayCapture" "spread" "replay-capture") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
@@ -212,12 +200,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "captureAi") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "captureAi") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "captureAi") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "captureAi") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "captureAi") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "captureAi") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
@@ -297,12 +280,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "captureLogs") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "captureLogs") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "captureLogs") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "captureLogs") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "captureLogs") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "captureLogs") | nindent 6 }}
       containers:
         - name: capture-logs
           image: "{{ .Values.captureLogs.image.repository }}:{{ .Values.captureLogs.image.tag }}"

@@ -39,13 +39,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "usageIngestion") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "usageIngestion") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "usageIngestion") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "usageIngestion") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "usageIngestion") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "usage-ingestion") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "usageIngestion" "spread" "usage-ingestion") | nindent 6 }}
       containers:
         - name: usage-ingestion
           image: "{{ .Values.usageIngestion.image.repository }}:{{ .Values.usageIngestion.image.tag }}"
