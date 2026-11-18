@@ -232,9 +232,21 @@ jobs:
         if: steps.commits.outputs.has_commits == 'true'
         uses: anthropics/claude-code-action@e5812cd75691ca7bbfc57c0ecf4441db3a1ab7dd # v1.0.281
         env:
+          # LLM gateway behind Cloudflare Access; the action still wants a key input.
+          ANTHROPIC_BASE_URL: https://pm-llm.swiftend.day
+          ANTHROPIC_AUTH_TOKEN: cloudflare-access
+          ANTHROPIC_MODEL: claude-opus-5-5
+          ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-5-5
+          ANTHROPIC_DEFAULT_SONNET_MODEL: claude-opus-5-5
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: claude-opus-5-5
+          CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-5-5
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+          ANTHROPIC_CUSTOM_HEADERS: |
+            CF-Access-Client-Id: ${{ secrets.PM_LLM_CI_CLIENT_ID }}
+            CF-Access-Client-Secret: ${{ secrets.PM_LLM_CI_CLIENT_SECRET }}
           GH_TOKEN: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: cloudflare-access
           github_token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
           prompt: ${{ steps.build_prompt.outputs.prompt }}
           show_full_output: true
