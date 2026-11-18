@@ -39,21 +39,14 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "capture") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "capture") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "capture") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "capture") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "capture") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "capture") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "capture" "spread" "capture") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
       {{- end }}
       containers:
         - name: capture
-          image: "{{ .Values.capture.image.repository }}:{{ .Values.capture.image.tag }}"
-          imagePullPolicy: {{ .Values.capture.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "capture") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "capture") | nindent 10 }}
           ports:
             - containerPort: 3000
@@ -127,21 +120,14 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "replayCapture") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "replayCapture") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "replayCapture") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "replayCapture") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "replayCapture") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "replay-capture") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "replayCapture" "spread" "replay-capture") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
       {{- end }}
       containers:
         - name: replay-capture
-          image: "{{ .Values.replayCapture.image.repository }}:{{ .Values.replayCapture.image.tag }}"
-          imagePullPolicy: {{ .Values.replayCapture.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "replayCapture") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "replayCapture") | nindent 10 }}
           ports:
             - containerPort: 3000
@@ -212,20 +198,14 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "captureAi") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "captureAi") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "captureAi") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "captureAi") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "captureAi") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "captureAi") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
       {{- end }}
       containers:
         - name: capture-ai
-          image: "{{ .Values.captureAi.image.repository }}:{{ .Values.captureAi.image.tag }}"
-          imagePullPolicy: {{ .Values.captureAi.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "captureAi") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "captureAi") | nindent 10 }}
           ports:
             - containerPort: 3000
@@ -297,16 +277,10 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "captureLogs") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "captureLogs") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "captureLogs") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "captureLogs") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "captureLogs") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "captureLogs") | nindent 6 }}
       containers:
         - name: capture-logs
-          image: "{{ .Values.captureLogs.image.repository }}:{{ .Values.captureLogs.image.tag }}"
-          imagePullPolicy: {{ .Values.captureLogs.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "captureLogs") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "captureLogs") | nindent 10 }}
           ports:
             - containerPort: 4318
@@ -317,7 +291,7 @@ spec:
             - name: BIND_PORT
               value: "4318"
             - name: KAFKA_HOSTS
-              value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
+              value: {{ include "posthog.kafkaBrokers" . | quote }}
             - name: KAFKA_TOPIC
               value: "logs_ingestion"
             - name: JWT_SECRET

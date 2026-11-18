@@ -45,13 +45,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "mcp") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "mcp") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "mcp") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "mcp") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "mcp") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "mcp") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "mcp" "spread" "mcp") | nindent 6 }}
       terminationGracePeriodSeconds: 30
       {{- if .Values.redis.enabled }}
       initContainers:
@@ -59,8 +53,7 @@ spec:
       {{- end }}
       containers:
         - name: mcp
-          image: "{{ .Values.mcp.image.repository }}:{{ .Values.mcp.image.tag }}"
-          imagePullPolicy: {{ .Values.mcp.image.pullPolicy }}
+          {{- include "posthog.image" (dict "root" . "component" "mcp") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "mcp") | nindent 10 }}
           ports:
             - containerPort: 3001

@@ -1,6 +1,6 @@
 {{- if .Values.clickhouse.enabled }}
 {{- $fullname := include "posthog.fullname" . -}}
-{{- $kafkaBrokers := .Values.externalKafka.brokers | default (printf "%s-kafka:9092" $fullname) -}}
+{{- $kafkaBrokers := include "posthog.kafkaBrokers" . -}}
 ---
 apiVersion: v1
 kind: Service
@@ -41,12 +41,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "clickhouse") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "clickhouse") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "clickhouse") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "clickhouse") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "clickhouse") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "clickhouse") | nindent 6 }}
       containers:
         - name: clickhouse
           image: "{{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}"

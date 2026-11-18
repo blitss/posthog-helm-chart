@@ -39,21 +39,14 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "featureFlags") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "featureFlags") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "featureFlags") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "featureFlags") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "featureFlags") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "feature-flags") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "featureFlags" "spread" "feature-flags") | nindent 6 }}
       {{- if .Values.geoip.enabled }}
       initContainers:
         {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
       {{- end }}
       containers:
         - name: feature-flags
-          image: "{{ .Values.featureFlags.image.repository }}:{{ .Values.featureFlags.image.tag }}"
-          imagePullPolicy: {{ .Values.featureFlags.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "featureFlags") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "featureFlags") | nindent 10 }}
           ports:
             - containerPort: 3001
@@ -108,9 +101,7 @@ spec:
             {{- toYaml .Values.featureFlags.resources | nindent 12 }}
           {{- if .Values.geoip.enabled }}
           volumeMounts:
-            - name: geoip-db
-              mountPath: /share
-              readOnly: true
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -126,8 +117,7 @@ spec:
             periodSeconds: 15
       {{- if .Values.geoip.enabled }}
       volumes:
-        - name: geoip-db
-          emptyDir: {}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
       {{- end }}
 {{- end }}
 
@@ -172,21 +162,14 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "hypercacheServer") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "hypercacheServer") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "hypercacheServer") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "hypercacheServer") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "hypercacheServer") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "hypercache-server") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "hypercacheServer" "spread" "hypercache-server") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
       {{- end }}
       containers:
         - name: hypercache-server
-          image: "{{ .Values.hypercacheServer.image.repository }}:{{ .Values.hypercacheServer.image.tag }}"
-          imagePullPolicy: {{ .Values.hypercacheServer.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "hypercacheServer") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "hypercacheServer") | nindent 10 }}
           ports:
             - containerPort: {{ .Values.hypercacheServer.port | default 3002 }}
@@ -239,21 +222,14 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "propertyDefsRs") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "propertyDefsRs") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "property-defs-rs") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "propertyDefsRs" "spread" "property-defs-rs") | nindent 6 }}
       {{- if .Values.redis.enabled }}
       initContainers:
         {{- include "posthog.redisInitContainer" (dict "root" .) | nindent 8 }}
       {{- end }}
       containers:
         - name: property-defs-rs
-          image: "{{ .Values.propertyDefsRs.image.repository }}:{{ .Values.propertyDefsRs.image.tag }}"
-          imagePullPolicy: {{ .Values.propertyDefsRs.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "propertyDefsRs") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "propertyDefsRs") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
@@ -311,21 +287,14 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "livestream") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "livestream") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "livestream") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "livestream") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "livestream") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "livestream") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "livestream" "spread" "livestream") | nindent 6 }}
       {{- if .Values.geoip.enabled }}
       initContainers:
         {{- include "posthog.geoipInitContainer" (dict "root" .) | nindent 8 }}
       {{- end }}
       containers:
         - name: livestream
-          image: "{{ .Values.livestream.image.repository }}:{{ .Values.livestream.image.tag }}"
-          imagePullPolicy: {{ .Values.livestream.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "livestream") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "livestream") | nindent 10 }}
           ports:
             - containerPort: 8080
@@ -337,7 +306,7 @@ spec:
               value: {{ printf "/share/%s" .Values.geoip.filename | quote }}
             {{- end }}
             - name: LIVESTREAM_CONSUMERS_EVENT_BROKERS
-              value: {{ .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) | quote }}
+              value: {{ include "posthog.kafkaBrokers" . | quote }}
             - name: LIVESTREAM_CONSUMERS_EVENT_TOPIC
               value: "events_plugin_ingestion"
             - name: LIVESTREAM_CONSUMERS_EVENT_GROUP_ID
@@ -370,9 +339,7 @@ spec:
             {{- toYaml .Values.livestream.resources | nindent 12 }}
           {{- if .Values.geoip.enabled }}
           volumeMounts:
-            - name: geoip-db
-              mountPath: /share
-              readOnly: true
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -388,8 +355,7 @@ spec:
             periodSeconds: 15
       {{- if .Values.geoip.enabled }}
       volumes:
-        - name: geoip-db
-          emptyDir: {}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
       {{- end }}
 {{- end }}
 
@@ -435,16 +401,10 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "cymbal") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "cymbal") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "cymbal") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "cymbal" "spread" "cymbal") | nindent 6 }}
       initContainers:
         - name: wait-for-cymbal-resolution
-          image: busybox:1.37@sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
+          image: {{ .Values.utilityImage | quote }}
           imagePullPolicy: IfNotPresent
           command:
             - sh
@@ -467,8 +427,7 @@ spec:
         {{- end }}
       containers:
         - name: cymbal
-          image: "{{ .Values.cymbal.image.repository }}:{{ .Values.cymbal.image.tag }}"
-          imagePullPolicy: {{ .Values.cymbal.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "cymbal") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cymbal") | nindent 10 }}
           ports:
             - containerPort: 3302
@@ -521,9 +480,7 @@ spec:
             {{- toYaml .Values.cymbal.resources | nindent 12 }}
           {{- if .Values.geoip.enabled }}
           volumeMounts:
-            - name: geoip-db
-              mountPath: /share
-              readOnly: true
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -539,8 +496,7 @@ spec:
             periodSeconds: 30
       {{- if .Values.geoip.enabled }}
       volumes:
-        - name: geoip-db
-          emptyDir: {}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
       {{- end }}
 {{- end }}
 
@@ -591,13 +547,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "cymbalResolution") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "cymbalResolution") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "cymbalResolution") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "cymbalResolution") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "cymbalResolution") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "cymbal-resolution") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "cymbalResolution" "spread" "cymbal-resolution") | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.cymbalResolution.terminationGracePeriodSeconds | default 30 }}
       {{- if .Values.rustfs.enabled }}
       initContainers:
@@ -605,8 +555,7 @@ spec:
       {{- end }}
       containers:
         - name: cymbal-resolution
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "cymbalResolution" "fallbackComponent" "cymbal") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "cymbalResolution" "fallbackComponent" "cymbal") }}
+          {{- include "posthog.image" (dict "root" . "component" "cymbalResolution" "fallback" (list "cymbal")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "cymbalResolution") | nindent 10 }}
           ports:
             - containerPort: {{ .Values.cymbalResolution.grpcPort | default 50061 }}
@@ -687,18 +636,11 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "personhogReplica") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "personhogReplica") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "personhogReplica") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "personhogReplica") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "personhogReplica") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "personhog-replica") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "personhogReplica" "spread" "personhog-replica") | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.personhogReplica.terminationGracePeriodSeconds | default 30 }}
       containers:
         - name: personhog-replica
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "personhogReplica" "fallbackComponent" "personhogReplica") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "personhogReplica" "fallbackComponent" "personhogReplica") }}
+          {{- include "posthog.image" (dict "root" . "component" "personhogReplica") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "personhogReplica") | nindent 10 }}
           ports:
             - containerPort: {{ .Values.personhogReplica.grpcPort | default 50051 }}
@@ -788,18 +730,11 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "personhogRouter") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "personhogRouter") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "personhogRouter") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "personhogRouter") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "personhogRouter") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "personhog-router") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "personhogRouter" "spread" "personhog-router") | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.personhogRouter.terminationGracePeriodSeconds | default 40 }}
       containers:
         - name: personhog-router
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "personhogRouter" "fallbackComponent" "personhogRouter") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "personhogRouter" "fallbackComponent" "personhogRouter") }}
+          {{- include "posthog.image" (dict "root" . "component" "personhogRouter") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "personhogRouter") | nindent 10 }}
           ports:
             - containerPort: {{ .Values.personhogRouter.grpcPort | default 50052 }}

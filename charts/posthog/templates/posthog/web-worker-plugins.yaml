@@ -48,13 +48,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "web") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "web") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "web") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "web") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "web") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "web") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "web" "spread" "web") | nindent 6 }}
       terminationGracePeriodSeconds: 120
       {{- if .Values.geoip.enabled }}
       initContainers:
@@ -62,8 +56,7 @@ spec:
       {{- end }}
       containers:
         - name: web
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "web" "fallbackComponent" "posthog") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "web" "fallbackComponent" "posthog") }}
+          {{- include "posthog.image" (dict "root" . "component" "web" "fallback" (list "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "web") | nindent 10 }}
           command:
             - bash
@@ -165,13 +158,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "worker") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "worker") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "worker") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "worker") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "worker") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "worker" "spread" "worker") | nindent 6 }}
       terminationGracePeriodSeconds: 300
       {{- if .Values.geoip.enabled }}
       initContainers:
@@ -179,8 +166,7 @@ spec:
       {{- end }}
       containers:
         - name: worker
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "worker" "fallbackComponent" "posthog") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "worker" "fallbackComponent" "posthog") }}
+          {{- include "posthog.image" (dict "root" . "component" "worker" "fallback" (list "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "worker") | nindent 10 }}
           command:
             - sh
@@ -277,24 +263,11 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "workerBeat") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "workerBeat") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "workerBeat") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "workerBeat") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "workerBeat") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker-beat") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "workerBeat" "spread" "worker-beat") | nindent 6 }}
       terminationGracePeriodSeconds: 120
       containers:
         - name: worker-beat
-          {{- $beatImage := .Values.workerBeat.image | default dict }}
-          {{- $workerImage := .Values.worker.image | default dict }}
-          {{- $posthogImage := .Values.posthog.image | default dict }}
-          {{- $beatRepository := default (default $posthogImage.repository $workerImage.repository) $beatImage.repository }}
-          {{- $beatTag := default (default $posthogImage.tag $workerImage.tag) $beatImage.tag }}
-          {{- $beatPullPolicy := default (default ($posthogImage.pullPolicy | default "Always") $workerImage.pullPolicy) $beatImage.pullPolicy }}
-          image: "{{ $beatRepository }}:{{ $beatTag }}"
-          imagePullPolicy: {{ $beatPullPolicy }}
+          {{- include "posthog.image" (dict "root" . "component" "workerBeat" "fallback" (list "worker" "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "workerBeat") | nindent 10 }}
           command:
             - ./bin/docker-worker-beat
@@ -344,13 +317,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "workerExports") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "workerExports") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "workerExports") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "workerExports") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "workerExports") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "worker-exports") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "workerExports" "spread" "worker-exports") | nindent 6 }}
       terminationGracePeriodSeconds: 300
       {{- if .Values.geoip.enabled }}
       initContainers:
@@ -358,8 +325,7 @@ spec:
       {{- end }}
       containers:
         - name: worker-exports
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "workerExports" "fallbackComponent" "posthog") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "workerExports" "fallbackComponent" "posthog") }}
+          {{- include "posthog.image" (dict "root" . "component" "workerExports" "fallback" (list "posthog")) | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "workerExports") | nindent 10 }}
           command:
             - sh
@@ -458,13 +424,7 @@ spec:
       annotations:
         {{- include "posthog.podAnnotations" (dict "root" . "component" "plugins") | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "posthog.serviceAccountName" . }}
-      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
-      {{- include "posthog.podSecurityContext" (dict "root" . "component" "plugins") | nindent 6 }}
-      {{- include "posthog.nodeSelector" (dict "root" . "component" "plugins") | nindent 6 }}
-      {{- include "posthog.tolerations" (dict "root" . "component" "plugins") | nindent 6 }}
-      {{- include "posthog.affinity" (dict "root" . "component" "plugins") | nindent 6 }}
-      {{- include "posthog.topologySpreadConstraints" (dict "root" . "component" "plugins") | nindent 6 }}
+      {{- include "posthog.podSpec" (dict "root" . "component" "plugins" "spread" "plugins") | nindent 6 }}
       terminationGracePeriodSeconds: 60
       {{- if .Values.geoip.enabled }}
       initContainers:
@@ -472,8 +432,7 @@ spec:
       {{- end }}
       containers:
         - name: plugins
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           {{- include "posthog.containerSecurityContext" (dict "root" . "component" "plugins") | nindent 10 }}
           ports:
             - containerPort: 6738

@@ -1,25 +1,37 @@
+{{- $fullname := include "posthog.fullname" . -}}
+{{- $ns := .Release.Namespace -}}
 =============================================================
   PostHog has been deployed!
 =============================================================
-
+{{- $routes := list }}
 {{- if .Values.ingress.enabled }}
-
-  Application URL: https://{{ .Values.ingress.hostname }}
-
-  {{- if .Values.ingress.nginx.enabled }}
-  Ingress Controller: NGINX (class: {{ .Values.ingress.nginx.className }})
-  {{- end }}
-  {{- if .Values.ingress.traefik.enabled }}
-  Ingress Controller: Traefik
-  {{- end }}
-{{- else }}
-
-  No ingress is enabled. To access PostHog, run:
-
-    kubectl port-forward svc/{{ include "posthog.fullname" . }}-web 8000:8000
-
-  Then visit: http://localhost:8000
+{{- range $mode := list "nginx" "traefik" "gateway" "istio" "openshift" }}
+{{- if (index $.Values.ingress $mode).enabled }}{{ $routes = append $routes $mode }}{{ end }}
 {{- end }}
+{{- end }}
+
+  PostHog URL (SITE_URL): {{ (.Values.posthog.env | default dict).SITE_URL | default (printf "https://%s" .Values.ingress.hostname) }}
+{{- if $routes }}
+  Routed by: {{ join ", " $routes }} (host {{ .Values.ingress.hostname }})
+  Point DNS for {{ .Values.ingress.hostname }} at that controller.
+{{- else }}
+  No routing is enabled (ingress.enabled or every ingress.<mode>.enabled is false).
+{{- end }}
+
+  Database migrations run as post-install/post-upgrade hook Jobs. If the
+  release timed out or the app shows errors, check them:
+
+    kubectl -n {{ $ns }} get jobs,pods -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- if .Values.migrate.enabled }}
+    kubectl -n {{ $ns }} logs -f job/{{ $fullname }}-migrate
+{{- end }}
+
+  Reach the UI without ingress/DNS:
+
+    kubectl -n {{ $ns }} port-forward svc/{{ $fullname }}-web 8000:8000
+
+  then open http://localhost:8000. Logins over plain http need
+  posthog.env.SITE_URL=http://localhost:8000 and posthog.env.SECURE_COOKIES="false".
 
 -------------------------------------------------------------
   Infrastructure Components
@@ -28,19 +40,23 @@
   PostgreSQL:    {{ if .Values.postgresql.enabled }}Internal ({{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}){{ else }}External{{ end }}
   ClickHouse:    {{ if .Values.clickhouse.enabled }}Internal ({{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}){{ else }}External{{ end }}
   Redis:         {{ if .Values.redis.enabled }}Internal ({{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}){{ else }}External{{ end }}
-  Kafka:         {{ if .Values.kafka.enabled }}Internal (Redpanda {{ .Values.kafka.image.tag }}){{ else }}External{{ end }}
+  Kafka:         {{ if .Values.kafka.enabled }}Internal (Bitnami Kafka subchart){{ else }}External{{ end }}
   Object Store:  {{ if .Values.rustfs.enabled }}Internal (RustFS){{ else }}External{{ end }}
   Temporal:      {{ if .Values.temporal.enabled }}Internal{{ else }}External{{ end }}
 
 -------------------------------------------------------------
   Production Readiness Checklist
 -------------------------------------------------------------
-
-  [ ] Change posthog.secret and posthog.encryptionSaltKeys to strong random values
-      or set existingSecret to reference a pre-created Kubernetes Secret.
+{{ if .Values.existingSecret }}
+  [ ] Keep Secret {{ .Values.existingSecret }} backed up; it holds the signing and encryption keys.
+{{- else }}
+  [ ] Back up Secret {{ $fullname }}-secrets: unless set in values, posthog-secret and
+      encryption-salt-keys were generated on first install; losing them breaks
+      sessions and encrypted data. Or provide them yourself via existingSecret.
+{{- end }}
   [ ] Set ingress.hostname to your actual domain.
   [ ] Change default database passwords (postgresql.auth.password, clickhouse.apiPassword, etc.)
-  [ ] Enable TLS on ingress (ingress.nginx.tls.enabled=true with cert-manager or a TLS secret).
+  [ ] Terminate TLS for {{ .Values.ingress.hostname }} (cert-manager or a TLS secret on your routing mode).
   [ ] Enable PodDisruptionBudgets for critical services (web.podDisruptionBudget.enabled=true, etc.)
   [ ] Enable HPA for stateless services (capture.autoscaling.enabled=true, web.autoscaling.enabled=true)
   [ ] Configure persistent storage classes for production volumes.

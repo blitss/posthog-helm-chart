@@ -1,4 +1,4 @@
-{{- $kafkaBrokers := .Values.externalKafka.brokers | default (printf "%s-kafka:9092" (include "posthog.fullname" .)) }}
+{{- $kafkaBrokers := include "posthog.kafkaBrokers" . }}
 {{- $redisHost := .Values.externalRedis.url | default (printf "%s-redis" (include "posthog.fullname" .)) }}
 
 {{- if .Values.plugins.enabled }}
@@ -32,8 +32,7 @@ spec:
       {{- end }}
       containers:
         - name: ingestion-general
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
@@ -95,8 +94,7 @@ spec:
       {{- end }}
       containers:
         - name: ingestion-sessionreplay
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
@@ -160,8 +158,7 @@ spec:
       {{- end }}
       containers:
         - name: recording-api
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           ports:
             - containerPort: 6738
               name: http
@@ -228,8 +225,7 @@ spec:
       {{- end }}
       containers:
         - name: ingestion-error-tracking
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
@@ -277,8 +273,7 @@ spec:
       {{- end }}
       containers:
         - name: ingestion-logs
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
@@ -326,8 +321,7 @@ spec:
       {{- end }}
       containers:
         - name: ingestion-traces
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
@@ -377,8 +371,7 @@ spec:
       {{- end }}
       containers:
         - name: cdp-hogflow-scheduler
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE
@@ -428,8 +421,7 @@ spec:
       {{- end }}
       containers:
         - name: cdp-cyclotron-v2-janitor
-          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
-          imagePullPolicy: {{ .Values.plugins.image.pullPolicy | default "Always" }}
+          {{- include "posthog.image" (dict "root" . "component" "plugins") | nindent 10 }}
           env:
             {{- include "posthog.commonEnv" . | nindent 12 }}
             - name: PLUGIN_SERVER_MODE

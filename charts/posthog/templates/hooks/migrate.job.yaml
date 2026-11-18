@@ -23,8 +23,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: migrate
-          image: "{{ include "posthog.imageRef" (dict "root" . "component" "migrate" "fallbackComponent" "posthog") }}"
-          imagePullPolicy: {{ include "posthog.imagePullPolicy" (dict "root" . "component" "migrate" "fallbackComponent" "posthog") }}
+          {{- include "posthog.image" (dict "root" . "component" "migrate" "fallback" (list "posthog")) | nindent 10 }}
           command:
             - sh
             - -c

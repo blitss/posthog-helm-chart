@@ -1,0 +1,67 @@
+{{- /* One HPA and one PDB per scalable Deployment; "on" mirrors the Deployment's own gate. */}}
+{{- $v := .Values }}
+{{- range $c := list
+  (dict "name" "web" "values" $v.web "on" $v.web.enabled)
+  (dict "name" "worker" "values" $v.worker "on" $v.worker.enabled)
+  (dict "name" "worker-exports" "values" $v.workerExports "on" $v.workerExports.enabled)
+  (dict "name" "worker-beat" "values" $v.workerBeat "on" (and $v.worker.enabled $v.workerBeat.enabled) "noHpa" true)
+  (dict "name" "temporal-django-worker" "values" $v.temporalDjangoWorker "on" $v.temporal.enabled)
+  (dict "name" "plugins" "values" $v.plugins "on" $v.plugins.enabled)
+  (dict "name" "capture" "values" $v.capture "on" $v.capture.enabled)
+  (dict "name" "replay-capture" "values" $v.replayCapture "on" $v.replayCapture.enabled)
+  (dict "name" "feature-flags" "values" $v.featureFlags "on" $v.featureFlags.enabled)
+  (dict "name" "hypercache-server" "values" $v.hypercacheServer "on" $v.hypercacheServer.enabled)
+  (dict "name" "personhog-replica" "values" $v.personhogReplica "on" $v.personhogReplica.enabled)
+  (dict "name" "personhog-router" "values" $v.personhogRouter "on" $v.personhogRouter.enabled)
+  (dict "name" "cymbal-resolution" "values" $v.cymbalResolution "on" $v.cymbalResolution.enabled)
+}}
+{{- $name := printf "%s-%s" (include "posthog.fullname" $) $c.name }}
+{{- $hpa := $c.values.autoscaling }}
+{{- if and $c.on (not $c.noHpa) $hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" $ "component" $c.name) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $hpa.minReplicas }}
+  maxReplicas: {{ $hpa.maxReplicas }}
+  metrics:
+    {{- range $resource, $target := dict "cpu" $hpa.targetCPUUtilizationPercentage "memory" $hpa.targetMemoryUtilizationPercentage }}
+    {{- if $target }}
+    - type: Resource
+      resource:
+        name: {{ $resource }}
+        target:
+          type: Utilization
+          averageUtilization: {{ $target }}
+    {{- end }}
+    {{- end }}
+{{- end }}
+{{- $pdb := $c.values.podDisruptionBudget }}
+{{- if and $c.on $pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "posthog.componentLabels" (dict "root" $ "component" $c.name) | nindent 4 }}
+spec:
+  {{- with $pdb.minAvailable }}
+  minAvailable: {{ . }}
+  {{- end }}
+  {{- with $pdb.maxUnavailable }}
+  maxUnavailable: {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.componentSelectorLabels" (dict "root" $ "component" $c.name) | nindent 6 }}
+{{- end }}
+{{- end }}
