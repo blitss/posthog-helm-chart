@@ -316,7 +316,7 @@ jobs:
             ' || true
 
             echo "--- hook logs ---"
-            for job in posthog-db-check posthog-migrate posthog-async-migrations-check posthog-kafka-init posthog-create-buckets; do
+            for job in posthog-db-check posthog-migrate posthog-async-migrations-check posthog-kafka-init posthog-create-buckets-1; do
               if kubectl get job -n posthog "$job" >/dev/null 2>&1; then
                 echo "### $job"
                 kubectl logs -n posthog "job/$job" --tail=160 || true
@@ -354,6 +354,9 @@ jobs:
               kubectl get pods -n posthog --no-headers 2>/dev/null | awk '
                 # A registry hiccup recovers by itself; only a pull still failing after 5 minutes is fatal.
                 $3 ~ /ImagePullBackOff|ErrImagePull/ && $5 ~ /^([0-9]+s|[0-4]m)/ { next }
+                # Node services exit until the migrate hook has created their tables (about
+                # 25 minutes on a fresh database), so only a long crash loop is fatal.
+                $3 == "CrashLoopBackOff" && $4 + 0 < 15 { next }
                 $3 ~ /CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|RunContainerError|PostStartHookError|OOMKilled/ { print }
               '
             )"
