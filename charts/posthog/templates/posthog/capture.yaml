@@ -62,7 +62,10 @@ spec:
               value: "events_plugin_ingestion"
             - name: CAPTURE_OUTPUT_ERROR_TRACKING_TOPIC
               value: "ingestion-errortracking-main"
+            - name: KAFKA_TOPIC
+              value: "events_plugin_ingestion"
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.captureV1Env" (dict "root" .) | nindent 12 }}
             {{- with .Values.capture.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -141,6 +144,9 @@ spec:
             - name: CAPTURE_MODE
               value: recordings
             - name: CAPTURE_OUTPUT_SESSION_REPLAY_MAIN_TOPIC
+              value: "session_recording_snapshot_item_events"
+            # Compat for capture images older than f9239c1 (see posthog.captureV1Env).
+            - name: KAFKA_TOPIC
               value: "session_recording_snapshot_item_events"
             {{- include "posthog.commonEnv" . | nindent 12 }}
             {{- with .Values.replayCapture.extraEnv }}
@@ -225,7 +231,10 @@ spec:
             # through extraEnv together with the broker and producer limits.
             - name: AI_MAX_EVENT_BYTES
               value: "900000"
+            - name: KAFKA_TOPIC
+              value: "events_plugin_ingestion_ai"
             {{- include "posthog.commonEnv" . | nindent 12 }}
+            {{- include "posthog.captureV1Env" (dict "root" . "mainTopic" "events_plugin_ingestion_ai") | nindent 12 }}
             {{- with .Values.captureAi.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

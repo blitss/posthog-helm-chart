@@ -256,6 +256,32 @@ Kafka bootstrap servers: externalKafka.brokers, else the bundled subchart.
 {{- end }}
 
 {{/*
+Compat for capture images older than f9239c1 (e.g. a pinned September build):
+they read KAFKA_TOPIC and need CAPTURE_V1_SINKS to serve /i/v1. Newer images
+ignore all of these. Remove once no supported pin predates f9239c1.
+*/}}
+{{- define "posthog.captureV1Env" -}}
+- name: CAPTURE_V1_SINKS
+  value: "msk"
+- name: CAPTURE_V1_SINK_MSK_KAFKA_HOSTS
+  value: {{ include "posthog.kafkaBrokers" .root | quote }}
+- name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_MAIN
+  value: {{ .mainTopic | default "events_plugin_ingestion" | quote }}
+- name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_HISTORICAL
+  value: "events_plugin_ingestion_historical"
+- name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_OVERFLOW
+  value: "events_plugin_ingestion_overflow"
+- name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_DLQ
+  value: "events_plugin_ingestion_dlq"
+- name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_EXCEPTION
+  value: "ingestion-errortracking-main"
+- name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_HEATMAP
+  value: "heatmaps_ingestion"
+- name: CAPTURE_V1_SINK_MSK_KAFKA_TOPIC_CLIENT_INGESTION_WARNING
+  value: "ingestion-clientwarnings-main-1"
+{{- end }}
+
+{{/*
 Database secret key - returns the key in the secret that contains the database URL
 */}}
 {{- define "posthog.databaseSecretKey" -}}
