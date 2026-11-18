@@ -101,9 +101,7 @@ spec:
             {{- toYaml .Values.featureFlags.resources | nindent 12 }}
           {{- if .Values.geoip.enabled }}
           volumeMounts:
-            - name: geoip-db
-              mountPath: /share
-              readOnly: true
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -119,8 +117,7 @@ spec:
             periodSeconds: 15
       {{- if .Values.geoip.enabled }}
       volumes:
-        - name: geoip-db
-          emptyDir: {}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
       {{- end }}
 {{- end }}
 
@@ -342,9 +339,7 @@ spec:
             {{- toYaml .Values.livestream.resources | nindent 12 }}
           {{- if .Values.geoip.enabled }}
           volumeMounts:
-            - name: geoip-db
-              mountPath: /share
-              readOnly: true
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -360,8 +355,7 @@ spec:
             periodSeconds: 15
       {{- if .Values.geoip.enabled }}
       volumes:
-        - name: geoip-db
-          emptyDir: {}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
       {{- end }}
 {{- end }}
 
@@ -486,9 +480,7 @@ spec:
             {{- toYaml .Values.cymbal.resources | nindent 12 }}
           {{- if .Values.geoip.enabled }}
           volumeMounts:
-            - name: geoip-db
-              mountPath: /share
-              readOnly: true
+            {{- include "posthog.geoipVolumeMount" (dict "root" .) | nindent 12 }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -504,8 +496,7 @@ spec:
             periodSeconds: 30
       {{- if .Values.geoip.enabled }}
       volumes:
-        - name: geoip-db
-          emptyDir: {}
+        {{- include "posthog.geoipVolume" (dict "root" .) | nindent 8 }}
       {{- end }}
 {{- end }}
 
