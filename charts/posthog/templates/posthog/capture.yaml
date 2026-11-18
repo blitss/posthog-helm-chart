@@ -56,6 +56,12 @@ spec:
               value: "0.0.0.0:3000"
             - name: CAPTURE_MODE
               value: events
+            # commonEnv sets the INGESTION producer's broker list
+            # (KAFKA_INGESTION_PRODUCER_METADATA_BROKER_LIST).
+            - name: CAPTURE_OUTPUT_ANALYTICS_MAIN_TOPIC
+              value: "events_plugin_ingestion"
+            - name: CAPTURE_OUTPUT_ERROR_TRACKING_TOPIC
+              value: "ingestion-errortracking-main"
             - name: KAFKA_TOPIC
               value: "events_plugin_ingestion"
             {{- include "posthog.commonEnv" . | nindent 12 }}
@@ -137,6 +143,9 @@ spec:
               value: "0.0.0.0:3000"
             - name: CAPTURE_MODE
               value: recordings
+            - name: CAPTURE_OUTPUT_SESSION_REPLAY_MAIN_TOPIC
+              value: "session_recording_snapshot_item_events"
+            # Compat for capture images older than f9239c1 (see posthog.captureV1Env).
             - name: KAFKA_TOPIC
               value: "session_recording_snapshot_item_events"
             {{- include "posthog.commonEnv" . | nindent 12 }}
@@ -215,6 +224,13 @@ spec:
               value: "0.0.0.0:3000"
             - name: CAPTURE_MODE
               value: ai
+            - name: CAPTURE_OUTPUT_ANALYTICS_MAIN_TOPIC
+              value: "events_plugin_ingestion_ai"
+            # Below the bundled Kafka's ~1 MB message limit, so an oversized AI
+            # event gets ai_event_too_big instead of a producer error. Raise it
+            # through extraEnv together with the broker and producer limits.
+            - name: AI_MAX_EVENT_BYTES
+              value: "900000"
             - name: KAFKA_TOPIC
               value: "events_plugin_ingestion_ai"
             {{- include "posthog.commonEnv" . | nindent 12 }}

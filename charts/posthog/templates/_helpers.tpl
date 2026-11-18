@@ -256,7 +256,9 @@ Kafka bootstrap servers: externalKafka.brokers, else the bundled subchart.
 {{- end }}
 
 {{/*
-Capture v1's named Kafka sink. Call with root and an optional mainTopic.
+Compat for capture images older than f9239c1 (e.g. a pinned September build):
+they read KAFKA_TOPIC and need CAPTURE_V1_SINKS to serve /i/v1. Newer images
+ignore all of these. Remove once no supported pin predates f9239c1.
 */}}
 {{- define "posthog.captureV1Env" -}}
 - name: CAPTURE_V1_SINKS
@@ -449,7 +451,7 @@ Renders all remaining custom env vars except the excluded names.
 Common environment variables shared across PostHog application services
 */}}
 {{- define "posthog.commonEnv" -}}
-{{- $overridableEnvNames := list "SECRET_KEY" "ENCRYPTION_SALT_KEYS" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" "FEATURE_FLAGS_SERVICE_URL" "CLICKHOUSE_LOGS_HOST" "CLICKHOUSE_LOGS_CLUSTER_HOST" "CLICKHOUSE_LOGS_CLUSTER_PORT" "CLICKHOUSE_LOGS_CLUSTER_SECURE" "CLICKHOUSE_LOGS_CLUSTER_USER" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD" "CDP_REDIS_HOST" "LOGS_REDIS_HOST" "TRACES_REDIS_HOST" "ERROR_TRACKING_CYMBAL_BASE_URL" -}}
+{{- $overridableEnvNames := list "SECRET_KEY" "ENCRYPTION_SALT_KEYS" "DATABASE_URL" "REDIS_URL" "SITE_URL" "IS_BEHIND_PROXY" "DISABLE_SECURE_SSL_REDIRECT" "OPT_OUT_CAPTURE" "OBJECT_STORAGE_PUBLIC_ENDPOINT" "PERSONS_DATABASE_URL" "INTERNAL_API_SECRET" "RECORDING_API_JWT_SECRET" "FEATURE_FLAGS_SERVICE_URL" "CLICKHOUSE_LOGS_HOST" "CLICKHOUSE_LOGS_CLUSTER_HOST" "CLICKHOUSE_LOGS_CLUSTER_PORT" "CLICKHOUSE_LOGS_CLUSTER_SECURE" "CLICKHOUSE_LOGS_CLUSTER_USER" "CLICKHOUSE_LOGS_CLUSTER_PASSWORD" "CDP_REDIS_HOST" "LOGS_REDIS_HOST" "TRACES_REDIS_HOST" "ERROR_TRACKING_CYMBAL_BASE_URL" -}}
 {{- if .Values.usageIngestion.enabled -}}
 {{- $overridableEnvNames = concat $overridableEnvNames (list "USAGE_INGESTION_ADDR" "USAGE_INGESTION_TLS" "USAGE_INGESTION_REPORT_TEAMS") -}}
 {{- end -}}
@@ -550,6 +552,13 @@ Common environment variables shared across PostHog application services
 - name: CLICKHOUSE_DICT_READER_USER
   value: "dict_reader"
 - name: CLICKHOUSE_DICT_READER_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: clickhouse-app-password
+- name: CLICKHOUSE_SIGNALS_USER
+  value: "signals"
+- name: CLICKHOUSE_SIGNALS_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
@@ -824,6 +833,15 @@ Common environment variables shared across PostHog application services
     secretKeyRef:
       name: {{ include "posthog.secretName" . }}
       key: internal-api-secret
+{{- end }}
+{{- if include "posthog.hasEnvOverride" (dict "root" . "name" "RECORDING_API_JWT_SECRET") }}
+{{ include "posthog.renderEnvOverride" (dict "root" . "name" "RECORDING_API_JWT_SECRET") }}
+{{- else }}
+- name: RECORDING_API_JWT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "posthog.secretName" . }}
+      key: recording-api-jwt-secret
 {{- end }}
 {{ include "posthog.valkeyEnv" . }}
 {{- if .Values.usageIngestion.enabled }}

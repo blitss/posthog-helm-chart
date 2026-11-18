@@ -62,13 +62,13 @@ posthog:
   ## workerBeat.image (then worker.image), workerExports.image,
   ## temporalDjangoWorker.image, migrate.image, asyncMigrationsCheck.image)
   ## fall back here field by field when left empty.
-  ## PostHog does not publish versioned Docker tags — they use continuous
-  ## deployment. "latest" tracks the main branch. Set pullPolicy: Always to pick
-  ## up new versions.
+  ## PostHog publishes one tag per master commit. Every default below is pinned
+  ## to the commit in Chart.yaml appVersion (or, for images PostHog builds only
+  ## when their sources change, the newest build at or before it), by digest.
   image:
     repository: posthog/posthog
-    tag: latest
-    pullPolicy: Always
+    tag: f9239c187fe37db3755b9abfebfbcf46e288b32b@sha256:51b5d173a563840a7f58defdb75827b4670c9c2cac7a109d94fcf8f8776eaee1
+    pullPolicy: IfNotPresent
   ## Django secret key (auto-generated if empty)
   secret: ''
   ## Encryption salt (auto-generated if empty)
@@ -78,6 +78,10 @@ posthog:
   ## PostHog application container so both sides share the same value.
   ## Auto-generated and preserved across upgrades if left empty.
   internalApiSecret: ''
+  ## Signs the tokens Django and the Temporal worker send to recording-api.
+  ## recording-api refuses to start without it. Auto-generated and preserved
+  ## across upgrades if left empty; with existingSecret, add recording-api-jwt-secret.
+  recordingApiJwtSecret: ''
   ## Set to "true" to disable anonymous telemetry
   optOutCapture: 'false'
   ## Additional upstream PostHog self-host environment variables injected into
@@ -183,7 +187,8 @@ posthog:
 ## When set, the chart will NOT create its own Secret and will instead
 ## reference this existing Kubernetes Secret for all secret values.
 ## The Secret must contain these keys:
-##   posthog-secret, encryption-salt-keys, internal-api-secret, database-url,
+##   posthog-secret, encryption-salt-keys, internal-api-secret,
+##   recording-api-jwt-secret, database-url,
 ##   redis-url, clickhouse-api-password, clickhouse-app-password,
 ##   object-storage-access-key, object-storage-secret-key,
 ##   seaweedfs-access-key, seaweedfs-secret-key, postgresql-password
@@ -205,7 +210,7 @@ browserless:
   enabled: true
   image:
     repository: ghcr.io/browserless/chromium
-    tag: v2.51.2
+    tag: v2.63.2
     pullPolicy: IfNotPresent
   replicas: 1
   ## Dedicated token, generated and preserved across upgrades when empty.
@@ -298,7 +303,7 @@ postgresql:
   enabled: true
   image:
     repository: postgres
-    tag: 15.18-alpine
+    tag: 15.20-alpine
   auth:
     username: posthog
     password: posthog
@@ -505,6 +510,7 @@ kafka:
   image:
     registry: docker.io
     repository: bitnamilegacy/kafka
+    tag: "3.9"
   listeners:
     client:
       protocol: PLAINTEXT
@@ -540,20 +546,31 @@ kafka:
       - name: ai_research_session_replay_image_fetch_retry_10m
       - name: ai_research_session_replay_image_fetch_retry_1h
       - name: ai_research_session_replay_image_fetch_retry_1m
+      - name: ai_research_v4_image_fetch
+      - name: ai_research_v4_image_fetch_retry_10m
+      - name: ai_research_v4_image_fetch_retry_1h
+      - name: ai_research_v4_image_fetch_retry_1m
       - name: cdp_backfill_events
       - name: cdp_data_warehouse_source_table
+      - name: cdp_events_dlq
       - name: cdp_function_overflow
+      - name: cdp_intake_dlq
+      - name: cdp_intake_transactional_email
+      - name: cdp_intake_workflow_webhook
       - name: cdp_internal_events
+      - name: cdp_ses_webhooks
       - name: clickhouse_ai_events_json
       - name: clickhouse_app_metrics
       - name: clickhouse_app_metrics2
       - name: clickhouse_behavioral_cohorts_matches
       - name: clickhouse_billing_usage_records
       - name: clickhouse_document_embeddings
+      - name: clickhouse_email_status
       - name: clickhouse_error_tracking_fingerprint_issue_state
       - name: clickhouse_error_tracking_issue_fingerprint
       - name: clickhouse_error_tracking_issue_fingerprint_embeddings
       - name: clickhouse_error_tracking_issue_fingerprint_overrides
+      - name: clickhouse_error_tracking_issue_tags
       - name: clickhouse_events_json
       - name: clickhouse_flag_evaluations
       - name: clickhouse_groups
@@ -610,10 +627,10 @@ kafka:
       - name: logs_ingestion_overflow
       - name: metrics_ingestion
       - name: metrics_ingestion_dlq
-      - name: metrics_ingestion_overflow
       - name: notification_events
       - name: person_merge_events
       - name: plugin_log_entries
+      - name: realtime_only_events_json
       - name: session_recording_events
       - name: session_recording_snapshot_item_dlq
       - name: session_recording_snapshot_item_events
@@ -643,7 +660,7 @@ zookeeper:
   enabled: true
   image:
     repository: zookeeper
-    tag: 3.9.5
+    tag: 3.9.7
   persistence:
     enabled: true
     size: 5Gi
@@ -676,7 +693,8 @@ rustfs:
   ## https://github.com/rustfs/helm
   image:
     rustfs:
-      tag: latest
+      ## The rustfs 0.12.0 subchart's appVersion.
+      tag: 1.0.0-beta.12
     initImage:
       repository: busybox
       tag: "1.38"
@@ -777,7 +795,7 @@ temporal:
   server:
     image:
       repository: temporalio/auto-setup
-      tag: 1.20.0
+      tag: 1.29.7
     resources:
       requests:
         cpu: 250m
@@ -788,7 +806,7 @@ temporal:
     enabled: true
     image:
       repository: temporalio/ui
-      tag: 2.31.2
+      tag: 2.58.1
     resources:
       requests:
         cpu: 50m
@@ -820,7 +838,7 @@ geoip:
   ## Filename served over HTTP and written into consumer pods
   filename: GeoLite2-City.mmdb
   ## Image used for the download init container
-  image: alpine:3.23
+  image: alpine:3.24
   ## Mount an existing PVC instead of downloading.
   ## The PVC must contain the MMDB file at its root.
   # existingPvc: geoip-db
@@ -874,8 +892,8 @@ mcp:
   enabled: false
   image:
     repository: ghcr.io/posthog/posthog-mcp
-    tag: latest
-    pullPolicy: Always
+    tag: f9239c187fe37db3755b9abfebfbcf46e288b32b@sha256:dd9e03f96bc8bbaae8c538c0bfc9d9a93a2097456f97619c8eb951a8d4b5468b
+    pullPolicy: IfNotPresent
   replicas: 1
   ## Node's automatic container heap cap is too small for the MCP tool catalog.
   nodeOptions: '--max-old-space-size=768'
@@ -1007,11 +1025,10 @@ plugins:
   image:
     ## docker.io/posthog/posthog-node:latest is frozen (PostHog stopped
     ## publishing it ~2026-03-31) and lacks the cdp-hogflow-scheduler mode +
-    ## current HogFlow consumers. Track ghcr master like the other posthog
-    ## components in this chart.
+    ## current HogFlow consumers. Pinned to the appVersion build on ghcr.
     repository: ghcr.io/posthog/posthog-node
-    tag: master
-    pullPolicy: Always
+    tag: f9239c187fe37db3755b9abfebfbcf46e288b32b@sha256:bc58fbb4fcc1951c1ac3514e89fb216770957c0904f630fc7a4549bc12f422c1
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1113,8 +1130,8 @@ capture:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/capture
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:da997845e600ad0f8f0c9437e47284fbab915ac23e2689b53ed81ef4f2fe67d5
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1142,8 +1159,8 @@ replayCapture:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/capture
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:da997845e600ad0f8f0c9437e47284fbab915ac23e2689b53ed81ef4f2fe67d5
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1171,8 +1188,8 @@ captureAi:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/capture
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:da997845e600ad0f8f0c9437e47284fbab915ac23e2689b53ed81ef4f2fe67d5
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1191,8 +1208,8 @@ captureLogs:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/capture-logs
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:2fa52d9d6ddde5e723a30b9af3b1b50ffd093bae396a54c9d26a997740a7b199
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1211,8 +1228,8 @@ featureFlags:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/feature-flags
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:f8d1b540fc7c2e8aa9d24e5d619c07a7187d715363fd11ffeb64d552f7f52df3
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1240,8 +1257,8 @@ hypercacheServer:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/hypercache-server
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:57320a9a91c92eda423c3413cbab3d934927db7f1a3d53a8c8974b01b91fc83d
+    pullPolicy: IfNotPresent
   replicas: 1
   port: 3002
   rustLog: info
@@ -1271,8 +1288,8 @@ propertyDefsRs:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/property-defs-rs
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:52fadc10e79f9b13a2aa04751ace61bd04072ace99e94fea77d32ddf226afdd0
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1293,8 +1310,8 @@ usageIngestion:
   enabled: false
   image:
     repository: ghcr.io/posthog/posthog/usage-ingestion
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:590bd0ab56301ecc94db8cda5970262885cc4470517ce4e5ac89e750d07b57b9
+    pullPolicy: IfNotPresent
   replicas: 1
   grpcPort: 7143
   metricsPort: 7144
@@ -1321,8 +1338,8 @@ livestream:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/livestream
-    tag: master
-    pullPolicy: Always
+    tag: 5f3ddee5e99fb1ea258e617bf461e01ec28fb813@sha256:9be2f074b41eb7b2e403ed1681677663ebb54503b2c410a5f0f4c69ffb81d35d
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1341,8 +1358,8 @@ cymbal:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/cymbal
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:a557def255e9b736542ddaa6b9b03f36a6d3dda03e83cc3e02085733826c39b9
+    pullPolicy: IfNotPresent
   replicas: 1
   resources:
     requests:
@@ -1417,8 +1434,8 @@ personhogReplica:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/personhog-replica
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:ce5c7429c73608a9d8538fbba7c4500ea50d30e7e9d77943ae6f93b9b59532a2
+    pullPolicy: IfNotPresent
   replicas: 1
   ## gRPC and Prometheus metrics ports.
   grpcPort: 50051
@@ -1455,8 +1472,8 @@ personhogRouter:
   enabled: true
   image:
     repository: ghcr.io/posthog/posthog/personhog-router
-    tag: master
-    pullPolicy: Always
+    tag: sha-f9239c1@sha256:f2a8d850f0a045889671eec297e0aa0df3657ecfa5fe89cb33cf4a8ad1f8b87d
+    pullPolicy: IfNotPresent
   replicas: 1
   grpcPort: 50052
   metricsPort: 9101
@@ -1534,6 +1551,8 @@ cyclotronMigrate:
   enabled: false
   image:
     repository: ghcr.io/blitss/posthog-cyclotron-migrate
+    ## This repository's own image. Its build for the current appVersion is
+    ## published from main after the smoke test; pin a sha-<commit> tag in production.
     tag: latest
     pullPolicy: Always
   resources: {}
@@ -1544,26 +1563,37 @@ kafkaInit:
   enabled: true
   image:
     repository: bitnamilegacy/kafka
-    tag: "3.7"
+    tag: "3.9"
     pullPolicy: IfNotPresent
   topics:
     - ai_research_session_replay_image_fetch_retry_10m
     - ai_research_session_replay_image_fetch_retry_1h
     - ai_research_session_replay_image_fetch_retry_1m
+    - ai_research_v4_image_fetch
+    - ai_research_v4_image_fetch_retry_10m
+    - ai_research_v4_image_fetch_retry_1h
+    - ai_research_v4_image_fetch_retry_1m
     - cdp_backfill_events
     - cdp_data_warehouse_source_table
+    - cdp_events_dlq
     - cdp_function_overflow
+    - cdp_intake_dlq
+    - cdp_intake_transactional_email
+    - cdp_intake_workflow_webhook
     - cdp_internal_events
+    - cdp_ses_webhooks
     - clickhouse_ai_events_json
     - clickhouse_app_metrics
     - clickhouse_app_metrics2
     - clickhouse_behavioral_cohorts_matches
     - clickhouse_billing_usage_records
     - clickhouse_document_embeddings
+    - clickhouse_email_status
     - clickhouse_error_tracking_fingerprint_issue_state
     - clickhouse_error_tracking_issue_fingerprint
     - clickhouse_error_tracking_issue_fingerprint_embeddings
     - clickhouse_error_tracking_issue_fingerprint_overrides
+    - clickhouse_error_tracking_issue_tags
     - clickhouse_events_json
     - clickhouse_flag_evaluations
     - clickhouse_groups
@@ -1620,10 +1650,10 @@ kafkaInit:
     - logs_ingestion_overflow
     - metrics_ingestion
     - metrics_ingestion_dlq
-    - metrics_ingestion_overflow
     - notification_events
     - person_merge_events
     - plugin_log_entries
+    - realtime_only_events_json
     - session_recording_events
     - session_recording_snapshot_item_dlq
     - session_recording_snapshot_item_events
