@@ -50,7 +50,7 @@ global:
 ## Small shell image for init/wait containers (wait-for-redis, GeoIP download,
 ## db-check, Elasticsearch sysctl, cymbal resolution wait, GeoIP server).
 ## Needs busybox applets (sh, nc, wget, httpd, sysctl). Override to use a mirror.
-utilityImage: busybox:1.37@sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
+utilityImage: busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
 ## ------------------------------------------------------------------
 ## ServiceAccount
 ## ------------------------------------------------------------------
