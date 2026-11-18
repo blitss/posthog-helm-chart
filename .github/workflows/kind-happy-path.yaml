@@ -41,6 +41,7 @@ jobs:
       runtime: ${{ steps.changes.outputs.runtime }}
       publish-images: ${{ steps.changes.outputs.publish-images }}
       publish-chart: ${{ steps.changes.outputs.publish-chart }}
+      profiles: ${{ steps.changes.outputs.profiles }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -73,11 +74,11 @@ jobs:
           set -euo pipefail
           if [[ -n "$EXPECTED_HEAD" ]]; then test "$EXPECTED_HEAD" = "$GITHUB_SHA"; fi
           if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
-            printf 'runtime=true\npublish-images=true\npublish-chart=true\n' >> "$GITHUB_OUTPUT"
+            printf 'runtime=true\npublish-images=true\npublish-chart=true\nprofiles=["hub-production","candidate"]\n' >> "$GITHUB_OUTPUT"
           else
             git diff --name-only "$BASE" "$GITHUB_SHA" > /tmp/changed-paths
             python3 - <<'PY'
-          import os, pathlib, re, subprocess
+          import json, os, pathlib, re, subprocess
           paths = pathlib.Path("/tmp/changed-paths").read_text().splitlines()
           prefixes = (".github/workflows/", "charts/", "images/", "vendor/", "manifests/", "scripts/", "kind-config")
           files = {".github/renovate.json5", ".dockerignore", "mise.toml", "requirements-ops.txt"}
@@ -100,6 +101,10 @@ jobs:
               output.write(f"runtime={str(runtime).lower()}\n")
               output.write(f"publish-images={str(publish_images).lower()}\n")
               output.write(f"publish-chart={str(publish_chart).lower()}\n")
+              # The declared blitss digests predate a commit that rebuilds those images, so
+              # that lane cannot be a consistent set; the follow-up digest-pin PR runs it.
+              profiles = ["hub-production", "candidate"] if publish_images else ["declared", "hub-production", "candidate"]
+              output.write(f"profiles={json.dumps(profiles)}\n")
           PY
           fi
 
@@ -114,7 +119,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        images: [declared, hub-production, candidate]
+        images: ${{ fromJSON(needs.plan.outputs.profiles) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
 
@@ -347,12 +352,18 @@ jobs:
 
             fatal_pods="$(
               kubectl get pods -n posthog --no-headers 2>/dev/null | awk '
+                # A registry hiccup recovers by itself; only a pull still failing after 5 minutes is fatal.
+                $3 ~ /ImagePullBackOff|ErrImagePull/ && $5 ~ /^([0-9]+s|[0-4]m)/ { next }
                 $3 ~ /CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|RunContainerError|PostStartHookError|OOMKilled/ { print }
               '
             )"
             if [[ -n "${fatal_pods}" ]]; then
               echo "fatal pod states:" >&2
               echo "${fatal_pods}" >&2
+              while read -r pod _; do
+                echo "### previous logs: ${pod}" >&2
+                kubectl logs -n posthog "${pod}" --all-containers --previous --tail=60 >&2 || true
+              done <<< "${fatal_pods}"
               return 1
             fi
 

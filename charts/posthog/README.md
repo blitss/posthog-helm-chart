@@ -366,7 +366,7 @@ This release targets the PostHog build of 2026-11-17 (`f9239c1`). Databases crea
 - Fail-fast validation: a disabled bundled store without its external endpoint now fails at render time with one of the five `templates/validate.yaml` messages in [Render-time errors](#render-time-errors). Before, such configurations rendered and pointed at Services that did not exist.
 - HPAs, PDBs and ServiceMonitors render only for enabled workloads. Objects that targeted a disabled Deployment (for example the `worker-exports` HPA and PDB with `workerExports.enabled=false`) are removed on upgrade.
 - New `utilityImage` value: the busybox image for init, wait and helper containers. The default is the same pinned image as before; set it to use a mirror.
-- `create-buckets` is a post-install/post-upgrade hook (weight 1) that uses curl instead of `minio/mc`. The cymbal bucket init containers use the same curl image (`rustfs.image.clientImage`).
+- `create-buckets` is a post-install/post-upgrade hook that runs after the migration hooks (weight 20) that uses curl instead of `minio/mc`. The cymbal bucket init containers use the same curl image (`rustfs.image.clientImage`).
 - Removed values keys. No template read them, so setting them had no effect before either; delete them from your values: `bootstrapClickhouse`, `temporal.adminTools`, `externalClickhouse.createDatabase`, `objectStorage.containerSecurityContext`, `objectStorage.nodeSelector`, `objectStorage.tolerations`, `objectStorage.affinity`, `objectStorage.podAnnotations`.
 - `NOTES.txt` now shows every routing mode, the effective `SITE_URL`, the hook commands and the port-forward command.
 
