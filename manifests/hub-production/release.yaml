@@ -59,7 +59,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+        tag: latest@sha256:2dd834e9e28212e453470485bff675d2ec6514151d4e0684b8a9a4e7bb1267f4
     browserless:
       enabled: true
       image:
@@ -68,15 +68,15 @@ spec:
     capture:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: sha-f9239c1@sha256:da997845e600ad0f8f0c9437e47284fbab915ac23e2689b53ed81ef4f2fe67d5
     captureAi:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: sha-f9239c1@sha256:da997845e600ad0f8f0c9437e47284fbab915ac23e2689b53ed81ef4f2fe67d5
     captureLogs:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture-logs
-        tag: master@sha256:e8ebc718503c27230403601b1036a7db106d347eccf0ee2714b4c0e245e033fa
+        tag: sha-f9239c1@sha256:2fa52d9d6ddde5e723a30b9af3b1b50ffd093bae396a54c9d26a997740a7b199
       extraEnv:
         - name: CLICKHOUSE_LOGS_DATABASE
           value: posthog
@@ -92,11 +92,11 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-cyclotron-migrate
-        tag: latest@sha256:ac726ab397f131d530cd22c8d8addc5854e6942f780d6479f89ea9c3797193c5
+        tag: latest@sha256:1fae4a17f3b5f310725a4d549e629a040e48b1b61f5a6b3a60cb63eff6209a63
     cymbal:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/cymbal
-        tag: master@sha256:939d140ae9632eabce36286edacab9aa38bba34ce9e8818856b876f08e3671a9
+        tag: sha-f9239c1@sha256:a557def255e9b736542ddaa6b9b03f36a6d3dda03e83cc3e02085733826c39b9
     cymbalResolution:
       enabled: true
     elasticsearch:
@@ -139,7 +139,7 @@ spec:
     featureFlags:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/feature-flags
-        tag: master@sha256:65030502939f230ff7ba820e6a145a8598019c846383fb10fd9ec2ecba5c9048
+        tag: sha-f9239c1@sha256:f8d1b540fc7c2e8aa9d24e5d619c07a7187d715363fd11ffeb64d552f7f52df3
     geoip:
       brotli: false
       downloadUrl: https://r2.streamloop.app/GeoIP2-City.mmdb
@@ -151,7 +151,7 @@ spec:
     hypercacheServer:
       image:
         repository: ghcr.io/posthog/posthog/hypercache-server
-        tag: master@sha256:2acd76fc8219a9156f6036251cdeb63746cca0cf20fbe62c4563e8654e25f889
+        tag: sha-f9239c1@sha256:57320a9a91c92eda423c3413cbab3d934927db7f1a3d53a8c8974b01b91fc83d
     ingress:
       enabled: true
       gateway:
@@ -172,18 +172,18 @@ spec:
       enabled: true
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/livestream
-        tag: master@sha256:6926f340b72d609e43cee5aa8b75a85cfdc77d182e610dafafdd81d3b2ab53f5
+        tag: 5f3ddee5e99fb1ea258e617bf461e01ec28fb813@sha256:9be2f074b41eb7b2e403ed1681677663ebb54503b2c410a5f0f4c69ffb81d35d
     mcp:
       enabled: true
       image:
         pullPolicy: Always
         repository: registry.streamloop.app/ghcr.io/posthog/posthog-mcp
-        tag: latest@sha256:a51e79eaf77ed02afd4c883da612a31191c6b2b31c45378cf28110659b4c03e4
+        tag: f9239c187fe37db3755b9abfebfbcf46e288b32b@sha256:dd9e03f96bc8bbaae8c538c0bfc9d9a93a2097456f97619c8eb951a8d4b5468b
     migrate:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-migrate
-        tag: latest@sha256:0b6748c87594c061b20c7e2e263a746d4e0c25aa8b233fd695eeb0a378f94732
+        tag: latest@sha256:2dd834e9e28212e453470485bff675d2ec6514151d4e0684b8a9a4e7bb1267f4
       persons:
         enabled: true
         skipPartitioning: true
@@ -204,34 +204,38 @@ spec:
       enabled: true
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/personhog-replica
-        tag: master@sha256:9fb5f8238df3b5c5d11d2f3ed1f4bc3d13f0ec3b9453737b6df661aa786ecbf3
+        tag: sha-f9239c1@sha256:ce5c7429c73608a9d8538fbba7c4500ea50d30e7e9d77943ae6f93b9b59532a2
     personhogRouter:
       enabled: true
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/personhog-router
-        tag: master@sha256:da51c627e026f75b1da1eac9befaf618890070038c33bcfc971ba0e8113f7168
+        tag: sha-f9239c1@sha256:f2a8d850f0a045889671eec297e0aa0df3657ecfa5fe89cb33cf4a8ad1f8b87d
     plugins:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog-node
-        tag: master@sha256:a2e93efadd13b8e0b551ea6e23364ebae3caf6888109debb239caa1945a49e16
+        tag: f9239c187fe37db3755b9abfebfbcf46e288b32b@sha256:bc58fbb4fcc1951c1ac3514e89fb216770957c0904f630fc7a4549bc12f422c1
     postgresql:
       enabled: false
     posthog:
       env:
+        CLICKHOUSE_SIGNALS_USER: signals
         MULTI_ORG_ENABLED: "1"
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-web
-        tag: latest@sha256:934b3aa684231a6c3be8b5801626d160e5159197691702b88cfc3414dd124b41
+        tag: latest@sha256:49fc5d7eca718a6b035ab988e60beecbe697d5cedd2ab4831e346aaaee415e1b
       optOutCapture: true
       secretEnv:
+        CLICKHOUSE_SIGNALS_PASSWORD:
+          key: password
+          name: posthog-clickhouse-password
         OIDC_RSA_PRIVATE_KEY:
           key: tls.key
           name: posthog-oidc-generated
     propertyDefsRs:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/property-defs-rs
-        tag: master@sha256:66ccc059c4b7464ac19bf4ea6a4a0db9712c423779529baeb5e64afea4909f10
+        tag: sha-f9239c1@sha256:52fadc10e79f9b13a2aa04751ace61bd04072ace99e94fea77d32ddf226afdd0
     redis:
       enabled: true
       image:
@@ -240,7 +244,7 @@ spec:
     replayCapture:
       image:
         repository: registry.streamloop.app/ghcr.io/posthog/posthog/capture
-        tag: master@sha256:e2e26097e9173552595bb38c6550081dc0ce6244a2585795ec0aa2b3431a61f4
+        tag: sha-f9239c1@sha256:da997845e600ad0f8f0c9437e47284fbab915ac23e2689b53ed81ef4f2fe67d5
     rustfs:
       enabled: false
     seaweedfs:
@@ -263,7 +267,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+        tag: latest@sha256:098910876836f256b3e096bb4f96f6970b7642f94741bd1541b768861451cbac
       resources:
         limits:
           memory: 6Gi
@@ -280,7 +284,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-web
-        tag: latest@sha256:934b3aa684231a6c3be8b5801626d160e5159197691702b88cfc3414dd124b41
+        tag: latest@sha256:49fc5d7eca718a6b035ab988e60beecbe697d5cedd2ab4831e346aaaee415e1b
       replicas: 1
       resources:
         limits:
@@ -295,7 +299,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+        tag: latest@sha256:098910876836f256b3e096bb4f96f6970b7642f94741bd1541b768861451cbac
       resources:
         limits:
           memory: 8Gi
@@ -307,7 +311,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker
-        tag: latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316
+        tag: latest@sha256:098910876836f256b3e096bb4f96f6970b7642f94741bd1541b768861451cbac
       replicas: 1
       resources:
         limits:
@@ -320,7 +324,7 @@ spec:
       image:
         pullPolicy: IfNotPresent
         repository: registry.streamloop.app/ghcr.io/blitss/posthog-worker-exports
-        tag: latest@sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00
+        tag: latest@sha256:59298db30cf9a629ba2f0b45cd450f2619caa922d3b74054b0eb1e093c6e4a4b
     zookeeper:
       enabled: false
   valuesFrom:

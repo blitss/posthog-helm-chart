@@ -162,7 +162,11 @@ spec:
       default/distributed_product_mode: global
       default/enable_materialized_cte: "1"
       default/enable_parallel_replicas: "0"
+      # The native events_json table relies on these for every write.
+      default/input_format_try_infer_dates: "0"
+      default/input_format_try_infer_datetimes: "0"
       default/insert_distributed_sync: "1"
+      default/json_type_escape_dots_in_keys: "1"
       default/load_balancing: random
       default/max_memory_usage: "10000000000"
       default/max_parallel_replicas: "1"
@@ -172,7 +176,10 @@ spec:
       default/query_profiler_cpu_time_period_ns: "0"
       default/query_profiler_real_time_period_ns: "0"
       default/throw_on_max_partitions_per_insert_block: "false"
+      default/type_json_skip_duplicated_paths: "1"
       readonly/readonly: "1"
+      signals/profile: default
+      signals/readonly: "2"
     quotas:
       default/interval/duration: "3600"
       default/interval/errors: "0"
@@ -250,6 +257,15 @@ spec:
             name: posthog-clickhouse-password
       dict_reader/profile: readonly
       dict_reader/quota: default
+      signals/default_database: posthog
+      signals/networks/ip: ::/0
+      signals/password:
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: posthog-clickhouse-password
+      signals/profile: signals
+      signals/quota: default
     zookeeper:
       nodes:
         - host: chk-posthog-keeper-keeper-0-0
@@ -271,7 +287,7 @@ spec:
                     secretKeyRef:
                       key: password
                       name: posthog-clickhouse-password
-              image: registry.streamloop.app/ghcr.io/blitss/posthog-clickhouse:26.6.2.158@sha256:be4787940c45b37a220bd67a067fc4a524e3a06da47c21bba083185605aaa8ba
+              image: registry.streamloop.app/ghcr.io/blitss/posthog-clickhouse:26.6.2.158@sha256:81cc7d149d6df01b1473ce510ad6a80d46aac25f414e735619168b647c2a27db
               imagePullPolicy: Always
               name: clickhouse
               resources:

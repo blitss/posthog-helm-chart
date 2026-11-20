@@ -85,7 +85,7 @@ def main():
         print("backup: private pg_dumpall + frozen ClickHouse archive, bounded transfer and remote/local SHA-256 verification")
         print("infrastructure: after verified backup, upgrade ClickHouse binary with live config, then apply target stateful specs")
         print("logs (legacy default database only): snapshot -> reconcile -> consumers; then migrate -> drain -> verify -> finalize")
-        print("migrate: real Node SQLx, legacy model moves, Django/product/persons, ClickHouse and async migrations")
+        print("migrate: real Node SQLx, Django/product/persons, ClickHouse and async migrations")
         print("rollout: release held workloads and resume Flux; verify: readiness + HTTPS capture -> ClickHouse UUID")
         print("No commands executed. --apply authorizes only the named stage. No rollback or automatic failed-stage replay.")
         return
@@ -214,7 +214,7 @@ def main():
         chart = yaml.safe_load((Path(state["chart"]) / "Chart.yaml").read_text())
         require(chart.get("name") == RELEASE and str(chart.get("version")) == version,
                 "Pulled chart name/version differs from the recorded profile")
-        require(chart.get("appVersion") == "8471862b083b25d3a11b97eb7730f21aa0cb4c7f",
+        require(chart.get("appVersion") == "f9239c187fe37db3755b9abfebfbcf46e288b32b",
                 "Unsupported application revision")
         state["chart_source"] = reference
         state["dependencies"] = [d for d in docs if d["kind"] not in {"Namespace", "HelmRelease"}]

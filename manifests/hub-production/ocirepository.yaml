@@ -3,10 +3,10 @@ kind: OCIRepository
 spec:
   interval: 30m
   ref:
-    digest: sha256:d65943cdce3d349375dab1f485ac1f563bc1ed108f33f4ffe63301f926bdd434
+    digest: sha256:41166471c0a73138ac1c5955742132555602a24f4341b514665b20cc995cc281
   url: oci://registry.streamloop.app/ghcr.io/blitss/charts/posthog
 metadata:
   name: posthog-chart
   namespace: posthog
   annotations:
-    posthog.streamloop.app/chart-version: 0.22.4
+    posthog.streamloop.app/chart-version: 0.24.0

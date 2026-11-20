@@ -1,20 +1,44 @@
 [
   {
+    "role": "web",
+    "reference": "ghcr.io/blitss/posthog-web:latest@sha256:49fc5d7eca718a6b035ab988e60beecbe697d5cedd2ab4831e346aaaee415e1b",
+    "revision": "7a4225601ed52283c83eac4edf47ded885d9723c",
+    "source": "https://github.com/blitss/posthog-helm-chart",
+    "releaseRun": 44321084563
+  },
+  {
     "role": "worker",
-    "reference": "ghcr.io/blitss/posthog-worker:latest@sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316",
-    "platform": "single",
-    "created": "2026-09-15T10:09:54.091735082Z",
-    "user": "posthog",
-    "revision": "32253c7e9d511fb214ef2f8da83b29de7dde6f30",
-    "source": "https://github.com/blitss/posthog-helm-chart"
+    "reference": "ghcr.io/blitss/posthog-worker:latest@sha256:098910876836f256b3e096bb4f96f6970b7642f94741bd1541b768861451cbac",
+    "revision": "7a4225601ed52283c83eac4edf47ded885d9723c",
+    "source": "https://github.com/blitss/posthog-helm-chart",
+    "releaseRun": 44321084563
   },
   {
     "role": "workerExports",
-    "reference": "ghcr.io/blitss/posthog-worker-exports:latest@sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00",
-    "platform": "single",
-    "created": "2026-09-15T12:12:40.404122911Z",
-    "user": "posthog",
-    "revision": "32253c7e9d511fb214ef2f8da83b29de7dde6f30",
-    "source": "https://github.com/blitss/posthog-helm-chart"
+    "reference": "ghcr.io/blitss/posthog-worker-exports:latest@sha256:59298db30cf9a629ba2f0b45cd450f2619caa922d3b74054b0eb1e093c6e4a4b",
+    "revision": "7a4225601ed52283c83eac4edf47ded885d9723c",
+    "source": "https://github.com/blitss/posthog-helm-chart",
+    "releaseRun": 44321084563
+  },
+  {
+    "role": "migrate",
+    "reference": "ghcr.io/blitss/posthog-migrate:latest@sha256:2dd834e9e28212e453470485bff675d2ec6514151d4e0684b8a9a4e7bb1267f4",
+    "revision": "7a4225601ed52283c83eac4edf47ded885d9723c",
+    "source": "https://github.com/blitss/posthog-helm-chart",
+    "releaseRun": 44321084563
+  },
+  {
+    "role": "cyclotronMigrate",
+    "reference": "ghcr.io/blitss/posthog-cyclotron-migrate:latest@sha256:1fae4a17f3b5f310725a4d549e629a040e48b1b61f5a6b3a60cb63eff6209a63",
+    "revision": "7a4225601ed52283c83eac4edf47ded885d9723c",
+    "source": "https://github.com/blitss/posthog-helm-chart",
+    "releaseRun": 44321084563
+  },
+  {
+    "role": "clickhouse",
+    "reference": "ghcr.io/blitss/posthog-clickhouse:26.6.2.158@sha256:81cc7d149d6df01b1473ce510ad6a80d46aac25f414e735619168b647c2a27db",
+    "revision": "7a4225601ed52283c83eac4edf47ded885d9723c",
+    "source": "https://github.com/blitss/posthog-helm-chart",
+    "releaseRun": 44321084563
   }
 ]

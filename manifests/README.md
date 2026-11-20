@@ -6,8 +6,8 @@ There are two independent profiles. **Use `manifests/hub-production` to reproduc
 
 The YAML profile records the working PostHog release and namespace configuration without credentials, status, controller bookkeeping or cluster-wide operator installations. Explicit digest pins strengthen the observed configuration without changing the selected application code.
 
-- PostHog chart 0.22.4, OCI digest `sha256:d65943cdce3d349375dab1f485ac1f563bc1ed108f33f4ffe63301f926bdd434`, app source `8471862b083b25d3a11b97eb7730f21aa0cb4c7f`; images use individual observed digests, not an assumption that every component runs that source commit.
-- Web, workers, exports and migration roles use verified `blitss` split images. Worker/beat/Temporal use `registry.streamloop.app/ghcr.io/blitss/posthog-worker` with digest `sha256:e4431263fde4f10e935b2da9f10bd293aa4ac06ce564de21c5c8033e91af8316`; exports uses `posthog-worker-exports` with digest `sha256:a35615349e3aa0f38050dbc06e2ccf4a70bd65d1e929e61ec5b5c6f0952b1e00`. The earlier `docker.io/posthog/posthog` locators were incorrect and depended on node caches. Their repository names were corrected with approval, without changing image digests or application code. [`image-provenance.json`](hub-production/image-provenance.json) records the verified GHCR origins and build revision `32253c7e9d511fb214ef2f8da83b29de7dde6f30`.
+- PostHog chart 0.24.0, OCI digest `sha256:41166471c0a73138ac1c5955742132555602a24f4341b514665b20cc995cc281`, app source `f9239c187fe37db3755b9abfebfbcf46e288b32b`. Upstream images use the chart's default `tag@digest` pins through the `registry.streamloop.app` mirror.
+- Web, workers, exports and migration roles use the `blitss` split images that release run 44321084563 tested and published from `7a4225601ed52283c83eac4edf47ded885d9723c`. [`image-provenance.json`](hub-production/image-provenance.json) records their digests. The profile targets this release; it is the observed runtime only after the guarded runner's `verify` stage passes.
 - Web requests 500m/2Gi and limits 8Gi; worker requests 500m/1Gi and limits 8Gi, with `CELERY_WORKER_CONCURRENCY=2`; beat requests 100m/512Mi and limits 6Gi; Temporal Django worker requests 500m/1Gi and limits 6Gi. Other chart settings inherit the pinned chart, not the generic profile's reduced resources.
 - One CNPG PostgreSQL 16 instance, 20Gi; no explicit CPU/memory reservation in the observed CR. PostHog and persons both connect to database `posthog`. Bootstrap also creates `cyclotron`, `cyclotron_node`, `posthog_persons`, `behavioral_cohorts`, `ducklake`, `temporal`, and `temporal_visibility`; the existence of `posthog_persons` does not mean production uses it.
 - One ClickHouse shard/replica (custom 26.6.2.158 image), requests 1 CPU/4Gi, limits 2 CPU/8Gi, 50Gi; one Keeper 25.3.6.10034.altinitystable, 5Gi. This is not HA. Runtime SQL schema and named collections require the deployment runner as well as manifests.
@@ -96,7 +96,7 @@ This is the procedure for this one deployment, moved here from the chart README.
 The committed runner [`scripts/deploy-hub-production.py`](../scripts/deploy-hub-production.py)
 consumes [`manifests/hub-production`](hub-production). It supports
 only the dedicated `posthog` namespace/release, one CNPG primary, single-node
-Atomic ClickHouse, Redpanda, and the reviewed `8471862` migration image. Other
+Atomic ClickHouse, Redpanda, and the reviewed `f9239c1` migration image. Other
 topologies must not use the logs repair.
 
 Prerequisites: Python 3.11+ with PyYAML, Helm 3, kubectl, explicit cluster access,
@@ -183,8 +183,8 @@ Required database names come from the configured main/persons/Node URLs; an
 unused separate `posthog_persons` database is not required.
 
 `migrate` refuses unreconciled legacy logs, verifies required system log tables
-and runs actual chart hook Jobs in weight order, including Node SQLx, original
-legacy model moves, Django/product, persons, ClickHouse/schema sync and async
+and runs actual chart hook Jobs in weight order, including Node SQLx,
+Django/product, persons, ClickHouse/schema sync and async
 migrations. Guarded Jobs use `restartPolicy: Never` and zero retries. The Node
 database must already exist; its SQLx migration is not replaced with a fake or
 an ignored database-create error. Only then can `rollout` release workloads and
