@@ -1,0 +1,12 @@
+{
+  "name": "posthog-cloudflare-email",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "postal-mime": "4.2.1"
+  }
+}

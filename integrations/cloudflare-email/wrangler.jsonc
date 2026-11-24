@@ -1,0 +1,9 @@
+{
+  "name": "posthog-email",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "send_email": [{ "name": "EMAIL" }],
+  "vars": { "POSTHOG_URL": "https://posthog.streamloop.app" },
+  // Secrets: wrangler secret put MAILGUN_SIGNING_KEY / MAILGUN_API_KEY
+  "observability": { "enabled": true }
+}

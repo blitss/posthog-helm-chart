@@ -51,6 +51,9 @@ COPY --from=upstream --chown=posthog:posthog /code/ee /code/ee
 COPY --from=upstream --chown=posthog:posthog /code/common/hogvm /code/common/hogvm
 COPY --from=upstream --chown=posthog:posthog /code/common/migration_utils /code/common/migration_utils
 COPY --from=upstream --chown=posthog:posthog /code/products /code/products
+# Conversations email: let MAILGUN_API_BASE point at a Mailgun-compatible API (integrations/cloudflare-email).
+RUN sed -i 's|^MAILGUN_API_BASE = "https://api.mailgun.net/v3"$|MAILGUN_API_BASE = __import__("os").environ.get("MAILGUN_API_BASE", "https://api.mailgun.net/v3")|' /code/products/conversations/backend/mailgun.py && \
+    grep -q 'environ.get("MAILGUN_API_BASE"' /code/products/conversations/backend/mailgun.py
 COPY --from=upstream --chown=posthog:posthog /code/frontend/src/products.json /code/frontend/src/products.json
 COPY --from=upstream --chown=posthog:posthog /code/services/mcp/schema /code/services/mcp/schema
 COPY --from=upstream --chown=posthog:posthog /code/share/GeoLite2-City.mmdb /code/share/GeoLite2-City.mmdb
